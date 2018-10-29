@@ -1,6 +1,5 @@
-from conv_funcs import (myread, interpolate, ima_interpolate, dist,
-                        log_posterior, traceplot, triangle, fit_best, plot_best,
-                        pp_best, abel_best, test_abel_integ)
+from preprofit_funcs import (myread, interpolate, ima_interpolate, dist, log_posterior, traceplot, triangle, fit_best, plot_best, 
+                             pp_best, abel_best, test_abel_integ)
 import numpy as np
 import mbproj2 as mb
 from astropy.io import fits
@@ -120,8 +119,7 @@ flux_data = [r_sec, y_data, err]
 # Bayesian fit
 starting_guess = start_val
 starting_var = np.array(np.repeat(.1, ndim))
-starting_guesses = np.random.random(
-        (nwalkers, ndim)) * starting_var + starting_guess
+starting_guesses = np.random.random((nwalkers, ndim)) * starting_var + starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior, args = [
     mystep, fit_par, par, par_val, kpc_per_arcsec, phys_const, radius, pix_comp,
     beam_2d, filtering, tf_len, sep, flux_data], threads = nthreads)
@@ -160,29 +158,23 @@ traceplot(mysamples, fit_par, plotdir)
 triangle(mysamples, fit_par, plotdir)
 
 ## Compton parameter profile for the best fitting parameters (with CI)
-best_comp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec,
-                     phys_const, radius, pix_comp, beam_2d, filtering, tf_len,
-                     sep, flux_data, out = 'comp')
+best_comp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, filtering, 
+                     tf_len, sep, flux_data, out = 'comp')
 # Subset of at most 1000 profiles
-out_prof = np.array([fit_best(
-    mysamples[j], fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const,
-    radius, pix_comp, beam_2d, filtering, tf_len, sep, flux_data, out = 'comp')
-                     for j in np.unique(np.linspace(
-                         0, mysamples.shape[0] - 1, 1000).astype(int))])
+out_prof = np.array([fit_best(mysamples[j], fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, 
+                              filtering, tf_len, sep, flux_data, out = 'comp')
+                     for j in np.unique(np.linspace(0, mysamples.shape[0] - 1, 1000).astype(int))])
 ci = 95 # confidence interval level
 quant = np.percentile(out_prof, [50 - ci / 2, 50 + ci / 2], axis = 0)
-plot_best(param_mean, fit_par, best_comp, quant[0], quant[1], radius, sep,
-          flux_data, clusdir = plotdir)
+plot_best(param_mean, fit_par, best_comp, quant[0], quant[1], radius, sep, flux_data, clusdir = plotdir)
 
 ## Pressure profile for the best fitting parameters
-best_pp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec,
-                   phys_const, radius, pix_comp, beam_2d, filtering, tf_len, sep,
-                   flux_data, out = 'pp')
+best_pp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, filtering, 
+                   tf_len, sep, flux_data, out = 'pp')
 pp_best(param_mean, fit_par, par, par_val, rad_kpc[1:], plotdir)
 
 ## Integrated pressure profile for the best fitting parameters
 abel_best(param_mean, fit_par, best_pp, rad_kpc, sep, plotdir)
 
 ## Test on the integrated Compton parameter
-test_abel_integ(param_mean, fit_par, par, par_val, 900, mystep, kpc_per_arcsec,
-                phys_const)
+test_abel_integ(param_mean, fit_par, par, par_val, 900, mystep, kpc_per_arcsec, phys_const)
