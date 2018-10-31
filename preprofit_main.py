@@ -25,7 +25,7 @@ phys_const = [m_e, sigma_T, kpc_cm]
 # Fittable parameters
 par = ['P0', 'a', 'b', 'c', 'r500']
 
-# Parameters to fit
+# Parameters that we want to fit
 fit_par = ['P0', 'r500']
 
 # Parameters for the gNFW pressure profile calculation
@@ -65,22 +65,22 @@ beam_filename = 'Beam150GHz.fits'
 tf_filename = 'TransferFunction150GHz_CLJ1227.fits'
 flux_filename = 'CLJ1227_data.txt'
 
-# Cosmology parameters
+# Cosmological parameters
 cosmology = mb.Cosmology(redshift)
 cosmology.H0 = 67.11 # Hubble's constant (km/s/Mpc)
 cosmology.WM = 0.3175 # matter density
 cosmology.WV = 0.6825 # vacuum density
 kpc_per_arcsec = cosmology.kpc_per_arcsec # number of kpc per arcsec
 
-# ------------------------------------------------------------------
-# Code
-# ------------------------------------------------------------------
+# --------------------------------------------------------------------------------------------------------------------------------------
+# Code 
+# --------------------------------------------------------------------------------------------------------------------------------------
 
 # Parameter definition
 start_val = np.zeros(len(fit_par))
 for j in range(len(par)):
-    if par[j] not in fit_par: globals()[par[j]] = par_val[j]
-    else: start_val[np.where(start_val == 0)[0][0]] = par_val[j]
+    if par[j] not in fit_par: globals()[par[j]] = par_val[j] # fixed parameters
+    else: start_val[np.where(start_val == 0)[0][0]] = par_val[j] # starting values for the parameters to fit
 for j in range(len(fit_par)):
     par.remove(fit_par[j])
 par_val = list(map(lambda x: globals()[x], par))
@@ -89,7 +89,7 @@ par_val = list(map(lambda x: globals()[x], par))
 tf_len = fits.open(tf_filename)[1].data[0][1].size # number of tf measurements
 tf_mat_len = tf_len * 2 - 1 # one side length of the tf image
 mymaxr = np.ceil(tf_mat_len // 2 * np.sqrt(2) * mystep) # max radius needed
-radius = np.arange(0, mymaxr, mystep) # arcsec
+radius = np.arange(0, mymaxr, mystep) # (arcsec)
 rad_kpc = radius * kpc_per_arcsec # from arcsec to kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size // 2 # index of radius 0
@@ -130,22 +130,16 @@ sampler.run_mcmc(intermediate, nsteps)
 mysamples = sampler.chain.reshape(-1, sampler.chain.shape[2])
 
 ## Save the chain
-#file = open('catena', 'wb') # create file
-#pickle.dump(sampler.chain, file) # write
-#file.close()
-
-## Read a saved chain
-#chain = pickle.load(open('catena', 'rb' ))
-#mysamples = chain.reshape(-1, chain.shape[2])
+file = open('mychain', 'wb') # create file
+pickle.dump(sampler.chain, file) # write
+file.close()
 
 # Posterior distribution's parameters
-param_mean = np.empty(ndim)
-param_std = np.empty(ndim)
+param_mean = np.empty(ndim); param_std = np.empty(ndim)
 for ii in np.arange(ndim):
     param_mean[ii] = np.mean(mysamples[:,ii])
     param_std[ii] = np.std(mysamples[:,ii])
-    print('Mean(' + fit_par[ii] + '): ' + str(param_mean[ii]) +
-          '; Sd(' + fit_par[ii] + '): ' + str(param_std[ii]))
+    print('Mean(' + fit_par[ii] + '): ' + str(param_mean[ii]) + '; Sd(' + fit_par[ii] + '): ' + str(param_std[ii]))
 time1 = time.time()
 print('Execution time: ' + str(time1 - time0))
 
