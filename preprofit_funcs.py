@@ -57,9 +57,8 @@ def prof_intg(step, kpa, P0, a, b, c, r500):
     r = np.append(r, r[-1] + r[1]) # from odd to even
     # we need to use a shift, otherwise the integral returns an error when r = y
     shift = (r[1] - r[0]) / 16
-    prof_integral = np.array([simps(
-        abel_intg(r[j:(-1 - j % 2)] + shift, r[j], P0, a, b, c, r500),
-        r[j:(-1 - j % 2)] + shift) for j in range(r.size - 1)])
+    prof_integral = np.array([simps(abel_intg(r[j:(-1 - j % 2)] + shift, r[j], P0, a, b, c, r500), r[j:(-1 - j % 2)] + shift)
+                              for j in range(r.size - 1)])
     return prof_integral[:-2]
 
 def read_data(name):
@@ -77,9 +76,8 @@ def read_data(name):
 
 def myread(r, filename, regularize = False, norm = 1):
     '''
-    Read the beam data, optionally set a regular step, optionally normalize
-    the 1D or 2D distribution
-    -----------------------------------------------------------------------
+    Read the beam data, optionally set a regular step, optionally normalize the 1D or 2D distribution
+    -------------------------------------------------------------------------------------------------
     r = radius
     regularize = T / F
     norm = '1d' / '2d'
@@ -87,8 +85,7 @@ def myread(r, filename, regularize = False, norm = 1):
     RETURN: the normalized beam
     '''
     r2, b = read_data(filename)
-    f = interp1d(np.append(-r2, r2), np.append(b, b), kind = 'cubic',
-                 bounds_error = False, fill_value = 'extrapolate')
+    f = interp1d(np.append(-r2, r2), np.append(b, b), kind = 'cubic', bounds_error = False, fill_value = 'extrapolate')
     if regularize == True:
         step = r[1] - r[0]
         b = np.where(abs(r) > r2[-1], 0, f(r))
@@ -149,10 +146,9 @@ def ima_interpolate(y, r, odd):
 
 def dist(naxis):
     '''
-    Returns a symmetric matrix in which the value of each element is
-    proportional to its frequency
+    Returns a symmetric matrix in which the value of each element is proportional to its frequency 
     (https://www.harrisgeospatial.com/docs/DIST.html)
-    -----------------------------------------------------------------
+    ----------------------------------------------------------------------------------------------
     naxis = number of elements per row and per column
     -------------------------------------------------
     RETURN: the (naxis x naxis) matrix
@@ -161,8 +157,7 @@ def dist(naxis):
     result = np.sqrt(axis**2 + axis[:,np.newaxis]**2)
     return np.roll(result, naxis // 2 + 1, axis = (0, 1))
 
-def log_posterior(theta, step, fit_par, par, par_val, kpa, phys_const, radius,
-                  pix_comp, beam_2d, filtering, tf_len, sep, flux_data):
+def log_posterior(theta, step, fit_par, par, par_val, kpa, phys_const, radius, pix_comp, beam_2d, filtering, tf_len, sep, flux_data):
     '''
     Computes the log-posterior probability for the parameters in theta
     ------------------------------------------------------------------
@@ -180,30 +175,26 @@ def log_posterior(theta, step, fit_par, par, par_val, kpa, phys_const, radius,
     tf_len = number of tf measurements
     sep = index of radius 0
     flux data:
-    y_data = flux density
-    r_sec = x-axis values for y_data
-    err = statistical errors of the flux density
+        y_data = flux density
+        r_sec = x-axis values for y_data
+        err = statistical errors of the flux density
     --------------------------------------------------------------
-    RETURN: log-posterior probability or -inf whether theta is out of the
-            parameter space
+    RETURN: log-posterior probability or -inf whether theta is out of the parameter space
     '''
     for j in range(len(fit_par)): globals()[fit_par[j]] = theta[j]
     for j in range(len(par)): globals()[par[j]] = par_val[j]
     if (P0 < 0):
         return -np.inf
     else:
-        prof_integral = prof_intg(
-            step, kpa, P0, a, b, c, r500)[:radius[sep:].size]
+        prof_integral = prof_intg(step, kpa, P0, a, b, c, r500)[:radius[sep:].size]
         y = phys_const[2] * phys_const[1] / phys_const[0] * prof_integral
         y = np.append(y[:0:-1], y)
         y_2d = ima_interpolate(y, radius, pix_comp)
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[tf_len - 1:-(tf_len - 1),
-                                                     tf_len - 1:-(tf_len - 1)]
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[tf_len - 1:-(tf_len - 1), tf_len - 1:-(tf_len - 1)]
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in * filtering))
         map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
-        g = interp1d(radius[sep:sep + map_prof.size], map_prof,
-                     fill_value = 'extrapolate')
+        g = interp1d(radius[sep:sep + map_prof.size], map_prof, fill_value = 'extrapolate')
         log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2)/2
         log_post = log_lik
         return log_post
@@ -220,12 +211,10 @@ def traceplot(mysamples, param_names, clusdir = './'):
     pdf = PdfPages(clusdir + 'traceplot.pdf')
     plt.figure().suptitle('Traceplot', fontsize = 12)
     for i in np.arange(mysamples.shape[1]):
-#        plt.subplot(4, 1, i % 4 + 1)
         plt.subplot(mysamples.shape[1], 1, i + 1)
         plt.plot(np.arange(mysamples.shape[0]), mysamples[:,i])
         plt.xlabel('Iteration number')
         plt.ylabel('%s' % param_names[i])
-#        if (abs((i + 1) % 4) < 0.01):
         if (abs((i + 1) % mysamples.shape[1]) < 0.01):
             pdf.savefig()
             plt.clf()
@@ -246,34 +235,30 @@ def triangle(samples2, param_names, clusdir = './'):
     pdf.savefig()
     pdf.close()
 
-def fit_best(theta, fit_par, par, par_val, step, kpa, phys_const, radius,
-             pix_comp, beam_2d, filtering, tf_len, sep, flux_data, out = 'comp'):
+def fit_best(theta, fit_par, par, par_val, step, kpa, phys_const, radius, pix_comp, 
+             beam_2d, filtering, tf_len, sep, flux_data, out = 'comp'):
     '''
-    Computes alternatively the filtered Compton parameter profile or the
-    integrated pressure profile for the optimized parameter values
-    --------------------------------------------------------------------
-    v(log_posterior)
+    Computes alternatively the filtered Compton parameter profile or the integrated pressure profile for the optimized parameter values
+    -----------------------------------------------------------------------------------------------------------------------------------
+    see (log_posterior)
     out = 'comp' or 'pp' depending on the desired output
     '''
     for j in range(len(fit_par)): globals()[fit_par[j]] = theta[j]
     for j in range(len(par)): globals()[par[j]] = par_val[j]
-    prof_integral = prof_intg(
-        step, kpa, P0, a, b, c, r500)[:radius[sep:].size]
+    prof_integral = prof_intg(step, kpa, P0, a, b, c, r500)[:radius[sep:].size]
     if out == 'pp': return prof_integral
     elif out == 'comp':
         y = phys_const[2] * phys_const[1] / phys_const[0] * prof_integral
         y = np.append(y[:0:-1], y)
         y_2d = ima_interpolate(y, radius, pix_comp)
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[tf_len - 1:-(tf_len - 1),
-                                                     tf_len - 1:-(tf_len - 1)]
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[tf_len - 1:-(tf_len - 1), tf_len - 1:-(tf_len - 1)]
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in * filtering))
         map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
         return map_prof
     else: raise('Error: incorrect out parameter')
 
-def plot_best(theta, fit_par, mp_mean, mp_lb, mp_ub, radius, sep, flux_data,
-              clusdir = './'):
+def plot_best(theta, fit_par, mp_mean, mp_lb, mp_ub, radius, sep, flux_data, clusdir = './'):
     '''
     Plot of the Compton parameter profile compared to the flux density
     ------------------------------------------------------------------
@@ -288,14 +273,13 @@ def plot_best(theta, fit_par, mp_mean, mp_lb, mp_ub, radius, sep, flux_data,
     plt.plot(radius[sep:sep + mp_mean.size], 10**4 * mp_mean, color = 'blue')
     plt.fill_between(radius[sep:sep + mp_mean.size], 10**4 * mp_lb, 10**4 * mp_ub)
     plt.plot(r_sec, 10**4 * y_data, '.', color = 'red', markersize = .7)
-    plt.vlines(r_sec, 10**4 * (y_data - err), 10**4 * (y_data + err),
-               color = 'red')
+    plt.vlines(r_sec, 10**4 * (y_data - err), 10**4 * (y_data + err), color = 'red')
     plt.legend(('Filtered profile', 'Flux density', '95% CI'))
     plt.axhline(y = 0, color = 'black', linestyle = ':')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('y x 10$^{4}$')
-    plt.title('Compton parameter profile with ' + str(fit_par) + ' = ' +
-              str(list(map(lambda x: round(float(x), 3), theta))), fontsize = 9)
+    plt.title('Compton parameter profile with ' + str(fit_par) + ' = ' + str(list(map(lambda x: round(float(x), 3), theta))),
+              fontsize = 9)
     pdf.savefig()
     pdf.close()
 
@@ -316,8 +300,7 @@ def pp_best(theta, fit_par, par, par_val, r, clusdir):
     plt.ylim(.0001, 1)
     plt.ylabel('Pressure (keV / cm$^{3}$)')
     plt.xlabel('Radius (kpc)')
-    plt.title('Pressure profile with ' + str(fit_par) + ' = ' +
-              str(list(map(lambda x: round(float(x), 3), theta))), fontsize = 9)
+    plt.title('Pressure profile with ' + str(fit_par) + ' = ' + str(list(map(lambda x: round(float(x), 3), theta))), fontsize = 9)
     pdf.savefig()
     pdf.close()
 
@@ -336,8 +319,8 @@ def abel_best(theta, fit_par, pp, rad_kpc, sep, clusdir = './'):
     plt.xscale('log')
     plt.yscale('log')
     plt.xlim(0.09, 1.2)
-    plt.title('Integrated pressure profile with ' + str(fit_par) + ' = ' +
-              str(list(map(lambda x: round(float(x), 3), theta))), fontsize = 9)
+    plt.title('Integrated pressure profile with ' + str(fit_par) + ' = ' + str(list(map(lambda x: round(float(x), 3), theta))), 
+              fontsize = 9)
     pdf.savefig()
     pdf.close()
 
@@ -351,13 +334,10 @@ def test_abel_integ(theta, fit_par, par, par_val, maxr, step, kpa, phys_const):
     for j in range(len(par)): globals()[par[j]] = par_val[j]
     radius = np.arange(0, maxr, step) # arcsec
     rad_kpc = radius * kpa
-    prof_integral = np.array([quad(abel_intg, rad_kpc[j], np.inf, args = (
-        rad_kpc[j], P0, a, b, c, r500))[0] for j in range(rad_kpc.size)])
+    prof_integral = np.array([quad(abel_intg, rad_kpc[j], np.inf, args = (rad_kpc[j], P0, a, b, c, r500))[0] 
+                              for j in range(rad_kpc.size)])
     y = phys_const[2] * phys_const[1] / phys_const[0] * prof_integral
     ang = radius / 60
     Compton_integ = simps(y * ang, ang) * 2 * np.pi
-    print('Integrated compton parameter: ' +
-          str(round(Compton_integ * 10**3, 3)) +
-          ' * 10^(-3) \nValue in publication: ' + str(0.94) + ' * 10^(-3)' +
-          '\nPercentage change: ' +
-          str(round(100 * (Compton_integ - .00094) / .00094, 1)) + '%')        
+    print('Integrated compton parameter: ' + str(round(Compton_integ * 10**3, 3)) + ' * 10^(-3) \nValue in publication: ' + str(0.94) +
+          ' * 10^(-3)' + '\nPercentage change: ' + str(round(100 * (Compton_integ - .00094) / .00094, 1)) + '%')        
