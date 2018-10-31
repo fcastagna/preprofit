@@ -9,7 +9,7 @@ import six.moves.cPickle as pickle
 import time
 
 time0 = time.time()
-plotdir = './bayes_plot/' # plot directory
+plotdir = './' # plot directory
 
 
 ### Global-global variables
