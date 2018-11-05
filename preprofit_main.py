@@ -111,8 +111,8 @@ filtering = f(karr)
 # Flux density data
 data = np.loadtxt(flux_filename, skiprows = 1, unpack = True)
 r_sec = data[0]
-y_data = data[1] / data[2] / compt_param_mJy # Jy/beam to Compton parameter
-err = data[3] # TBI statistical error
+y_data = data[1] / compt_param_mJy # Jy/beam to Compton parameter
+err = data[2] # TBI statistical error
 flux_data = [r_sec, y_data, err]
 
 # Bayesian fit
