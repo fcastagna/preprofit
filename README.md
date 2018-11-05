@@ -7,4 +7,4 @@ Beam data and transfer function data come from the NIKA data release (http://lps
 ### Credits
 Castagna Fabio, Andreon Stefano, RS Pranjal.
 
-See Castagna _et al_. (in preparation).
+For more details, see Castagna _et al_. (in preparation).
