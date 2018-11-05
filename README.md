@@ -1,3 +1,3 @@
 # preprofit
-# Pressure profile fit for galaxy clusters in Python
+### Pressure profile fit for galaxy clusters in Python
 fas
