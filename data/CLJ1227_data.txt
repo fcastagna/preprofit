@@ -1,4 +1,4 @@
-     reg       counts      area       error
+  radius       counts      area       error
   3.1365      -77.309        32     0.00001
   9.5746     -180.514        88     0.00001
  16.0127     -252.443       156     0.00001
