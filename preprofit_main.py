@@ -113,7 +113,7 @@ data = np.loadtxt(flux_filename, skiprows = 1, unpack = True)
 r_sec = np.linspace(0.5, max(data[0]), max(data[0])) * 0.0017425 * 3600
 # 0.0017425 * 3600 is the step in r [arcsec]
 y_data = data[1] / data[2] / compt_param_mJy # Jy / beam to Compton parameter
-err = .00001 + y_data - y_data # TBI statistical error
+err = data[3] # TBI statistical error
 flux_data = [r_sec, y_data, err]
 
 # Bayesian fit
