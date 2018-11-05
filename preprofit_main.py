@@ -61,9 +61,9 @@ redshift = 0.888
 compt_param_mJy = -10.9 * 10**3 # Compton parameter to Jy/beam
 
 # File names
-beam_filename = 'Beam150GHz.fits'
-tf_filename = 'TransferFunction150GHz_CLJ1227.fits'
-flux_filename = 'CLJ1227_data.txt'
+beam_filename = 'data/Beam150GHz.fits'
+tf_filename = 'data/TransferFunction150GHz_CLJ1227.fits'
+flux_filename = 'data/CLJ1227_data.txt'
 
 # Cosmological parameters
 cosmology = mb.Cosmology(redshift)
@@ -113,7 +113,7 @@ data = np.loadtxt(flux_filename, skiprows = 1, unpack = True)
 r_sec = np.linspace(0.5, max(data[0]), max(data[0])) * 0.0017425 * 3600
 # 0.0017425 * 3600 is the step in r [arcsec]
 y_data = data[1] / data[2] / compt_param_mJy # Jy / beam to Compton parameter
-err = .00001 + y_data - y_data # TBI statistical error
+err = data[3] # TBI statistical error
 flux_data = [r_sec, y_data, err]
 
 # Bayesian fit
@@ -123,11 +123,8 @@ starting_guesses = np.random.random((nwalkers, ndim)) * starting_var + starting_
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior, args = [
     mystep, fit_par, par, par_val, kpc_per_arcsec, phys_const, radius, pix_comp,
     beam_2d, filtering, tf_len, sep, flux_data], threads = nthreads)
-sampler.run_mcmc(starting_guesses, nburn)
-intermediate = sampler.chain[:,-1,:]
-sampler.reset()
-sampler.run_mcmc(intermediate, nsteps)
-mysamples = sampler.chain.reshape(-1, sampler.chain.shape[2])
+sampler.run_mcmc(starting_guesses, nsteps)
+mysamples = sampler.chain[:,nburn:,:].reshape(-1, ndim)
 
 ## Save the chain
 file = open('mychain', 'wb') # create file
