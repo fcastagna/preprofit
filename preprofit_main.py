@@ -150,7 +150,7 @@ best_comp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec, 
 # Random sample of at most 1000 profiles
 out_prof = np.array([fit_best(mysamples[j], fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, 
                               filtering, tf_len, sep, flux_data, out = 'comp') 
-                     for j in np.random.choice(mysamples.shape[0], size = min(1000, mysamples.shape[0]), replace = False))
+                     for j in np.random.choice(mysamples.shape[0], size = min(1000, mysamples.shape[0]), replace = False)])
 quant = np.percentile(out_prof, [50 - ci / 2, 50 + ci / 2], axis = 0)
 plot_best(param_mean, fit_par, best_comp, quant[0], quant[1], radius, sep, flux_data, clusdir = plotdir)
 
