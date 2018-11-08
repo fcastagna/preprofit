@@ -1,7 +1,7 @@
 import numpy as np
 from astropy.io import fits
 from scipy.interpolate import interp1d
-from scipy.integrate import simps, quad
+from scipy.integrate import simps
 from scipy.signal import fftconvolve
 from scipy.fftpack import fft2, ifft2
 import matplotlib.pyplot as plt
