@@ -36,7 +36,7 @@ def pressure_prof(r, P0, a, b, c, r500):
 
 def abel_intg(r, y, P0, a, b, c, r500):
     '''
-    Integrates the pressure profile along the line of sight
+    Function to be integrated along the line of sight
     -------------------------------------------------------
     r = radius(kpc)
     y = orthogonal radius (kpc)
@@ -63,7 +63,8 @@ def prof_intg(step, kpa, P0, a, b, c, r500):
 
 def read_data(name):
     '''
-    Read the beam data of CLJ1227
+    Read the beam data
+    ------------------
     '''
     file = fits.open(name) # load and read the file
     data = file[""].data
@@ -304,7 +305,6 @@ def pp_best(theta, fit_par, par, par_val, r, clusdir):
     pdf.savefig()
     pdf.close()
 
-
 def abel_best(theta, fit_par, pp, rad_kpc, sep, clusdir = './'):
     '''
     Plot of the integrated pressure profile
@@ -323,21 +323,3 @@ def abel_best(theta, fit_par, pp, rad_kpc, sep, clusdir = './'):
               fontsize = 9)
     pdf.savefig()
     pdf.close()
-
-def test_abel_integ(theta, fit_par, par, par_val, maxr, step, kpa, phys_const):
-    '''
-    Test on the integrated Compton parameter value
-    ----------------------------------------------
-    maxr = maximum amplitude
-    '''
-    for j in range(len(fit_par)): globals()[fit_par[j]] = theta[j]
-    for j in range(len(par)): globals()[par[j]] = par_val[j]
-    radius = np.arange(0, maxr, step) # arcsec
-    rad_kpc = radius * kpa
-    prof_integral = np.array([quad(abel_intg, rad_kpc[j], np.inf, args = (rad_kpc[j], P0, a, b, c, r500))[0] 
-                              for j in range(rad_kpc.size)])
-    y = phys_const[2] * phys_const[1] / phys_const[0] * prof_integral
-    ang = radius / 60
-    Compton_integ = simps(y * ang, ang) * 2 * np.pi
-    print('Integrated compton parameter: ' + str(round(Compton_integ * 10**3, 3)) + ' * 10^(-3) \nValue in publication: ' + str(0.94) +
-          ' * 10^(-3)' + '\nPercentage change: ' + str(round(100 * (Compton_integ - .00094) / .00094, 1)) + '%')        
