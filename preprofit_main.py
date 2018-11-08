@@ -1,5 +1,5 @@
-from preprofit_funcs import (myread, interpolate, ima_interpolate, dist, log_posterior, traceplot, triangle, fit_best, plot_best, 
-                             pp_best, abel_best, test_abel_integ)
+from preprofit_funcs import (myread, ima_interpolate, dist, log_posterior, traceplot, triangle, fit_best, plot_best, 
+                             pp_best, abel_best)
 import numpy as np
 import mbproj2 as mb
 from astropy.io import fits
