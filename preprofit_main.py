@@ -6,9 +6,7 @@ from astropy.io import fits
 from scipy.interpolate import interp1d
 import emcee
 import six.moves.cPickle as pickle
-import time
 
-time0 = time.time()
 plotdir = './' # plot directory
 
 
@@ -53,6 +51,7 @@ nthreads = 14
 nburn = 2000
 nsteps = 5000
 np.random.seed(0)
+ci = 95 # confidence interval level
 
 
 ### Local variables
@@ -122,7 +121,7 @@ starting_guesses = np.random.random((nwalkers, ndim)) * starting_var + starting_
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior, args = [
     mystep, fit_par, par, par_val, kpc_per_arcsec, phys_const, radius, pix_comp,
     beam_2d, filtering, tf_len, sep, flux_data], threads = nthreads)
-sampler.run_mcmc(starting_guesses, nsteps)
+sampler.run_mcmc(starting_guesses, nburn + nsteps)
 mysamples = sampler.chain[:,nburn:,:].reshape(-1, ndim)
 
 ## Save the chain
@@ -136,8 +135,6 @@ for ii in np.arange(ndim):
     param_mean[ii] = np.mean(mysamples[:,ii])
     param_std[ii] = np.std(mysamples[:,ii])
     print('Mean(' + fit_par[ii] + '): ' + str(param_mean[ii]) + '; Sd(' + fit_par[ii] + '): ' + str(param_std[ii]))
-time1 = time.time()
-print('Execution time: ' + str(time1 - time0))
 
 
 ### Plots
@@ -150,11 +147,10 @@ triangle(mysamples, fit_par, plotdir)
 ## Compton parameter profile for the best fitting parameters (with CI)
 best_comp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, filtering, 
                      tf_len, sep, flux_data, out = 'comp')
-# Subset of at most 1000 profiles
+# Random sample of at most 1000 profiles
 out_prof = np.array([fit_best(mysamples[j], fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, 
-                              filtering, tf_len, sep, flux_data, out = 'comp')
-                     for j in np.unique(np.linspace(0, mysamples.shape[0] - 1, 1000).astype(int))])
-ci = 95 # confidence interval level
+                              filtering, tf_len, sep, flux_data, out = 'comp') 
+                     for j in np.random.choice(mysamples.shape[0], size = min(1000, mysamples.shape[0]), replace = False))
 quant = np.percentile(out_prof, [50 - ci / 2, 50 + ci / 2], axis = 0)
 plot_best(param_mean, fit_par, best_comp, quant[0], quant[1], radius, sep, flux_data, clusdir = plotdir)
 
@@ -165,6 +161,3 @@ pp_best(param_mean, fit_par, par, par_val, rad_kpc[1:], plotdir)
 
 ## Integrated pressure profile for the best fitting parameters
 abel_best(param_mean, fit_par, best_pp, rad_kpc, sep, plotdir)
-
-## Test on the integrated Compton parameter
-test_abel_integ(param_mean, fit_par, par, par_val, 900, mystep, kpc_per_arcsec, phys_const)
