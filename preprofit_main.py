@@ -1,5 +1,6 @@
-from preprofit_funcs import (myread, ima_interpolate, dist, log_posterior, traceplot, triangle, fit_best, plot_best, 
-                             pp_best, abel_best)
+from conv_funcs import (mybeam, centdistmat, ima_interpolate, dist, 
+                        log_posterior, traceplot, triangle, fit_best, 
+                        plot_best, pp_best)
 import numpy as np
 import mbproj2 as mb
 from astropy.io import fits
@@ -46,10 +47,10 @@ pix_comp = 301 # number of pixels for one side of the Compton parameter image
 
 # MCMC parameters
 ndim = len(fit_par)
-nwalkers = 28
-nthreads = 14
-nburn = 2000
-nsteps = 5000
+nwalkers = 200
+nthreads = 8
+nburn = 5000
+nsteps = 2000
 np.random.seed(0)
 ci = 95 # confidence interval level
 
@@ -57,12 +58,12 @@ ci = 95 # confidence interval level
 ### Local variables
 
 redshift = 0.888
-compt_param_mJy = -10.9 * 10**3 # Compton parameter to Jy/beam
+compt_param_mJy = -10.9 * 10**3 # Jy/beam to Compton parameter
 
 # File names
 beam_filename = 'data/Beam150GHz.fits'
 tf_filename = 'data/TransferFunction150GHz_CLJ1227.fits'
-flux_filename = 'data/CLJ1227_data.txt'
+flux_filename = 'data/press_data_cl1226_flagsource.dat'
 
 # Cosmological parameters
 cosmology = mb.Cosmology(redshift)
@@ -87,15 +88,19 @@ par_val = list(map(lambda x: globals()[x], par))
 # Radius definition
 tf_len = fits.open(tf_filename)[1].data[0][1].size # number of tf measurements
 tf_mat_len = tf_len * 2 - 1 # one side length of the tf image
-mymaxr = np.ceil(tf_mat_len // 2 * np.sqrt(2) * mystep) # max radius needed
-radius = np.arange(0, mymaxr, mystep) # (arcsec)
+mymaxr = np.arange(0, pix_comp + 1, 2).size * 2 # max radius needed
+radius = np.arange(0, mymaxr, mystep) # arcsec
 rad_kpc = radius * kpc_per_arcsec # from arcsec to kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size // 2 # index of radius 0
 
 # PSF read, regularize and image creation
-beam = myread(radius, beam_filename, regularize = True, norm = '2d') * mystep**2
-beam_2d = ima_interpolate(beam, radius, pix_beam)
+beam = mybeam(beam_filename, radius, sep, regularize = True, norm = '2d')
+beam_mat = centdistmat(pix_beam)
+beam_2d = ima_interpolate(beam_mat * mystep, radius, beam)
+
+# Y 2D matrix
+y_mat = centdistmat(pix_comp)
 
 # Transfer function
 kmax = 1 / mystep
@@ -110,54 +115,58 @@ filtering = f(karr)
 # Flux density data
 data = np.loadtxt(flux_filename, skiprows = 1, unpack = True)
 r_sec = data[0]
-y_data = data[1] / compt_param_mJy # Jy/beam to Compton parameter
+y_data = data[1]
 err = data[2] # TBI statistical error
 flux_data = [r_sec, y_data, err]
+
+# Jy/beam to Compton parameter
+convert = compt_param_mJy
 
 # Bayesian fit
 starting_guess = start_val
 starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim)) * starting_var + starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_posterior, args = [
-    mystep, fit_par, par, par_val, kpc_per_arcsec, phys_const, radius, pix_comp,
-    beam_2d, filtering, tf_len, sep, flux_data], threads = nthreads)
+    fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, y_mat, 
+    beam_2d, filtering, tf_len, sep, flux_data, convert], threads = nthreads)
 sampler.run_mcmc(starting_guesses, nburn + nsteps)
-mysamples = sampler.chain[:,nburn:,:].reshape(-1, ndim)
+print('Acceptance fraction: %s' % np.mean(sampler.acceptance_fraction))
+mysamples = sampler.chain[:,nburn:,:].reshape(-1, ndim, order = 'F')
 
 ## Save the chain
 file = open('mychain', 'wb') # create file
-pickle.dump(sampler.chain, file) # write
+res = list([sampler.chain, sampler.lnprobability])
+pickle.dump(res, file) # write
 file.close()
 
 # Posterior distribution's parameters
-param_mean = np.empty(ndim); param_std = np.empty(ndim)
+param_mean = np.empty(ndim)
+param_std = np.empty(ndim)
 for ii in np.arange(ndim):
     param_mean[ii] = np.mean(mysamples[:,ii])
     param_std[ii] = np.std(mysamples[:,ii])
-    print('Mean(' + fit_par[ii] + '): ' + str(param_mean[ii]) + '; Sd(' + fit_par[ii] + '): ' + str(param_std[ii]))
+    print('Mean(%s): %s; Sd(%s): %s' % (fit_par[ii], param_mean[ii], fit_par[ii], param_std[ii]))
 
 
 ### Plots
 ## Traceplot
-traceplot(mysamples, fit_par, plotdir)
+traceplot(mysamples, fit_par, nsteps, nwalkers, plotdir)
 
 ## Corner plot
 triangle(mysamples, fit_par, plotdir)
 
-## Compton parameter profile for the best fitting parameters (with CI)
-best_comp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, filtering, 
-                     tf_len, sep, flux_data, out = 'comp')
-# Random sample of at most 1000 profiles
-out_prof = np.array([fit_best(mysamples[j], fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, 
-                              filtering, tf_len, sep, flux_data, out = 'comp') 
-                     for j in np.random.choice(mysamples.shape[0], size = min(1000, mysamples.shape[0]), replace = False)])
-quant = np.percentile(out_prof, [50 - ci / 2, 50 + ci / 2], axis = 0)
-plot_best(param_mean, fit_par, best_comp, quant[0], quant[1], radius, sep, flux_data, clusdir = plotdir)
+# Random samples of at most 1000 profiles
+out_prof = np.array([fit_best(
+    mysamples[j], fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const,
+    radius, y_mat, beam_2d, filtering, tf_len, sep, flux_data, convert,
+    out = 'comp') for j in np.random.choice(mysamples.shape[0], 
+                size = min(1000, mysamples.shape[0]), replace = False)])
+quant = np.percentile(out_prof, [50, 50 - ci / 2, 50 + ci / 2], axis = 0)
+plot_best(param_mean, fit_par, quant[0], quant[1], quant[2], radius, sep,
+          flux_data, clusdir = plotdir)
 
 ## Pressure profile for the best fitting parameters
-best_pp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec, phys_const, radius, pix_comp, beam_2d, filtering, 
-                   tf_len, sep, flux_data, out = 'pp')
+best_pp = fit_best(param_mean, fit_par, par, par_val, mystep, kpc_per_arcsec,
+                   phys_const, radius, y_mat, beam_2d, filtering, tf_len, sep,
+                   flux_data, convert, out = 'pp')
 pp_best(param_mean, fit_par, par, par_val, rad_kpc[1:], plotdir)
-
-## Integrated pressure profile for the best fitting parameters
-abel_best(param_mean, fit_par, best_pp, rad_kpc, sep, plotdir)
