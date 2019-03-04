@@ -281,23 +281,3 @@ def pp_best(theta, fit_par, par, par_val, r, clusdir):
               str(list(map(lambda x: round(float(x), 3), theta))))
     pdf.savefig()
     pdf.close()
-
-
-def abel_best(theta, fit_par, pp, rad_kpc, sep, clusdir = './'):
-    '''
-    Plot of the integrated pressure profile
-    ---------------------------------------
-    '''
-    for j in range(len(fit_par)): globals()[fit_par[j]] = theta[j]
-    plt.clf()
-    pdf = PdfPages(clusdir + 'abel_best.pdf')
-    plt.plot(rad_kpc[:pp.size] / r500, pp, color = 'blue')
-    plt.xlabel('Radius / r500')
-    plt.ylabel('Pressure')
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlim(0.09, 1.2)
-    plt.title('Integrated pressure profile with ' + str(fit_par) + ' = ' +
-              str(list(map(lambda x: round(float(x), 3), theta))))
-    pdf.savefig()
-    pdf.close()
