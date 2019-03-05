@@ -73,7 +73,7 @@ def mybeam(filename, r, sep, regularize = True, norm = 1):
             norm = simps(r2 * b, r2) * 2 * np.pi
         z = np.zeros(int((r.size - 2 * r2.size - 1) / 2))
         b = np.hstack((z, b[::-1], f(0), b, z))
-    return b / normdef myread(r, filename, regularize = False, norm = 1):
+    return b / norm
 
 def centdistmat(num, offset = 0):
     '''
