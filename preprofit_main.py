@@ -58,7 +58,7 @@ ci = 95 # confidence interval level
 ### Local variables
 
 redshift = 0.888
-compt_param_mJy = -10.9 * 10**3 # Jy/beam to Compton parameter
+compt_param_mJy = -10.9 * 10**3 # Compton parameter to Jy/beam
 
 # File names
 beam_filename = 'data/Beam150GHz.fits'
@@ -119,7 +119,7 @@ y_data = data[1]
 err = data[2] # TBI statistical error
 flux_data = [r_sec, y_data, err]
 
-# Jy/beam to Compton parameter
+# Compton parameter to Jy/beam
 convert = compt_param_mJy
 
 # Bayesian fit
