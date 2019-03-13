@@ -31,7 +31,6 @@ class Param:
         return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, frozen=%s>' % (
             self.val, self.minval, self.maxval, self.frozen)
 
-
 class Pressure:
     '''
     Class to parametrize the pressure profile
@@ -83,10 +82,7 @@ class Pressure:
         c = pars['c'].val
         r500 = pars['r500'].val
         rp = r500 / 3.2 # c_delta = 3.2
-        return P0 / ((r_kpc / rp)**c * (1 + (r_kpc / rp)**a)**((b - c) / a))    
-
-    
- 
+        return P0 / ((r_kpc / rp)**c * (1 + (r_kpc / rp)**a)**((b - c) / a)) 
 
 def read_beam(filename):
     '''
