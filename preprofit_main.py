@@ -106,7 +106,7 @@ convert = compt_param_mJy
 # (...)
 
 # Bayesian fit
-starting_guess = [pars[i].val for i in pars if not pars[i].frozen]
+starting_guess = [pars[i].val for i in fit_pars]
 starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim)) * starting_var + starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args = [
@@ -125,18 +125,18 @@ file.close()
 # Posterior distribution's parameters
 param_med = np.empty(ndim)
 param_std = np.empty(ndim)
-for ii in np.arange(ndim):
-    param_med[ii] = np.median(mysamples[:,ii])
-    param_std[ii] = np.std(mysamples[:,ii])
-    print('Median(%s): %s; Sd(%s): %s' % (fit_pars[ii], param_med[ii], fit_pars[ii], param_std[ii]))
+for i in np.arange(ndim):
+    param_med[i] = np.median(mysamples[:,i])
+    param_std[i] = np.std(mysamples[:,i])
+    print('Median(%s): %s; Sd(%s): %s' % (fit_pars[i], param_med[i], fit_pars[i], param_std[i]))
 
 
 ### Plots
 ## Traceplot
-traceplot(mysamples, fit_par, nsteps, nwalkers, plotdir = plotdir)
+traceplot(mysamples, fit_pars, nsteps, nwalkers, plotdir = plotdir)
 
 ## Corner plot
-triangle(mysamples, fit_par, plotdir)
+triangle(mysamples, fit_pars, plotdir)
 
 # Random samples of at most 1000 profiles
 out_prof = np.array([fit(mysamples[j], press, pars, fit_pars, mystep, kpc_per_arcsec, phys_const, radius, y_mat, beam_2d, 
