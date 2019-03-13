@@ -315,8 +315,8 @@ def triangle(mysamples, param_names, plotdir = './'):
     pdf.savefig()
     pdf.close()
 
-def fit_best(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
-             y_mat, beam_2d, filtering, tf_len, sep, flux_data, conv):
+def fit(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
+        y_mat, beam_2d, filtering, tf_len, sep, flux_data, conv):
     '''
     Computes the filtered Compton parameter profile for the values in pars_val
     --------------------------------------------------------------------------
@@ -339,71 +339,26 @@ def fit_best(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
     return map_prof * conv
     
-def plot_best(theta, fit_par, mp_mean, mp_lb, mp_ub, radius, sep, flux_data,
-              clusdir = './'):
+def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci, plotdir = './'):
     '''
-    Plot of the Compton parameter profile compared to the flux density
-    ------------------------------------------------------------------
-    mp_mean = Compton profile for the optimized parameter values
-    mp_lb, mp_ub = 95% IC of the Compton profile
-    clusdir = directory where to place the plot
+    Plot of the Compton parameter profile compared to the flux density data
+    -----------------------------------------------------------------------
+    mp_med = Compton profile for the median parameter values
+    mp_lb, mp_ub = CI of the Compton profile
+    plotdir = directory where to place the plot
     '''
-    for j in range(len(fit_par)): globals()[fit_par[j]] = theta[j]
     r_sec, y_data, err = flux_data
     plt.clf()
-    pdf = PdfPages(clusdir + 'best_fit.pdf')
-    plt.plot(radius[sep:sep + mp_mean.size], mp_mean)
-    plt.plot(radius[sep:sep + mp_mean.size], mp_lb, ':', color = 'b')
+    pdf = PdfPages(plotdir + 'best_fit.pdf')
+    plt.plot(radius[sep:sep + mp_med.size], mp_med)
+    plt.plot(radius[sep:sep + mp_med.size], mp_lb, ':', color = 'b')
     plt.plot(r_sec, y_data, '.', color = 'red')
-    plt.plot(radius[sep:sep + mp_mean.size], mp_ub, ':', color = 'b')
+    plt.plot(radius[sep:sep + mp_med.size], mp_ub, ':', color = 'b')
     plt.vlines(r_sec, y_data - err, y_data + err, color = 'red')
-    plt.legend(('Filtered profile', '95% CI', 'Flux density'), loc = 
-               'lower right')
+    plt.legend(('Filtered profile', '%s% CI' % ci, 'Flux density'), loc = 'lower right')
     plt.axhline(y = 0, color = 'black', linestyle = ':')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('y x 10$^{4}$')
-    plt.title('Compton parameter profile - best fit with 95% CI')
+    plt.title('Compton parameter profile - best fit with %s% CI' % ci)
     pdf.savefig()
     pdf.close()
-
-def pp_best(theta, fit_par, par, par_val, r, clusdir):
-    '''
-    Plot of the pressure profile
-    ----------------------------
-    '''
-    for j in range(len(fit_par)): globals()[fit_par[j]] = theta[j]
-    for j in range(len(par)): globals()[par[j]] = par_val[j]
-    pp = pressure_prof(r, P0, a, b, c, r500)
-    pdf = PdfPages(clusdir + 'pp_best.pdf')
-    plt.clf()
-    plt.plot(r, pp)
-    plt.plot(200, .08, '.', 1150, .001, '.')
-    plt.xlim(100, 1300)
-    plt.yscale('log')
-    plt.ylim(.0001, 1)
-    plt.ylabel('Pressure (keV / cm$^{3}$)')
-    plt.xlabel('Radius (kpc)')
-    plt.title('Pressure profile with ' + str(fit_par) + ' = ' +
-              str(list(map(lambda x: round(float(x), 3), theta))))
-    pdf.savefig()
-    pdf.close()
-
-    
-    
-    
-    
-    
-def pressure_prof(r, P0, a, b, c, r500):
-    '''
-    Compute the pressure profile
-    ----------------------------
-    r = radius (kpc)
-    P0 = normalizing constant
-    a = slope at intermediate radii
-    b = slope at large radii
-    c = slope at small radii
-    r500 = characteristic radius
-    '''
-    cdelta = 3.2
-    rp = r500 / cdelta
-    return P0 / ((r / rp)**c * (1 + (r / rp)**a)**((b - c) / a))
