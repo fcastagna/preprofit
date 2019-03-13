@@ -131,30 +131,30 @@ def mybeam(filename, r_reg, regularize = True):
         b = np.hstack((z, b[::-1], f(0), b, z))
     return b / norm
 
-def centdistmat(num, offset = 0):
+def centdistmat(num_odd, offset = 0):
     '''
     Create a matrix of distances from the central element
     -----------------------------------------------------
-    num = number of rows and columns (number of pixels)
+    num_odd = odd number of rows and columns
     offset = basic value for all the distances in the matrix (default is 0)
     -----------------------------------------------------------------------
-    RETURN: the (num x num) matrix
+    RETURN: the (num_odd x num_odd) matrix
     '''
-    r = np.arange(num) # Array of radius values
+    r = np.arange(num_odd)
     x, y = np.meshgrid(r, r)
-    return np.sqrt((x - num // 2)**2 + (y - num // 2)**2) + offset
+    return np.sqrt((x - num_odd // 2)**2 + (y - num_odd // 2)**2) + offset
 
-def ima_interpolate(dist, x, y):
+def ima_interpolate(dist_mat, x, y):
     '''
-    Interpolate the (x, y) values at x = dist
-    -----------------------------------------
-    dist = matrix of distances
+    Interpolate the (x, y) values at the distance values in dist_mat
+    ----------------------------------------------------------------
+    dist_mat = matrix of distances
     x, y = vector of coordinates of the distribution to interpolate
     ---------------------------------------------------------------
-    RETURN: the matrix of the interpolated y-values for the x-values in dist
+    RETURN: the matrix of the interpolated y-values for the x-values in dist_mat
     '''
     f = interp1d(x, y, 'cubic', bounds_error = False, fill_value = (0, 0))
-    return f(dist.flat).reshape(dist.shape)  # interpolate to get value at radius
+    return f(dist_mat.flat).reshape(dist_mat.shape)
 
 def dist(naxis):
     '''
@@ -218,7 +218,60 @@ def log_posterior(theta, fit_par, par, par_val, step, kpa, phys_const, radius,
         log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2)/2
         log_post = log_lik
         return log_post
+def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, 
+                  radius, y_mat, beam_2d, filtering, tf_len, sep, flux_data, 
+                  conv):
+    '''
+    Computes the log-likelihood for the current pressure parameters
+    ---------------------------------------------------------------
+    pars_val = array of free parameters
+    press = pressure object of the class Pressure
+    pars = set of pressure parameters
+    fit_pars = name of the parameters to fit
+    step = radius[1] - radius[0]
+    kpa = number of kpc per arcsec
+    phys_const = physical constants
+    radius = radius (arcsec)
+    y_mat = matrix of distances for the Compton parameter
+    beam_2d = PSF image
+    filtering = tranfer function
+    tf_len = number of tf measurements
+    sep = index of radius 0
+    flux data:
+        y_data = flux density
+        r_sec = x-axis values for y_data
+        err = statistical errors of the flux density
+    conv = conversion rate from Jy to beam
+    --------------------------------------------------------------
+    RETURN: log-posterior probability or -inf whether theta is out of the parameter space
+    '''
+   press.update_vals(pars, fit_pars, pars_val)
+   if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
+        r = np.arange(step * kpa, pars['r500'].val * 5 + step * kpa, 
+                      step * kpa)
+        pp = press.calc_press(pars, r)
+        ub = min(pp.size, sep)
+        ab = direct_transform(pp, r = r, direction = "forward", 
+                              backend = 'Python')[:ub] # Check Cython!
+        y = phys_const[2] * phys_const[1] / phys_const[0] * ab
+        f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
+        y = np.concatenate((y[::-1], f(0), y), axis = None)
+        y_2d = ima_interpolate(y_mat * step, radius[sep - ub:sep + ub + 1], y)
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[
+                y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len, 
+                y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len]
+        FT_map_in = fft2(conv_2d)
+        map_out = np.real(ifft2(FT_map_in * filtering))
+        map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
+        g = interp1d(radius[sep:sep + map_prof.size], map_prof * conv,
+                     fill_value = 'extrapolate')
+        log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2)/2
+        log_post = log_lik
+        return log_post
+    else:
+        return -np.inf
 
+    
 def traceplot(mysamples, param_names, nsteps, nw, plotdir = './'):
     '''
     Traceplot of the MCMC
@@ -343,7 +396,7 @@ def pp_best(theta, fit_par, par, par_val, r, clusdir):
     
     
     
- def pressure_prof(r, P0, a, b, c, r500):
+def pressure_prof(r, P0, a, b, c, r500):
     '''
     Compute the pressure profile
     ----------------------------
