@@ -88,12 +88,12 @@ class Pressure:
     
  
 
-def read_beam(name):
+def read_beam(filename):
     '''
     Read the beam data up to the first negative or nan value
     --------------------------------------------------------
     '''
-    file = fits.open(name) # load and read the file
+    file = fits.open(filename) # load and read the file
     data = file[''].data
     radius, beam_prof = data[0][:2]
     if np.isnan(beam_prof).sum() > 0:
@@ -106,32 +106,28 @@ def read_beam(name):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(filename, r, sep, regularize = True, norm = 1):
+def mybeam(filename, r_reg, regularize = True):
     '''
-    Read the beam data, optionally set a regular step, optionally normalize the 1D or 2D distribution
-    -------------------------------------------------------------------------------------------------
-    r = radius
-    regularize = T / F
-    norm = '1d' / '2d'
-    ------------------
+    Read the beam data, optionally set a regular step, normalize the 2D distribution and return the beam profile
+    ------------------------------------------------------------------------------------------------------------
+    filename = name of the file including the beam data
+    r_reg = radius with regular step (arcsec)
+    regularize = whether to regularize the step (True/False)
+    ---------------------------
     RETURN: the normalized beam
     '''
-    r2, b = read_beam(filename)
-    f = interp1d(np.append(-r2, r2), np.append(b, b), kind = 'cubic',
+    r_irreg, b = read_beam(filename)
+    f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind = 'cubic',
                  bounds_error = False, fill_value = (0, 0))
     if regularize == True:
-        b = f(r)
-        if norm == '1d':
-            norm = np.trapz(b, r)
-        elif norm == '2d':
-            step = r[1] - r[0]
-            norm = simps(r[sep:] * b[sep:], r[sep:]) * 2 * np.pi / step**2
+        b = f(r_reg)
+        sep = r_reg.size // 2
+        step = r_reg[1] - r_reg[0]
+        norm = simps(r_reg[sep:] * b[sep:], r_reg[sep:]) * 2 * np.pi / step**2
     else:
-        if norm == '1d':
-            norm = 2 * np.trapz(np.append(f(0), b), np.append(0, r2))
-        elif norm == '2d':
-            norm = simps(r2 * b, r2) * 2 * np.pi
-        z = np.zeros(int((r.size - 2 * r2.size - 1) / 2))
+        step = np.mean(np.diff(r_irreg))
+        norm = simps(r_irreg * b, r_irreg) * 2 * np.pi / step**2
+        z = np.zeros(int((r_reg.size - 2 * r_irreg.size - 1) / 2))
         b = np.hstack((z, b[::-1], f(0), b, z))
     return b / norm
 
