@@ -89,7 +89,7 @@ def read_beam(filename):
     Read the beam data up to the first negative or nan value
     --------------------------------------------------------
     '''
-    file = fits.open(filename) # load and read the file
+    file = fits.open(filename)
     data = file[''].data
     radius, beam_prof = data[0][:2]
     if np.isnan(beam_prof).sum() > 0:
