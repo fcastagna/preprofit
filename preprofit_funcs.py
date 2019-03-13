@@ -33,10 +33,23 @@ class Param:
 
 
 class Pressure:
-    def __init__(self, name_pars):
-        self.name_pars = name_pars
+    '''
+    Class to parametrize the pressure profile
+    -----------------------------------------    
+    '''
+    def __init__(self):
+        pass
         
     def defPars(self):
+        '''
+        Default parameter values
+        ------------------------
+        P0 = normalizing constant
+        a = slope at intermediate radii
+        b = slope at large radii
+        c = slope at small radii
+        r500 = characteristic radius
+        '''
         pars = {
             'P0': Param(0.4, minval=0, maxval = 0.8),
             'a': Param(1.33, minval = 0.3, maxval = 10),
@@ -46,40 +59,34 @@ class Pressure:
             }
         return pars
 
-    def pars_val(self, pars):
-        return [pars[i].val for i in pars]
-
-    def update_vals(self, pars, fit_pars, new_pars_val):
+    def update_vals(self, pars, fit_pars, pars_val):
+        '''
+        Update the parameter values
+        ---------------------------
+        pars = set of pressure parameters
+        fit_pars = name of the parameters to update
+        pars_val = new parameter values
+        '''
         for name, i in zip(fit_pars, range(len(fit_pars))):
-            pars[name].val = new_pars_val[i] 
+            pars[name].val = pars_val[i] 
 
     def press_fun(self, pars, r_kpc):
+        '''
+        Compute the pressure profile
+        ----------------------------
+        pars = set of pressure parameters
+        r_kpc = radius (kpc)
+        '''
         P0 = pars['P0'].val
         a = pars['a'].val
         b = pars['b'].val
         c = pars['c'].val
         r500 = pars['r500'].val
-        rp = r500 / 3.2
-        return P0 / ((r_kpc / rp)**c * (1 + (r_kpc / rp)**a)**((b - c) / a))
+        rp = r500 / 3.2 # c_delta = 3.2
+        return P0 / ((r_kpc / rp)**c * (1 + (r_kpc / rp)**a)**((b - c) / a))    
 
-    def calc_press(self, pars, r_kpc):
-        return self.press_fun(pars, r_kpc)
     
-
-def pressure_prof(r, P0, a, b, c, r500):
-    '''
-    Compute the pressure profile
-    ----------------------------
-    r = radius (kpc)
-    P0 = normalizing constant
-    a = slope at intermediate radii
-    b = slope at large radii
-    c = slope at small radii
-    r500 = characteristic radius
-    '''
-    cdelta = 3.2
-    rp = r500 / cdelta
-    return P0 / ((r / rp)**c * (1 + (r / rp)**a)**((b - c) / a))
+ 
 
 def read_beam(name):
     '''
@@ -334,3 +341,23 @@ def pp_best(theta, fit_par, par, par_val, r, clusdir):
               str(list(map(lambda x: round(float(x), 3), theta))))
     pdf.savefig()
     pdf.close()
+
+    
+    
+    
+    
+    
+ def pressure_prof(r, P0, a, b, c, r500):
+    '''
+    Compute the pressure profile
+    ----------------------------
+    r = radius (kpc)
+    P0 = normalizing constant
+    a = slope at intermediate radii
+    b = slope at large radii
+    c = slope at small radii
+    r500 = characteristic radius
+    '''
+    cdelta = 3.2
+    rp = r500 / cdelta
+    return P0 / ((r / rp)**c * (1 + (r / rp)**a)**((b - c) / a))
