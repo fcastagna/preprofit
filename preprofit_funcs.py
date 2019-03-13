@@ -71,8 +71,8 @@ class Pressure:
 
     def press_fun(self, pars, r_kpc):
         '''
-        Compute the pressure profile
-        ----------------------------
+        Compute the gNFW pressure profile
+        ---------------------------------
         pars = set of pressure parameters
         r_kpc = radius (kpc)
         '''
