@@ -218,9 +218,8 @@ def log_posterior(theta, fit_par, par, par_val, step, kpa, phys_const, radius,
         log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2)/2
         log_post = log_lik
         return log_post
-def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, 
-                  radius, y_mat, beam_2d, filtering, tf_len, sep, flux_data, 
-                  conv):
+def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius, 
+            y_mat, beam_2d, filtering, tf_len, sep, flux_data, conv):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -245,44 +244,49 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const,
     --------------------------------------------------------------
     RETURN: log-posterior probability or -inf whether theta is out of the parameter space
     '''
-   press.update_vals(pars, fit_pars, pars_val)
-   if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
-        r = np.arange(step * kpa, pars['r500'].val * 5 + step * kpa, 
-                      step * kpa)
-        pp = press.calc_press(pars, r)
+    # update pars
+    press.update_vals(pars, fit_pars, pars_val)
+    if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
+        r = np.arange(step * kpa, pars['r500'].val * 5 + step * kpa, step * kpa)
+        # pressure profile
+        pp = press.press_fun(pars, r)
         ub = min(pp.size, sep)
-        ab = direct_transform(pp, r = r, direction = "forward", 
-                              backend = 'Python')[:ub] # Check Cython!
+        # abel transform
+        ab = direct_transform(pp, r = r, direction = "forward", backend = 'Python')[:ub]
+        # Compton parameter
         y = phys_const[2] * phys_const[1] / phys_const[0] * ab
         f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
         y = np.concatenate((y[::-1], f(0), y), axis = None)
+        # Compton parameter 2D image
         y_2d = ima_interpolate(y_mat * step, radius[sep - ub:sep + ub + 1], y)
+        # Convolution with the PSF
         conv_2d = fftconvolve(y_2d, beam_2d, 'same')[
                 y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len, 
                 y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len]
+        # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in * filtering))
         map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
         g = interp1d(radius[sep:sep + map_prof.size], map_prof * conv,
                      fill_value = 'extrapolate')
-        log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2)/2
-        log_post = log_lik
-        return log_post
+        # Log-likelihood calculation
+        log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2) / 2
+        return log_lik
     else:
         return -np.inf
 
-    
-def traceplot(mysamples, param_names, nsteps, nw, plotdir = './'):
+def traceplot(mysamples, param_names, nsteps, nw, plotw = 20, plotdir = './'):
     '''
     Traceplot of the MCMC
     ---------------------
-    mysamples = array of sampled values
-    param_names = parameters' labels
-    nsteps = number of steps in the MCMC (after burn-in) 
+    mysamples = array of sampled values in the chain
+    param_names = names of the parameters
+    nsteps = number of steps in the chain (after burn-in) 
     nw = number of random walkers
+    plotw = number of random walkers that we wanna plot (default is 20)
     plotdir = directory where to place the plot
     '''
-    nw_step = nw // 20
+    nw_step = int(np.ceil(nw / plotw))
     pdf = PdfPages(plotdir + 'traceplot.pdf')
     plt.figure().suptitle('Traceplot')
     for i in np.arange(mysamples.shape[1]):
@@ -297,51 +301,44 @@ def traceplot(mysamples, param_names, nsteps, nw, plotdir = './'):
     pdf.savefig()                 
     pdf.close()
 
-def triangle(samples2, param_names, clusdir = './'):
+def triangle(mysamples, param_names, plotdir = './'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
-    samples2 = array of sampled values
-    param_names = parameters' labels
-    clusdir = directory where to place the plot
+    mysamples = array of sampled values in the chain
+    param_names = names of the parameters
+    plotdir = directory where to place the plot
     '''
     plt.clf()
-    pdf = PdfPages(clusdir + 'cornerplot.pdf')
-    fig = corner.corner(samples2, labels = param_names)
+    pdf = PdfPages(plotdir + 'cornerplot.pdf')
+    fig = corner.corner(mysamples, labels = param_names)
     pdf.savefig()
     pdf.close()
 
-def fit_best(theta, fit_par, par, par_val, step, kpa, phys_const, radius,
-             y_mat, beam_2d, filtering, tf_len, sep, flux_data, conv,
-             out = 'comp'):
+def fit_best(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
+             y_mat, beam_2d, filtering, tf_len, sep, flux_data, conv):
     '''
-    Computes alternatively the filtered Compton parameter profile or the
-    integrated pressure profile for the optimized parameter values
-    --------------------------------------------------------------------
-    v(log_posterior)
-    out = 'comp' or 'pp' depending on the desired output
+    Computes the filtered Compton parameter profile for the values in pars_val
+    --------------------------------------------------------------------------
+    see log_lik
     '''
-    for j in range(len(fit_par)): globals()[fit_par[j]] = theta[j]
-    for j in range(len(par)): globals()[par[j]] = par_val[j]
-    r = np.arange(step * kpa, r500 * 5 + step * kpa, step * kpa)
-    pp = pressure_prof(r, P0, a, b, c, r500)
-    if out == 'pp': return pp[:sep]
-    elif out == 'comp':
-        ab = direct_transform(pp, r = r, direction = "forward", 
-                              backend = 'Python')[:sep] # Check Cython!
-        y = phys_const[2] * phys_const[1] / phys_const[0] * ab
-        f = interp1d(np.append(-r[:sep], r[:sep]), np.append(y, y), 
-                     kind = 'cubic')
-        y = np.concatenate((y[::-1], f(0), y), axis = None)
-        y_2d = ima_interpolate(y_mat * step, radius, y)
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[
-                sep - tf_len + 1:sep + tf_len, sep - tf_len + 1:sep + tf_len]
-        FT_map_in = fft2(conv_2d)
-        map_out = np.real(ifft2(FT_map_in * filtering))
-        map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
-        return map_prof * conv
-    else: raise('Error: incorrect out parameter')
-
+    press.update_vals(pars, fit_pars, pars_val)
+    r = np.arange(step * kpa, pars['r500'].val * 5 + step * kpa, step * kpa)
+    pp = press.press_fun(pars, r)
+    ub = min(pp.size, sep)
+    ab = direct_transform(pp, r = r, direction = "forward", backend = 'Python')[:ub]
+    y = phys_const[2] * phys_const[1] / phys_const[0] * ab
+    f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
+    y = np.concatenate((y[::-1], f(0), y), axis = None)
+    y_2d = ima_interpolate(y_mat * step, radius[sep - ub:sep + ub + 1], y)
+    conv_2d = fftconvolve(y_2d, beam_2d, 'same')[
+            y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len, 
+            y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len]
+    FT_map_in = fft2(conv_2d)
+    map_out = np.real(ifft2(FT_map_in * filtering))
+    map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
+    return map_prof * conv
+    
 def plot_best(theta, fit_par, mp_mean, mp_lb, mp_ub, radius, sep, flux_data,
               clusdir = './'):
     '''
