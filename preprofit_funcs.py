@@ -13,6 +13,59 @@ font = {'size': 8}
 plt.rc('font', **font)
 plt.style.use('classic')
 
+class Param:
+    '''
+    Class for parameters
+    --------------------
+    val = value of the parameter
+    minval, maxval = minimum and maximum allowed values
+    frozen = whether the parameter is allowed to vary (True/False)
+    '''
+    def __init__(self, val, minval = -1e99, maxval = 1e99, frozen = False):
+        self.val = float(val)
+        self.minval = minval       
+        self.maxval = maxval
+        self.frozen = frozen
+
+    def __repr__(self):
+        return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, frozen=%s>' % (
+            self.val, self.minval, self.maxval, self.frozen)
+
+
+class Pressure:
+    def __init__(self, name_pars):
+        self.name_pars = name_pars
+        
+    def defPars(self):
+        pars = {
+            'P0': Param(0.4, minval=0, maxval = 0.8),
+            'a': Param(1.33, minval = 0.3, maxval = 10),
+            'b': Param(4.13, minval = 0.5, maxval = 15),
+            'c': Param(0.014, minval = 0, maxval = 3),
+            'r500': Param(930, minval = 500, maxval = 1500)
+            }
+        return pars
+
+    def pars_val(self, pars):
+        return [pars[i].val for i in pars]
+
+    def update_vals(self, pars, fit_pars, new_pars_val):
+        for name, i in zip(fit_pars, range(len(fit_pars))):
+            pars[name].val = new_pars_val[i] 
+
+    def press_fun(self, pars, r_kpc):
+        P0 = pars['P0'].val
+        a = pars['a'].val
+        b = pars['b'].val
+        c = pars['c'].val
+        r500 = pars['r500'].val
+        rp = r500 / 3.2
+        return P0 / ((r_kpc / rp)**c * (1 + (r_kpc / rp)**a)**((b - c) / a))
+
+    def calc_press(self, pars, r_kpc):
+        return self.press_fun(pars, r_kpc)
+    
+
 def pressure_prof(r, P0, a, b, c, r500):
     '''
     Compute the pressure profile
