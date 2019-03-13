@@ -50,9 +50,9 @@ class Pressure:
         r500 = characteristic radius
         '''
         pars = {
-            'P0': Param(0.4, minval=0, maxval = 0.8),
-            'a': Param(1.33, minval = 0.3, maxval = 10),
-            'b': Param(4.13, minval = 0.5, maxval = 15),
+            'P0': Param(0.4, minval = 0, maxval = 2),
+            'a': Param(1.33, minval = 0.1, maxval = 10),
+            'b': Param(4.13, minval = 0.1, maxval = 15),
             'c': Param(0.014, minval = 0, maxval = 3),
             'r500': Param(930, minval = 500, maxval = 1500)
             }
