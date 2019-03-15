@@ -1,4 +1,4 @@
-from conv_funcs import Pressure, mybeam, centdistmat, ima_interpolate, dist, log_lik, traceplot, triangle, fit, plot_best
+from preprofit_funcs import Pressure, mybeam, centdistmat, ima_interpolate, dist, log_lik, traceplot, triangle, fit, plot_best
 import numpy as np
 import mbproj2 as mb
 from astropy.io import fits
