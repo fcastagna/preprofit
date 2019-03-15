@@ -72,8 +72,6 @@ for i in name_pars:
         pars[i].frozen = True
 
 # Radius definition
-tf_len = fits.open(tf_filename)[1].data[0][1].size # number of tf measurements
-tf_mat_len = tf_len * 2 - 1 # one side length of the tf image
 mymaxr = np.ceil(pix_comp // 2 * np.sqrt(2) * mystep) # max radius needed
 radius = np.arange(0, mymaxr, mystep) # arcsec
 rad_kpc = radius * kpc_per_arcsec # from arcsec to kpc
@@ -89,12 +87,14 @@ beam_2d = ima_interpolate(beam_mat * mystep, radius, beam)
 y_mat = centdistmat(pix_comp)
 
 # Transfer function
+tf_data = fits.open(tf_filename)[1].data[0]
+tf_len = tf_data[0].size # number of tf measurements
+tf_mat_len = tf_len * 2 - 1 # one side length of the tf image
 kmax = 1 / mystep
 karr = dist(tf_mat_len)
 karr = karr / np.max(karr) * kmax
-tf_data = fits.open(tf_filename)
-tf = tf_data[1].data[0][1]
-wn_as = tf_data[1].data[0][0] # wave number in arcsec^(-1)
+wn_as = tf_data[0] # wave number in arcsec^(-1)
+tf = tf_data[1]
 f = interp1d(wn_as, tf, fill_value = 'extrapolate') # tf interpolation
 filtering = f(karr)
 
