@@ -1,5 +1,5 @@
 # preprofit
-### Pressure profile fit for galaxy clusters in Python
+## Pressure profile fit for galaxy clusters in Python
 `preprofit` is a Python program that allows to fit the pressure profile of galaxy clusters using MCMC.
 As an example, we show the application of `preprofit` on the high-redshift cluster of galaxies CL J1226.9+3332 (z = 0.89).
 
