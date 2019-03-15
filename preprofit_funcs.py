@@ -136,6 +136,7 @@ def centdistmat(num_odd, offset = 0):
     -----------------------------------------------------------------------
     RETURN: the (num_odd x num_odd) matrix
     '''
+    num_odd = num_odd // 2 * 2 + 1 # if even, makes it odd
     r = np.arange(num_odd)
     x, y = np.meshgrid(r, r)
     return np.sqrt((x - num_odd // 2)**2 + (y - num_odd // 2)**2) + offset
