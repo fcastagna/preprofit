@@ -112,7 +112,17 @@ starting_guesses = np.random.random((nwalkers, ndim)) * starting_var + starting_
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args = [
     press, pars, fit_pars, mystep, kpc_per_arcsec, phys_const, radius, y_mat, 
     beam_2d, filtering, tf_len, sep, flux_data, convert], threads = nthreads)
-sampler.run_mcmc(starting_guesses, nburn + nsteps)
+print('Starting burn-in')
+for i, result in enumerate(sampler.sample(starting_guesses, iterations = nburn,
+                                          storechain = False)):
+    if i % 10 == 0:
+        print(' Burn %i / %i (%.1f%%)' % (i, nburn, i * 100 / nburn))
+    val = result[0]
+print('Finished burn-in \nStarting sampling')
+for i, result in enumerate(sampler.sample(val, iterations = nsteps)):
+    if i % 10 == 0:
+        print(' Sampling %i / %i (%.1f%%)' % (i, nsteps, i * 100 / nsteps))
+print('Finished sampling')
 print('Acceptance fraction: %s' % np.mean(sampler.acceptance_fraction))
 mysamples = sampler.chain[:,nburn:,:].reshape(-1, ndim, order = 'F')
 
