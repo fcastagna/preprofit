@@ -124,7 +124,7 @@ for i, result in enumerate(sampler.sample(val, iterations = nsteps)):
         print(' Sampling %i / %i (%.1f%%)' % (i, nsteps, i * 100 / nsteps))
 print('Finished sampling')
 print('Acceptance fraction: %s' % np.mean(sampler.acceptance_fraction))
-mysamples = sampler.chain[:,nburn:,:].reshape(-1, ndim, order = 'F')
+mysamples = sampler.chain.reshape(-1, ndim, order = 'F')
 
 ## Save the chain
 file = open('mychain', 'wb') # create file
