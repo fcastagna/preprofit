@@ -4,6 +4,19 @@
 As an example, we show the application of `preprofit` on the high-redshift cluster of galaxies CL J1226.9+3332 (z = 0.89).
 
 Beam data and transfer function data come from the NIKA data release (http://lpsc.in2p3.fr/NIKA2LPSZ/nika2sz.release.php).
+
+### Requirements
+`preprofit` requires the following:
+- mbproj2 https://github.com/jeremysanders/mbproj2
+- PyAbel https://github.com/PyAbel/PyAbel
+- numpy http://www.numpy.org/ (Python module)
+- scipy http://www.scipy.org/ (Python module)
+- astropy http://www.astropy.org/ (Python module)
+- emcee http://dan.iel.fm/emcee/ (Python module)
+- six https://pypi.org/project/six/ (Python module)
+- matplotlib https://matplotlib.org/ (Python module)
+- corner https://pypi.org/project/corner/ (Python module)
+
 ### Credits
 Castagna Fabio, Andreon Stefano, RS Pranjal.
 
