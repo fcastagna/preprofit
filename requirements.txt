@@ -1,4 +1,4 @@
-MBProj2
+mbproj2
 PyAbel
 numpy
 scipy
