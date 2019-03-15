@@ -37,10 +37,10 @@ pix_comp = 301 # number of pixels for one side of the Compton parameter image
 
 # MCMC parameters
 ndim = len(fit_pars)
-nwalkers = 200
+nwalkers = 100
 nthreads = 8
-nburn = 5000
-nsteps = 2000
+nburn = 1000
+nsteps = 1000
 np.random.seed(0)
 ci = 95 # confidence interval level
 
