@@ -31,10 +31,6 @@ fit_pars = ['P0', 'r500', 'a']
 # Sampling step
 mystep = 2 # (arcsec)
 
-# Number of pixels
-pix_beam = 61 # number of pixels for one side of the PSF image
-pix_comp = 301 # number of pixels for one side of the Compton parameter image
-
 # MCMC parameters
 ndim = len(fit_pars)
 nwalkers = 100
@@ -80,11 +76,8 @@ sep = radius.size // 2 # index of radius 0
 
 # PSF read, regularize and image creation
 beam, fwhm_beam = mybeam(beam_filename, radius, regularize = True)
-beam_mat = centdistmat(mystep, 3 * fwhm_beam * 2)
-beam_2d = ima_interpolate(beam_mat * mystep, radius, beam)
-
-# Y 2D matrix
-y_mat = centdistmat(pix_comp)
+beam_mat = centdistmat(mystep, max_dist = 3 * fwhm_beam)
+beam_2d = ima_interpolate(beam_mat, radius, beam)
 
 # Transfer function
 tf_data = fits.open(tf_filename)[1].data[0]
@@ -100,6 +93,9 @@ filtering = f(karr)
 
 # Flux density data
 flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arcsec), flux density, TBI statistical error
+
+# Y 2D matrix
+y_mat = centdistmat(60 * (np.ceil(flux_data[0] / 60) + 1))
 
 # Compton parameter to Jy/beam conversion
 convert = compt_param_mJy
