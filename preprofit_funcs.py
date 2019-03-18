@@ -140,7 +140,7 @@ def centdistmat(step, max_dist, offset = 0):
     -----------------------------------------------------------------------
     RETURN: the matrix of distances centered on 0
     '''
-    r = np.arange(0, max_dist, step)
+    r = np.arange(0, max_dist * 2, step)
     if r.size % 2 == 0: 
         r = np.append(r, r[-1] + step) # if even, makes it odd
     x, y = np.meshgrid(r, r)
