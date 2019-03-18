@@ -110,8 +110,8 @@ def mybeam(filename, r_reg, regularize = True):
     filename = name of the file including the beam data
     r_reg = radius with regular step (arcsec)
     regularize = whether to regularize the step (True/False)
-    ---------------------------
-    RETURN: the normalized beam
+    --------------------------------------------------------------
+    RETURN: the normalized beam and the Full Width at Half Maximum
     '''
     r_irreg, b = read_beam(filename)
     f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind = 'cubic',
@@ -141,7 +141,8 @@ def centdistmat(step, max_dist, offset = 0):
     RETURN: the matrix of distances centered on 0
     '''
     r = np.arange(0, max_dist, step)
-    if r.size % 2 == 0: r = np.append(r, r[-1] + step) # if even, makes it odd
+    if r.size % 2 == 0: 
+        r = np.append(r, r[-1] + step) # if even, makes it odd
     x, y = np.meshgrid(r, r)
     centre = r[r.size // 2]
     return np.sqrt((x - centre)**2 + (y - centre)**2) + offset
