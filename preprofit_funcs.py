@@ -130,19 +130,21 @@ def mybeam(filename, r_reg, regularize = True):
         b = np.hstack((z, b[::-1], f(0), b, z))
     return [b / norm, fwhm]
 
-def centdistmat(num_odd, offset = 0):
+def centdistmat(step, max_dist, offset = 0):
     '''
     Create a matrix of distances from the central element
     -----------------------------------------------------
-    num_odd = odd number of rows and columns
+    step = distance in arcsec equivalent to 1 pixel
+    max_dist = maximum distance needed
     offset = basic value for all the distances in the matrix (default is 0)
     -----------------------------------------------------------------------
-    RETURN: the (num_odd x num_odd) matrix
+    RETURN: the matrix of distances centered on 0
     '''
-    num_odd = num_odd // 2 * 2 + 1 # if even, makes it odd
-    r = np.arange(num_odd)
+    r = np.arange(0, max_dist, step)
+    if r.size % 2 == 0: r = np.append(r, r[-1] + step) # if even, makes it odd
     x, y = np.meshgrid(r, r)
-    return np.sqrt((x - num_odd // 2)**2 + (y - num_odd // 2)**2) + offset
+    centre = r[r.size // 2]
+    return np.sqrt((x - centre)**2 + (y - centre)**2) + offset
 
 def ima_interpolate(dist_mat, x, y):
     '''
