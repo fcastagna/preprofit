@@ -2,6 +2,7 @@ import numpy as np
 from astropy.io import fits
 from scipy.interpolate import interp1d
 from abel.direct import direct_transform
+from scipy import optimize
 from scipy.integrate import simps
 from scipy.signal import fftconvolve
 from scipy.fftpack import fft2, ifft2
@@ -115,6 +116,8 @@ def mybeam(filename, r_reg, regularize = True):
     r_irreg, b = read_beam(filename)
     f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind = 'cubic',
                  bounds_error = False, fill_value = (0, 0))
+    inv_f = lambda x: f(x) - f(0) / 2
+    fwhm = 2 * optimize.newton(inv_f, 5) 
     if regularize == True:
         b = f(r_reg)
         sep = r_reg.size // 2
@@ -125,7 +128,7 @@ def mybeam(filename, r_reg, regularize = True):
         norm = simps(r_irreg * b, r_irreg) * 2 * np.pi / step**2
         z = np.zeros(int((r_reg.size - 2 * r_irreg.size - 1) / 2))
         b = np.hstack((z, b[::-1], f(0), b, z))
-    return b / norm
+    return [b / norm, fwhm]
 
 def centdistmat(num_odd, offset = 0):
     '''
