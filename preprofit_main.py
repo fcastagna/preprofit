@@ -79,7 +79,7 @@ radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size // 2 # index of radius 0
 
 # PSF read, regularize and image creation
-beam = mybeam(beam_filename, radius, regularize = True)
+beam, fwhm_beam = mybeam(beam_filename, radius, regularize = True)
 beam_mat = centdistmat(pix_beam)
 beam_2d = ima_interpolate(beam_mat * mystep, radius, beam)
 
