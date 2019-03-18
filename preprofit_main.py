@@ -25,7 +25,7 @@ press = Pressure()
 pars = press.defPars()
 name_pars = list(pars.keys())
 
-# Parameters that we want to fit
+# Parameters that we want to fit (among P0, r500, a, b, c)
 fit_pars = ['P0', 'r500', 'a']
 
 # Sampling step
@@ -67,12 +67,18 @@ for i in name_pars:
     if i not in fit_pars:
         pars[i].frozen = True
 
+# Flux density data
+flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arcsec), flux density, TBI statistical error
+
 # Radius definition
-mymaxr = np.ceil(pix_comp // 2 * np.sqrt(2) * mystep) # max radius needed
-radius = np.arange(0, mymaxr, mystep) # arcsec
-rad_kpc = radius * kpc_per_arcsec # from arcsec to kpc
+mymaxr = 60 * (np.ceil(flux_data[0][-1] / 60) + 1) # max radius (at least 1 arcmin more than the highest x-value in the data)
+radius = np.arange(0, mymaxr, mystep) # radius in arcsec
+rad_kpc = radius * kpc_per_arcsec # radius in kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size // 2 # index of radius 0
+
+# Y 2D matrix
+y_mat = centdistmat(mystep, 60 * (np.ceil(flux_data[0][-1] / 60) + 1))
 
 # PSF read, regularize and image creation
 beam, fwhm_beam = mybeam(beam_filename, radius, regularize = True)
@@ -90,12 +96,6 @@ wn_as = tf_data[0] # wave number in arcsec^(-1)
 tf = tf_data[1]
 f = interp1d(wn_as, tf, fill_value = 'extrapolate') # tf interpolation
 filtering = f(karr)
-
-# Flux density data
-flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arcsec), flux density, TBI statistical error
-
-# Y 2D matrix
-y_mat = centdistmat(60 * (np.ceil(flux_data[0] / 60) + 1))
 
 # Compton parameter to Jy/beam conversion
 convert = compt_param_mJy
