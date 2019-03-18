@@ -80,7 +80,7 @@ sep = radius.size // 2 # index of radius 0
 
 # PSF read, regularize and image creation
 beam, fwhm_beam = mybeam(beam_filename, radius, regularize = True)
-beam_mat = centdistmat(pix_beam)
+beam_mat = centdistmat(mystep, 3 * fwhm_beam * 2)
 beam_2d = ima_interpolate(beam_mat * mystep, radius, beam)
 
 # Y 2D matrix
