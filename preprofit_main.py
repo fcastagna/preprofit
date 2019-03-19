@@ -29,7 +29,7 @@ name_pars = list(pars.keys())
 fit_pars = ['P0', 'r500', 'a']
 
 # Sampling step
-mystep = 2 # (arcsec)
+mystep = 2 # constant step in arcsec (you can fix it to every desired value)
 
 # MCMC parameters
 ndim = len(fit_pars)
@@ -47,9 +47,10 @@ redshift = 0.888
 compt_param_mJy = -10.9 * 10**3 # Compton parameter to Jy/beam
 
 # File names
-beam_filename = 'data/Beam150GHz.fits'
-tf_filename = 'data/TransferFunction150GHz_CLJ1227.fits'
-flux_filename = 'data/press_data_Adam.dat'
+files_dir = 'data'
+beam_filename = '%s/Beam150GHz.fits' % files_dir
+tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' % files_dir
+flux_filename = '%s/press_data_Adam.dat' % files_dir
 
 # Cosmological parameters
 cosmology = mb.Cosmology(redshift)
@@ -71,18 +72,20 @@ for i in name_pars:
 flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arcsec), flux density, TBI statistical error
 
 # Radius definition
-mymaxr = 60 * (np.ceil(flux_data[0][-1] / 60) + 1) # max radius (at least 1 arcmin more than the highest x-value in the data)
-radius = np.arange(0, mymaxr, mystep) # radius in arcsec
+mymaxr = 60 * (np.ceil(flux_data[0][-1] / 60) + 1) # max radius needed
+# here we set it to at least 1 arcmin more than the highest x-value in the data
+radius = np.arange(0, mymaxr, mystep) # array of radii in arcsec
 rad_kpc = radius * kpc_per_arcsec # radius in kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size // 2 # index of radius 0
 
 # Y 2D matrix
-y_mat = centdistmat(mystep, 60 * (np.ceil(flux_data[0][-1] / 60) + 1))
+y_mat = centdistmat(mystep, max_dist = mymaxr)
 
 # PSF read, regularize and image creation
 beam, fwhm_beam = mybeam(beam_filename, radius, regularize = True)
-beam_mat = centdistmat(mystep, max_dist = 3 * fwhm_beam)
+beam_mat = centdistmat(mystep, max_dist = 3 * fwhm_beam) 
+# here we use 3 times the FWHM of the PSF as the maximum distance for half-side of the image
 beam_2d = ima_interpolate(beam_mat, radius, beam)
 
 # Transfer function
