@@ -91,7 +91,7 @@ beam_2d = ima_interpolate(beam_mat, radius, beam)
 # Transfer function
 tf_data = fits.open(tf_filename)[1].data[0]
 tf_len = tf_data[0].size # number of tf measurements
-tf_len = min(tf_len, y_mat.shape[0] // 2)
+tf_len = min(tf_len, y_mat.shape[0] // 2) # to prevent the error of a tf image larger than y_mat
 tf_mat_len = tf_len * 2 - 1 # one side length of the tf image
 kmax = 1 / mystep
 karr = dist(tf_mat_len)
