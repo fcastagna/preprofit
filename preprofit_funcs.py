@@ -304,8 +304,7 @@ def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci,
     pdf = PdfPages(plotdir + 'best_fit.pdf')
     plt.plot(radius[sep:sep + mp_med.size], mp_med)
     plt.plot(radius[sep:sep + mp_med.size], mp_lb, ':', color = 'b')
-    plt.plot(radius[sep:sep + mp_med.size], mp_ub, ':', color = 'b', 
-             label = '_nolegend_')
+    plt.plot(radius[sep:sep + mp_med.size], mp_ub, ':', color = 'b', label = '_nolegend_')
     plt.errorbar(r_sec, y_data, yerr = err, fmt = '.', color = 'r')
     plt.legend(('Filtered profile', '%s%% CI' % ci, 'Flux density'), loc = 'lower right')
     plt.axhline(y = 0, color = 'black', linestyle = ':')
