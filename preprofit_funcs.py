@@ -214,9 +214,8 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
         # Compton parameter 2D image
         y_2d = ima_interpolate(y_mat, radius[sep - ub:sep + ub + 1], y)
         # Convolution with the PSF
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[
-                y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len, 
-                y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len]
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len,
+                                                     y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len]
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in * filtering))
@@ -285,9 +284,8 @@ def fit(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
     y = np.concatenate((y[::-1], f(0), y), axis = None)
     y_2d = ima_interpolate(y_mat, radius[sep - ub:sep + ub + 1], y)
-    conv_2d = fftconvolve(y_2d, beam_2d, 'same')[
-            y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len, 
-            y_mat.shape[0] // 2 - tf_len + 1:y_mat.shape[0] // 2 + tf_len]
+    conv_2d = fftconvolve(y_2d, beam_2d, 'same')[y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len,
+                                                 y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len]
     FT_map_in = fft2(conv_2d)
     map_out = np.real(ifft2(FT_map_in * filtering))
     map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
