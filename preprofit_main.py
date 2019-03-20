@@ -138,7 +138,8 @@ param_std = np.empty(ndim)
 for i in np.arange(ndim):
     param_med[i] = np.median(mysamples[:,i])
     param_std[i] = np.std(mysamples[:,i])
-    print('Median(%s): %s; Sd(%s): %s' % (fit_pars[i], round(param_med[i], 4), fit_pars[i], round(param_std[i], 4)))
+    print('{:>13}'.format('Median(%s):' % fit_pars[i]) + '%9s' % format(param_med[i], '.3f') + 
+          ';{:>12}'.format('Sd(%s):' % fit_pars[i]) + '%9s' % format(param_std[i], '.3f'))
 
 
 ### Plots
