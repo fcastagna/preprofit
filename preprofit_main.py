@@ -74,7 +74,7 @@ flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arc
 # Radius definition
 mymaxr = 60 * (np.ceil(flux_data[0][-1] / 60) + 1) # max radius needed
 # here we set it to at least 1 arcmin more than the highest x-value in the data
-radius = np.arange(0, mymaxr, mystep) # array of radii in arcsec
+radius = np.arange(0, mymaxr + mystep, mystep) # array of radii in arcsec
 rad_kpc = radius * kpc_per_arcsec # radius in kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size // 2 # index of radius 0
@@ -93,7 +93,8 @@ tf_data = fits.open(tf_filename)[1].data[0]
 tf_len = tf_data[0].size # number of tf measurements
 tf_len = min(tf_len, y_mat.shape[0] // 2) # to prevent the error of a tf image larger than y_mat
 tf_mat_len = tf_len * 2 - 1 # one side length of the tf image
-kmax = 1 / mystep
+reso = fwhm_beam # resolution of the map in arcsec (= FWHM of the PSF)
+kmax = 1 / reso
 karr = dist(tf_mat_len)
 karr = karr / np.max(karr) * kmax
 wn_as = tf_data[0] # wave number in arcsec^(-1)
