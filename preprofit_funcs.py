@@ -140,7 +140,7 @@ def centdistmat(step, max_dist, offset = 0):
     -----------------------------------------------------------------------
     RETURN: the matrix of distances centered on 0
     '''
-    r = np.arange(0, max_dist * 2, step)
+    r = np.arange(0, max_dist * 2 + step, step)
     if r.size % 2 == 0: 
         r = np.append(r, r[-1] + step) # if even, makes it odd
     x, y = np.meshgrid(r, r)
@@ -245,7 +245,7 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw = 20, plotdir = './'):
     for i in np.arange(mysamples.shape[1]):
         plt.subplot(2, 1, i % 2 + 1)
         for j in range(nw)[::nw_step]:
-            plt.plot(np.arange(nsteps), mysamples[j::nw,i], linewidth = .2)
+            plt.plot(np.arange(nsteps) + 1, mysamples[j::nw,i], linewidth = .2)
         plt.xlabel('Iteration number')
         plt.ylabel('%s' % param_names[i])
         if (abs((i + 1) % 2) < 0.01):
