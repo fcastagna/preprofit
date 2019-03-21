@@ -29,7 +29,7 @@ name_pars = list(pars.keys())
 fit_pars = ['P0', 'r500', 'a']
 
 # Sampling step
-mystep = 2 # constant step in arcsec (you can fix it to every desired value)
+mystep = 2 # constant step in arcsec (values higher than 1/3 * FWHM of the PSF are not recommended)
 
 # MCMC parameters
 ndim = len(fit_pars)
@@ -89,14 +89,12 @@ beam_mat = centdistmat(mystep, max_dist = 3 * fwhm_beam)
 beam_2d = ima_interpolate(beam_mat, radius, beam)
 
 # Transfer function
-tf_data = fits.open(tf_filename)[1].data[0]
-tf_len = tf_data[0].size # number of tf measurements
-tf_len = min(tf_len, y_mat.shape[0] // 2) # to prevent the error of a tf image larger than y_mat
-tf_mat_len = tf_len * 2 - 1 # one side length of the tf image
+tf_mat_len = y_mat.shape[0] // 2 # one side length of the tf image
 reso = fwhm_beam # resolution of the map in arcsec (= FWHM of the PSF)
 kmax = 1 / reso
 karr = dist(tf_mat_len)
 karr = karr / np.max(karr) * kmax
+tf_data = fits.open(tf_filename)[1].data[0]
 wn_as = tf_data[0] # wave number in arcsec^(-1)
 tf = tf_data[1]
 f = interp1d(wn_as, tf, fill_value = 'extrapolate') # tf interpolation
