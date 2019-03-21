@@ -72,7 +72,7 @@ for i in name_pars:
 flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arcsec), flux density, TBI statistical error
 
 # Radius definition
-mymaxr = 60 * (np.ceil(flux_data[0][-1] / 60) + 1) # max radius needed
+mymaxr = 60 * (np.ceil(flux_data[0][-1] / 60)) # max radius needed
 # here we set it to at least 1 arcmin more than the highest x-value in the data
 radius = np.arange(0, mymaxr + mystep, mystep) # array of radii in arcsec
 rad_kpc = radius * kpc_per_arcsec # radius in kpc
