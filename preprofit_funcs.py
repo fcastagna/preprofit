@@ -173,7 +173,7 @@ def dist(naxis):
     return np.roll(result, naxis // 2 + 1, axis = (0, 1))
 
 def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius, 
-            y_mat, beam_2d, filtering, tf_len, sep, flux_data, conv):
+            y_mat, beam_2d, filtering, sep, flux_data, conv):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -187,8 +187,7 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     radius = radius (arcsec)
     y_mat = matrix of distances for the Compton parameter
     beam_2d = PSF image
-    filtering = tranfer function
-    tf_len = number of tf measurements
+    filtering = transfer function matrix
     sep = index of radius 0
     flux data:
         y_data = flux density
@@ -214,14 +213,12 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
         # Compton parameter 2D image
         y_2d = ima_interpolate(y_mat, radius[sep - ub:sep + ub + 1], y)
         # Convolution with the PSF
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')[y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len,
-                                                     y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len]
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in * filtering))
         map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
-        g = interp1d(radius[sep:sep + map_prof.size], map_prof * conv,
-                     fill_value = 'extrapolate')
+        g = interp1d(radius[sep:sep + map_prof.size], map_prof * conv, fill_value = 'extrapolate')
         # Log-likelihood calculation
         log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2) / 2
         return log_lik
@@ -269,7 +266,7 @@ def triangle(mysamples, param_names, plotdir = './'):
     pdf.close()
 
 def fit(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
-        y_mat, beam_2d, filtering, tf_len, sep, flux_data, conv):
+        y_mat, beam_2d, filtering, sep, flux_data, conv):
     '''
     Computes the filtered Compton parameter profile for the values in pars_val
     --------------------------------------------------------------------------
@@ -284,8 +281,7 @@ def fit(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
     y = np.concatenate((y[::-1], f(0), y), axis = None)
     y_2d = ima_interpolate(y_mat, radius[sep - ub:sep + ub + 1], y)
-    conv_2d = fftconvolve(y_2d, beam_2d, 'same')[y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len,
-                                                 y_2d.shape[0] // 2 - tf_len + 1:y_2d.shape[0] // 2 + tf_len]
+    conv_2d = fftconvolve(y_2d, beam_2d, 'same')
     FT_map_in = fft2(conv_2d)
     map_out = np.real(ifft2(FT_map_in * filtering))
     map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
