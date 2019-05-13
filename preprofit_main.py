@@ -58,7 +58,7 @@ cosmology = mb.Cosmology(redshift)
 cosmology.H0 = 67.11 # Hubble's constant (km/s/Mpc)
 cosmology.WM = 0.3175 # matter density
 cosmology.WV = 0.6825 # vacuum density
-kpc_per_arcsec = cosmology.kpc_per_arcsec # number of kpc per arcsec
+kpc_as = cosmology.kpc_per_arcsec # number of kpc per arcsec
 
 # -------------------------------------------------------------------------------------------------------------------------------
 # Code
@@ -76,18 +76,21 @@ flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arc
 mymaxr = 60*(np.ceil(flux_data[0][-1]/60)+1) # max radius needed (arcsec)
 # here we set it to the integer unit of arcmin that follows the highest x-value in the data
 radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
-rad_kpc = radius*kpc_per_arcsec # radius in kpc
+rad_kpc = radius*kpc_as # radius in kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size//2 # index of radius 0
+r_pp = np.arange(step*kpc_as, 5*1000+step*kpc_as, step*kpc_as) # radius used to compute the pressure profile
+
 
 # Basic matrix to represent the 2D image of the integrated Compton parameter
 y_mat = centdistmat(mystep, max_dist=mymaxr)
 
 # PSF computation and creation of the 2D image
-beam, fwhm_beam = mybeam(beam_filename, radius, regularize=True)
+beam, fwhm_beam = mybeam(radius, filename=beam_filename, regularize=True)
 beam_mat = centdistmat(mystep, max_dist=3*fwhm_beam) 
 # here we use 3 times the FWHM of the PSF as the maximum distance for half-side of the image
 beam_2d = ima_interpolate(beam_mat, radius, beam)
+beam_2d /= beam_2d
 
 # Transfer function
 tf_data = fits.open(tf_filename)[1].data[0] # transfer function data
@@ -110,7 +113,7 @@ starting_guess = [pars[i].val for i in fit_pars]
 starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
-    press, pars, fit_pars, mystep, kpc_per_arcsec, phys_const, radius, y_mat, 
+    press, pars, fit_pars, mystep, kpc_as, phys_const, radius, y_mat, 
     beam_2d, filtering, sep, flux_data, convert, 1000], threads=nthreads)
 print('Starting burn-in')
 for i, result in enumerate(sampler.sample(starting_guesses, iterations=nburn, storechain=False)):
@@ -150,7 +153,7 @@ triangle(mysamples, fit_pars, plotdir)
 
 # Random samples of at most 1000 profiles
 prof_size = min(1000, mysamples.shape[0])
-out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, mystep, kpc_per_arcsec, phys_const, radius, y_mat, beam_2d,
+out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, mystep, kpc_as, phys_const, radius, y_mat, beam_2d,
                              filtering, sep, flux_data, convert, 1000, output='out_prof') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50, 50-ci/2, 50+ci/2], axis=0)
