@@ -79,7 +79,7 @@ radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
 rad_kpc = radius*kpc_as # radius in kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size//2 # index of radius 0
-r_pp = np.arange(step*kpc_as, 5*1000+step*kpc_as, step*kpc_as) # radius used to compute the pressure profile
+r_pp = np.arange(mystep*kpc_as, 5*1000+mystep*kpc_as, mystep*kpc_as) # radius used to compute the pressure profile
 
 
 # Basic matrix to represent the 2D image of the integrated Compton parameter
@@ -113,8 +113,8 @@ starting_guess = [pars[i].val for i in fit_pars]
 starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
-    press, pars, fit_pars, mystep, kpc_as, phys_const, radius, y_mat, 
-    beam_2d, filtering, sep, flux_data, convert, 1000], threads=nthreads)
+    press, pars, fit_pars, r_pp, phys_const, radius, y_mat, beam_2d, 
+    mystep, filtering, sep, flux_data, convert], threads=nthreads)
 print('Starting burn-in')
 for i, result in enumerate(sampler.sample(starting_guesses, iterations=nburn, storechain=False)):
     if i%10 == 0:
@@ -153,7 +153,7 @@ triangle(mysamples, fit_pars, plotdir)
 
 # Random samples of at most 1000 profiles
 prof_size = min(1000, mysamples.shape[0])
-out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, mystep, kpc_as, phys_const, radius, y_mat, beam_2d,
+out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, y_mat, beam_2d, mystep,
                              filtering, sep, flux_data, convert, 1000, output='out_prof') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50, 50-ci/2, 50+ci/2], axis=0)
