@@ -181,7 +181,7 @@ def avg_temp_prof(r_kpc, r500=1000):
     return T_mg*1.35*((r_kpc/r_500/0.045)**1.9+0.45)/(((r_kpc/r_500/0.045)**1.9+1)*(1+(r_kpc/r_500/0.6)**2)**0.45))
 
 def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius, 
-            y_mat, beam_2d, filtering, sep, flux_data, conv):
+            y_mat, beam_2d, filtering, sep, flux_data, conv, r500, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -189,7 +189,7 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     press = pressure object of the class Pressure
     pars = set of pressure parameters
     fit_pars = name of the parameters to fit
-    step = radius[1] - radius[0]
+    step = radius[1]-radius[0]
     kpa = number of kpc per arcsec
     phys_const = physical constants
     radius = radius (arcsec)
@@ -202,38 +202,47 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
         r_sec = x-axis values for y_data
         err = statistical errors of the flux density
     conv = conversion rate from Jy to beam
+    r500 = characteristic radius
+    output = desired output
     --------------------------------------------------------------
     RETURN: log-posterior probability or -inf whether theta is out of the parameter space
     '''
     # update pars
     press.update_vals(pars, fit_pars, pars_val)
     if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
-        r = np.arange(step * kpa, pars['r500'].val * 5 + step * kpa, step * kpa)
+        r = np.arange(step*kpa, 5*r500+step*kpa, step*kpa)
         # pressure profile
         pp = press.press_fun(pars, r)
         ub = min(pp.size, sep)
         # abel transform
-        ab = direct_transform(pp, r = r, direction = "forward", backend = 'Python')[:ub]
+        ab = direct_transform(pp, r=r, direction='forward', backend='Python')[:ub]
         # Compton parameter
-        y = phys_const[2] * phys_const[1] / phys_const[0] * ab
+        y = phys_const[2]*phys_const[1]/phys_const[0]*ab
         f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
-        y = np.concatenate((y[::-1], f(0), y), axis = None)
+        y = np.concatenate((y[::-1], f(0), y), axis=None)
         # Compton parameter 2D image
-        y_2d = ima_interpolate(y_mat, radius[sep - ub:sep + ub + 1], y)
+        y_2d = ima_interpolate(y_mat, radius[sep-ub:sep+ub+1], y)
         # Convolution with the PSF
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
-        map_out = np.real(ifft2(FT_map_in * filtering))
-        map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
-        g = interp1d(radius[sep:sep + map_prof.size], map_prof * conv, fill_value = 'extrapolate')
+        map_out = np.real(ifft2(FT_map_in*filtering))
+        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]
+        t_prof = avg_temp_prof(radius[sep:]*kpa, r500)
+        map_prof = map_prof[:min(sep+1, map_prof.size)]*conv(t_prof)
+        g = interp1d(radius[sep:sep+map_prof.size], map_prof, fill_value='extrapolate')
         # Log-likelihood calculation
-        log_lik = -np.sum(((flux_data[1] - g(flux_data[0])) / flux_data[2])**2) / 2
-        return log_lik
+        log_lik = -np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)/2
+        if output == 'll':
+            return log_lik
+        elif output == 'pp':
+            return pp[:ub]
+        else:
+            return map_prof
     else:
         return -np.inf
 
-def traceplot(mysamples, param_names, nsteps, nw, plotw = 20, plotdir = './'):
+def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
     '''
     Traceplot of the MCMC
     ---------------------
@@ -244,22 +253,22 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw = 20, plotdir = './'):
     plotw = number of random walkers that we wanna plot (default is 20)
     plotdir = directory where to place the plot
     '''
-    nw_step = int(np.ceil(nw / plotw))
-    pdf = PdfPages(plotdir + 'traceplot.pdf')
+    nw_step = int(np.ceil(nw/plotw))
+    pdf = PdfPages(plotdir+'traceplot.pdf')
     plt.figure().suptitle('Traceplot')
     for i in np.arange(mysamples.shape[1]):
-        plt.subplot(2, 1, i % 2 + 1)
+        plt.subplot(2, 1, i%2+1)
         for j in range(nw)[::nw_step]:
-            plt.plot(np.arange(nsteps) + 1, mysamples[j::nw,i], linewidth = .2)
+            plt.plot(np.arange(nsteps)+1, mysamples[j::nw,i], linewidth=.2)
         plt.xlabel('Iteration number')
-        plt.ylabel('%s' % param_names[i])
-        if (abs((i + 1) % 2) < 0.01):
+        plt.ylabel('%s' %param_names[i])
+        if (abs((i+1)%2) < 0.01):
             pdf.savefig()
             plt.clf()
     pdf.savefig()                 
     pdf.close()
 
-def triangle(mysamples, param_names, plotdir = './'):
+def triangle(mysamples, param_names, plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
@@ -268,34 +277,12 @@ def triangle(mysamples, param_names, plotdir = './'):
     plotdir = directory where to place the plot
     '''
     plt.clf()
-    pdf = PdfPages(plotdir + 'cornerplot.pdf')
-    corner.corner(mysamples, labels = param_names)
+    pdf = PdfPages(plotdir+'cornerplot.pdf')
+    corner.corner(mysamples, labels=param_names)
     pdf.savefig()
     pdf.close()
-
-def fit(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
-        y_mat, beam_2d, filtering, sep, flux_data, conv):
-    '''
-    Computes the filtered Compton parameter profile for the values in pars_val
-    --------------------------------------------------------------------------
-    see log_lik
-    '''
-    press.update_vals(pars, fit_pars, pars_val)
-    r = np.arange(step * kpa, pars['r500'].val * 5 + step * kpa, step * kpa)
-    pp = press.press_fun(pars, r)
-    ub = min(pp.size, sep)
-    ab = direct_transform(pp, r = r, direction = "forward", backend = 'Python')[:ub]
-    y = phys_const[2] * phys_const[1] / phys_const[0] * ab
-    f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
-    y = np.concatenate((y[::-1], f(0), y), axis = None)
-    y_2d = ima_interpolate(y_mat, radius[sep - ub:sep + ub + 1], y)
-    conv_2d = fftconvolve(y_2d, beam_2d, 'same')
-    FT_map_in = fft2(conv_2d)
-    map_out = np.real(ifft2(FT_map_in * filtering))
-    map_prof = map_out[conv_2d.shape[0] // 2, conv_2d.shape[0] // 2:]
-    return map_prof * conv
     
-def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci, plotdir = './'):
+def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci, plotdir='./'):
     '''
     Plot of the Compton parameter profile compared to the flux density data
     -----------------------------------------------------------------------
@@ -305,15 +292,15 @@ def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci,
     '''
     r_sec, y_data, err = flux_data
     plt.clf()
-    pdf = PdfPages(plotdir + 'best_fit.pdf')
-    plt.plot(radius[sep:sep + mp_med.size], mp_med)
-    plt.plot(radius[sep:sep + mp_med.size], mp_lb, ':', color = 'b')
-    plt.plot(radius[sep:sep + mp_med.size], mp_ub, ':', color = 'b', label = '_nolegend_')
-    plt.errorbar(r_sec, y_data, yerr = err, fmt = '.', color = 'r')
-    plt.legend(('Filtered profile', '%s%% CI' % ci, 'Flux density'), loc = 'lower right')
-    plt.axhline(y = 0, color = 'black', linestyle = ':')
+    pdf = PdfPages(plotdir+'best_fit.pdf')
+    plt.plot(radius[sep:sep+mp_med.size], mp_med)
+    plt.plot(radius[sep:sep+mp_med.size], mp_lb, ':', color='b')
+    plt.plot(radius[sep:sep+mp_med.size], mp_ub, ':', color='b', label='_nolegend_')
+    plt.errorbar(r_sec, y_data, yerr=err, fmt='.', color='r')
+    plt.legend(('Filtered profile', '%s%% CI' %ci, 'Flux density'), loc='lower right')
+    plt.axhline(y=0, color='black', linestyle=':')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('y x 10$^{4}$')
-    plt.title('Compton parameter profile - best fit with %s%% CI' % ci)
+    plt.title('Compton parameter profile - best fit with %s%% CI' %ci)
     pdf.savefig()
     pdf.close()
