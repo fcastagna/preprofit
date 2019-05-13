@@ -168,18 +168,8 @@ def dist(naxis):
     result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
-def avg_temp_prof(r_kpc, r500=1000):
-    '''
-    Compute the gass mass weighted temperature profile from Romero '17
-    ------------------------------------------------------------------
-    r_kpc = radius (kpc)
-    r500 = characteristic radius
-    '''
-    T_mg = 8.78
-    return T_mg*1.35*((r_kpc/r500/0.045)**1.9+0.45)/(((r_kpc/r500/0.045)**1.9+1)*(1+(r_kpc/r500/0.6)**2)**0.45)
-
-def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius, 
-            y_mat, beam_2d, filtering, sep, flux_data, conv, output='ll'):
+def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
+            y_mat, beam_2d, step, filtering, sep, flux_data, conv, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -187,12 +177,12 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     press = pressure object of the class Pressure
     pars = set of pressure parameters
     fit_pars = name of the parameters to fit
-    step = radius[1]-radius[0]
-    kpa = number of kpc per arcsec
+    r_pp = radius used to compute the pressure profile
     phys_const = physical constants
     radius = radius (arcsec)
     y_mat = matrix of distances for the Compton parameter
     beam_2d = PSF image
+    step = radius[1]-radius[0]
     filtering = transfer function matrix
     sep = index of radius 0
     flux data:
@@ -208,15 +198,14 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     # update pars
     press.update_vals(pars, fit_pars, pars_val)
     if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
-        r = np.arange(step*kpa, 5*1000+step*kpa, step*kpa)
         # pressure profile
-        pp = press.press_fun(pars, r)
+        pp = press.press_fun(pars, r_pp)
         ub = min(pp.size, sep)
         # abel transform
-        ab = direct_transform(pp, r=r, direction='forward', backend='Python')[:ub]
+        ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
         # Compton parameter
         y = phys_const[2]*phys_const[1]/phys_const[0]*ab
-        f = interp1d(np.append(-r[:ub], r[:ub]), np.append(y, y), 'cubic')
+        f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic')
         y = np.concatenate((y[::-1], f(0), y), axis=None)
         # Compton parameter 2D image
         y_2d = ima_interpolate(y_mat, radius[sep-ub:sep+ub+1], y)
@@ -225,9 +214,7 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in*filtering))
-        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]
-        t_prof = avg_temp_prof(radius[sep:]*kpa, r500)
-        map_prof = map_prof[:min(sep+1, map_prof.size)]*conv(t_prof)
+        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:] * conv
         g = interp1d(radius[sep:sep+map_prof.size], map_prof, fill_value='extrapolate')
         # Log-likelihood calculation
         log_lik = -np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)/2
