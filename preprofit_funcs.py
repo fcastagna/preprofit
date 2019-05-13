@@ -119,10 +119,8 @@ def mybeam(filename, r_reg, regularize=True):
     if regularize == True:
         b = f(r_reg)
         sep = r_reg.size//2
-        step = r_reg[1]-r_reg[0]
         norm = simps(r_reg[sep:]*b[sep:], r_reg[sep:])*2*np.pi
     else:
-        step = np.mean(np.diff(r_irreg))
         norm = simps(r_irreg*b, r_irreg)*2*np.pi
         z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
         b = np.hstack((z, b[::-1], f(0), b, z))
