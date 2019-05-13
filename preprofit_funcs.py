@@ -22,7 +22,7 @@ class Param:
     minval, maxval = minimum and maximum allowed values
     frozen = whether the parameter is allowed to vary (True/False)
     '''
-    def __init__(self, val, minval = -1e99, maxval = 1e99, frozen = False):
+    def __init__(self, val, minval=-1e99, maxval=1e99, frozen=False):
         self.val = float(val)
         self.minval = minval       
         self.maxval = maxval
@@ -48,14 +48,14 @@ class Pressure:
         a = slope at intermediate radii
         b = slope at large radii
         c = slope at small radii
-        r500 = characteristic radius
+        r_p = characteristic radius
         '''
         pars = {
-            'P0': Param(0.4, minval = 0, maxval = 2),
-            'a': Param(1.33, minval = 0.1, maxval = 10),
-            'b': Param(4.13, minval = 0.1, maxval = 15),
-            'c': Param(0.014, minval = 0, maxval = 3),
-            'r500': Param(930, minval = 500, maxval = 1500)
+            'P0': Param(0.4, minval=0, maxval=2),
+            'a': Param(1.33, minval=0.1, maxval=10),
+            'b': Param(4.13, minval=0.1, maxval=15),
+            'c': Param(0.014, minval=0, maxval=3),
+            'r_p': Param(800, minval=10, maxval=3000)
             }
         return pars
 
@@ -81,9 +81,8 @@ class Pressure:
         a = pars['a'].val
         b = pars['b'].val
         c = pars['c'].val
-        r500 = pars['r500'].val
-        rp = r500 / 3.2 # c_delta = 3.2
-        return P0 / ((r_kpc / rp)**c * (1 + (r_kpc / rp)**a)**((b - c) / a)) 
+        r_p = pars['r_p'].val
+        return P0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
 
 def read_beam(filename):
     '''
@@ -103,7 +102,7 @@ def read_beam(filename):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(filename, r_reg, regularize = True):
+def mybeam(filename, r_reg, regularize=True):
     '''
     Read the beam data, optionally set a regular step, normalize the 2D distribution and return the beam profile
     ------------------------------------------------------------------------------------------------------------
@@ -114,23 +113,22 @@ def mybeam(filename, r_reg, regularize = True):
     RETURN: the normalized beam and the Full Width at Half Maximum
     '''
     r_irreg, b = read_beam(filename)
-    f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind = 'cubic',
-                 bounds_error = False, fill_value = (0, 0))
-    inv_f = lambda x: f(x) - f(0) / 2
-    fwhm = 2 * optimize.newton(inv_f, 5) 
+    f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind='cubic', bounds_error=False, fill_value=(0, 0))
+    inv_f = lambda x: f(x)-f(0)/2
+    fwhm = 2*optimize.newton(inv_f, x0=5) 
     if regularize == True:
         b = f(r_reg)
-        sep = r_reg.size // 2
-        step = r_reg[1] - r_reg[0]
-        norm = simps(r_reg[sep:] * b[sep:], r_reg[sep:]) * 2 * np.pi / step**2
+        sep = r_reg.size//2
+        step = r_reg[1]-r_reg[0]
+        norm = simps(r_reg[sep:]*b[sep:], r_reg[sep:])*2*np.pi
     else:
         step = np.mean(np.diff(r_irreg))
-        norm = simps(r_irreg * b, r_irreg) * 2 * np.pi / step**2
-        z = np.zeros(int((r_reg.size - 2 * r_irreg.size - 1) / 2))
+        norm = simps(r_irreg*b, r_irreg)*2*np.pi
+        z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
         b = np.hstack((z, b[::-1], f(0), b, z))
-    return [b / norm, fwhm]
+    return [b/norm, fwhm]
 
-def centdistmat(step, max_dist, offset = 0):
+def centdistmat(step, max_dist, offset=0):
     '''
     Create a matrix of distances from the central element
     -----------------------------------------------------
@@ -140,12 +138,12 @@ def centdistmat(step, max_dist, offset = 0):
     -----------------------------------------------------------------------
     RETURN: the matrix of distances centered on 0
     '''
-    r = np.arange(0, max_dist * 2 + step, step)
-    if r.size % 2 == 0: 
-        r = np.append(r, r[-1] + step) # if even, makes it odd
+    r = np.arange(0, max_dist*2+step, step)
+    if r.size%2 == 0: 
+        r = np.append(r, r[-1]+step) # if even, makes it odd
     x, y = np.meshgrid(r, r)
-    centre = r[r.size // 2]
-    return np.sqrt((x - centre)**2 + (y - centre)**2) + offset
+    centre = r[r.size//2]
+    return np.sqrt((x-centre)**2+(y-centre)**2)+offset
 
 def ima_interpolate(dist_mat, x, y):
     '''
@@ -156,7 +154,7 @@ def ima_interpolate(dist_mat, x, y):
     ---------------------------------------------------------------
     RETURN: the matrix of the interpolated y-values for the x-values in dist_mat
     '''
-    f = interp1d(x, y, 'cubic', bounds_error = False, fill_value = (0, 0))
+    f = interp1d(x, y, 'cubic', bounds_error=False, fill_value=(0, 0))
     return f(dist_mat.flat).reshape(dist_mat.shape)
 
 def dist(naxis):
@@ -168,9 +166,19 @@ def dist(naxis):
     -------------------------------------------------
     RETURN: the (naxis x naxis) matrix
     '''
-    axis = np.linspace(- naxis // 2 + 1, naxis // 2, naxis)
-    result = np.sqrt(axis**2 + axis[:,np.newaxis]**2)
-    return np.roll(result, naxis // 2 + 1, axis = (0, 1))
+    axis = np.linspace(-naxis//2+1, naxis//2, naxis)
+    result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
+    return np.roll(result, naxis//2+1, axis=(0, 1))
+
+def avg_temp_prof(r_kpc, r500=1000):
+    '''
+    Compute the gass mass weighted temperature profile from Romero '17
+    ------------------------------------------------------------------
+    r_kpc = radius (kpc)
+    r500 = characteristic radius
+    '''
+    T_mg = 8.78
+    return T_mg*1.35*((r_kpc/r_500/0.045)**1.9+0.45)/(((r_kpc/r_500/0.045)**1.9+1)*(1+(r_kpc/r_500/0.6)**2)**0.45))
 
 def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius, 
             y_mat, beam_2d, filtering, sep, flux_data, conv):
