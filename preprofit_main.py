@@ -105,8 +105,7 @@ filtering = f(np.rot90(np.rot90(karr)))
 
 # Compton parameter to Jy/beam conversion
 convert_data = np.loadtxt(convert_name, skiprows=1, unpack=True)
-convert_data[1] *= 1e3
-convert = interp1d(convert_data[0], convert_data[1], 'linear', fill_value='extrapolate')
+convert = np.mean(convert_data[1]*1e3)
 
 # Bayesian fit
 starting_guess = [pars[i].val for i in fit_pars]
