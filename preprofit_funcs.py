@@ -179,7 +179,7 @@ def avg_temp_prof(r_kpc, r500=1000):
     return T_mg*1.35*((r_kpc/r500/0.045)**1.9+0.45)/(((r_kpc/r500/0.045)**1.9+1)*(1+(r_kpc/r500/0.6)**2)**0.45)
 
 def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius, 
-            y_mat, beam_2d, filtering, sep, flux_data, conv, r500, output='ll'):
+            y_mat, beam_2d, filtering, sep, flux_data, conv, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -208,7 +208,7 @@ def log_lik(pars_val, press, pars, fit_pars, step, kpa, phys_const, radius,
     # update pars
     press.update_vals(pars, fit_pars, pars_val)
     if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
-        r = np.arange(step*kpa, 5*r500+step*kpa, step*kpa)
+        r = np.arange(step*kpa, 5*1000+step*kpa, step*kpa)
         # pressure profile
         pp = press.press_fun(pars, r)
         ub = min(pp.size, sep)
