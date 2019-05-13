@@ -91,7 +91,7 @@ beam_2d = ima_interpolate(beam_mat, radius, beam)
 
 # Transfer function
 tf_data = fits.open(tf_filename)[1].data[0] # transfer function data
-wn_as, tf = tf_data # wave number in arcsec^(-1), transmission
+wn_as, tf = tf_data[:2] # wave number in arcsec^(-1), transmission
 f = interp1d(wn_as, tf, fill_value=tuple([tf[0], tf[-1]]), bounds_error=False) # tf interpolation
 tf_mat_side = y_mat.shape[0] # one side length of the tf image
 reso = mystep # resolution of the map in arcsec (= FWHM of the PSF)
