@@ -102,7 +102,7 @@ def read_beam(filename):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(filename, r_reg, regularize=True):
+def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0.0):
     '''
     Read the beam data, optionally set a regular step, normalize the 2D distribution and return the beam profile
     ------------------------------------------------------------------------------------------------------------
@@ -112,19 +112,25 @@ def mybeam(filename, r_reg, regularize=True):
     --------------------------------------------------------------
     RETURN: the normalized beam and the Full Width at Half Maximum
     '''
-    r_irreg, b = read_beam(filename)
-    f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind='cubic', bounds_error=False, fill_value=(0, 0))
-    inv_f = lambda x: f(x)-f(0)/2
-    fwhm = 2*optimize.newton(inv_f, x0=5) 
-    if regularize == True:
-        b = f(r_reg)
-        sep = r_reg.size//2
-        norm = simps(r_reg[sep:]*b[sep:], r_reg[sep:])*2*np.pi
+    if filename == None:
+        sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
+        from scipy.stats import norm
+        b = norm.pdf(radius, mu_beam, sigma_beam) 
     else:
-        norm = simps(r_irreg*b, r_irreg)*2*np.pi
-        z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
-        b = np.hstack((z, b[::-1], f(0), b, z))
-    return [b/norm, fwhm]
+        r_irreg, b = read_beam(filename)
+        f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind='cubic', bounds_error=False, fill_value=(0, 0))
+        inv_f = lambda x: f(x)-f(0)/2
+        fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
+        if regularize == True:
+            b = f(r_reg)
+            sep = r_reg.size//2
+            norm = simps(r_reg[sep:]*b[sep:], r_reg[sep:])*2*np.pi
+        else:
+            norm = simps(r_irreg*b, r_irreg)*2*np.pi
+            z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
+            b = np.hstack((z, b[::-1], f(0), b, z))
+        b = b/norm
+    return [b, fwhm_beam]
 
 def centdistmat(step, max_dist, offset=0):
     '''
