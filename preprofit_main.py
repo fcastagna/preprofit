@@ -111,7 +111,7 @@ starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
     press, pars, fit_pars, mystep, kpc_per_arcsec, phys_const, radius, y_mat, 
-    beam_2d, filtering, sep, flux_data, convert, r500=1000], threads=nthreads)
+    beam_2d, filtering, sep, flux_data, convert, 1000], threads=nthreads)
 print('Starting burn-in')
 for i, result in enumerate(sampler.sample(starting_guesses, iterations=nburn, storechain=False)):
     if i%10 == 0:
@@ -151,7 +151,7 @@ triangle(mysamples, fit_pars, plotdir)
 # Random samples of at most 1000 profiles
 prof_size = min(1000, mysamples.shape[0])
 out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, mystep, kpc_per_arcsec, phys_const, radius, y_mat, beam_2d,
-                             filtering, sep, flux_data, convert, r500, output='out_prof') for j in 
+                             filtering, sep, flux_data, convert, 1000, output='out_prof') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50, 50-ci/2, 50+ci/2], axis=0)
 
