@@ -153,7 +153,7 @@ triangle(mysamples, fit_pars, plotdir)
 # Random samples of at most 1000 profiles
 prof_size = min(1000, mysamples.shape[0])
 out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, y_mat, beam_2d, mystep,
-                             filtering, sep, flux_data, convert, 1000, output='out_prof') for j in 
+                             filtering, sep, flux_data, convert, output='out_prof') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50, 50-ci/2, 50+ci/2], axis=0)
 
