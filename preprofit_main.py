@@ -90,7 +90,7 @@ beam, fwhm_beam = mybeam(radius, filename=beam_filename, regularize=True)
 beam_mat = centdistmat(mystep, max_dist=3*fwhm_beam) 
 # here we use 3 times the FWHM of the PSF as the maximum distance for half-side of the image
 beam_2d = ima_interpolate(beam_mat, radius, beam)
-beam_2d /= beam_2d
+beam_2d /= np.sum(beam_2d)
 
 # Transfer function
 tf_data = fits.open(tf_filename)[1].data[0] # transfer function data
