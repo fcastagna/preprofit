@@ -1,5 +1,6 @@
 import numpy as np
 from astropy.io import fits
+from scipy.stats import norm
 from scipy.interpolate import interp1d
 from abel.direct import direct_transform
 from scipy import optimize
@@ -102,7 +103,7 @@ def read_beam(filename):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0.0):
+def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0.0):
     '''
     Read the beam data, optionally set a regular step, normalize the 2D distribution and return the beam profile
     ------------------------------------------------------------------------------------------------------------
@@ -112,10 +113,13 @@ def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0.0):
     --------------------------------------------------------------
     RETURN: the normalized beam and the Full Width at Half Maximum
     '''
+    step = r_reg[1]-r_reg[0]
     if filename == None:
+        x, y = np.meshgrid(r_reg, r_reg)
+        d = np.sqrt(x**2+y**2)
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
-        from scipy.stats import norm
-        b = norm.pdf(r_reg, mu_beam, sigma_beam) 
+        beam_2d = norm.pdf(d, mu_beam, sigma_beam)
+        beam_2d /= np.sum(beam_2d)*step**2
     else:
         r_irreg, b = read_beam(filename)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind='cubic', bounds_error=False, fill_value=(0, 0))
@@ -124,13 +128,16 @@ def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0.0):
         if regularize == True:
             b = f(r_reg)
             sep = r_reg.size//2
-            norm = simps(r_reg[sep:]*b[sep:], r_reg[sep:])*2*np.pi
+            norm_2d = simps(r_reg[sep:]*b[sep:], r_reg[sep:])*2*np.pi
         else:
-            norm = simps(r_irreg*b, r_irreg)*2*np.pi
+            step = np.mean(np.diff(r_irreg))
+            norm_2d = simps(r_irreg*b, r_irreg)*2*np.pi
             z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
             b = np.hstack((z, b[::-1], f(0), b, z))
-        b = b/norm
-    return [b, fwhm_beam]
+        b = b/norm_2d
+        beam_mat = centdistmat(step, maxdist=3*fwhm_beam)
+        beam_2d = ima_interpolate(beam_mat, r_reg, b)
+    return beam_2d, fwhm_beam
 
 def centdistmat(step, max_dist, offset=0):
     '''
@@ -159,7 +166,7 @@ def ima_interpolate(dist_mat, x, y):
     RETURN: the matrix of the interpolated y-values for the x-values in dist_mat
     '''
     f = interp1d(x, y, 'cubic', bounds_error=False, fill_value=(0, 0))
-    return f(dist_mat.flat).reshape(dist_mat.shape)
+    return f(dist_mat)
 
 def dist(naxis):
     '''
