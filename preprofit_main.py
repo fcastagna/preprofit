@@ -1,4 +1,4 @@
-from preprofit_funcs import Pressure, mybeam, centdistmat, ima_interpolate, dist, log_lik, traceplot, triangle, plot_best
+from preprofit_funcs import Pressure, mybeam_prof, centdistmat, dist, log_lik, traceplot, triangle, plot_best
 import numpy as np
 import mbproj2 as mb
 from astropy.io import fits
@@ -86,11 +86,7 @@ r_pp = np.arange(mystep*kpc_as, 5*1000+mystep*kpc_as, mystep*kpc_as) # radius us
 y_mat = centdistmat(mystep, max_dist=mymaxr)
 
 # PSF computation and creation of the 2D image
-beam, fwhm_beam = mybeam(radius, filename=beam_filename, regularize=True)
-beam_mat = centdistmat(mystep, max_dist=3*fwhm_beam) 
-# here we use 3 times the FWHM of the PSF as the maximum distance for half-side of the image
-beam_2d = ima_interpolate(beam_mat, radius, beam)
-beam_2d /= np.sum(beam_2d)
+beam_2d, fwhm_beam = mybeam_prof(radius, filename=beam_filename, regularize=True)
 
 # Transfer function
 tf_data = fits.open(tf_filename)[1].data[0] # transfer function data
