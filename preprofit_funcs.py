@@ -135,7 +135,7 @@ def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0
             z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
             b = np.hstack((z, b[::-1], f(0), b, z))
         b = b/norm_2d
-        beam_mat = centdistmat(step, maxdist=3*fwhm_beam)
+        beam_mat = centdistmat(step, max_dist=3*fwhm_beam)
         beam_2d = ima_interpolate(beam_mat, r_reg, b)
     return beam_2d, fwhm_beam
 
