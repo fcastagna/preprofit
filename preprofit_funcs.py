@@ -124,7 +124,7 @@ def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None):
         beam_2d /= np.sum(beam_2d)*step**2
     else:
         r_irreg, b = read_beam(filename)
-        f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind='cubic', bounds_error=False, fill_value=(0, 0))
+        f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0, 0))
         inv_f = lambda x: f(x)-f(0)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
         if regularize == True:
@@ -138,7 +138,8 @@ def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None):
             b = np.hstack((z, b[::-1], f(0), b, z))
         b = b/norm_2d
         beam_mat = centdistmat(step, max_dist=3*fwhm_beam)
-        beam_2d = ima_interpolate(beam_mat, r_reg, b)
+        g = interp1d(r_reg, b, 'cubic', bounds_error=False, fill_value=(0, 0))
+        beam_2d = g(beam_mat)
     return beam_2d, fwhm_beam
 
 def centdistmat(step, max_dist, offset=0):
@@ -157,18 +158,6 @@ def centdistmat(step, max_dist, offset=0):
     x, y = np.meshgrid(r, r)
     centre = r[r.size//2]
     return np.sqrt((x-centre)**2+(y-centre)**2)+offset
-
-def ima_interpolate(dist_mat, x, y):
-    '''
-    Interpolate the (x, y) values at the distance values in dist_mat
-    ----------------------------------------------------------------
-    dist_mat = matrix of distances
-    x, y = vector of coordinates of the distribution to interpolate
-    ---------------------------------------------------------------
-    RETURN: the matrix of the interpolated y-values for the x-values in dist_mat
-    '''
-    f = interp1d(x, y, 'cubic', bounds_error=False, fill_value=(0, 0))
-    return f(dist_mat)
 
 def dist(naxis):
     '''
@@ -220,7 +209,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
         # Compton parameter
         y = phys_const[2]*phys_const[1]/phys_const[0]*ab
-        f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=tuple([0,0]), bounds_error=False)
+        f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=(0, 0), bounds_error=False)
         # Compton parameter 2D image
         y_2d = f(y_mat)
         # Convolution with the PSF
