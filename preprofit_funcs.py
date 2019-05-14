@@ -103,7 +103,7 @@ def read_beam(filename):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0.0):
+def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None):
     '''
     Read the beam data, optionally set a regular step, normalize the 2D distribution and return the beam profile
     ------------------------------------------------------------------------------------------------------------
@@ -118,7 +118,9 @@ def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0
         x, y = np.meshgrid(r_reg, r_reg)
         d = np.sqrt(x**2+y**2)
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
-        beam_2d = norm.pdf(d, mu_beam, sigma_beam)
+        d = np.delete(d, np.where(d[d.shape[0]//2,:] > 10*sigma_beam), axis=0)
+        d = np.delete(d, np.where(d[d.shape[0]//2,:] > 10*sigma_beam), axis=1)
+        beam_2d = norm.pdf(d, loc=0, scale=sigma_beam)
         beam_2d /= np.sum(beam_2d)*step**2
     else:
         r_irreg, b = read_beam(filename)
