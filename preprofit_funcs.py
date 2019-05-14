@@ -115,7 +115,7 @@ def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None, mu_beam=0.0):
     if filename == None:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         from scipy.stats import norm
-        b = norm.pdf(radius, mu_beam, sigma_beam) 
+        b = norm.pdf(r_reg, mu_beam, sigma_beam) 
     else:
         r_irreg, b = read_beam(filename)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), kind='cubic', bounds_error=False, fill_value=(0, 0))
