@@ -220,10 +220,9 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
         # Compton parameter
         y = phys_const[2]*phys_const[1]/phys_const[0]*ab
-        f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic')
-        y = np.concatenate((y[::-1], f(0), y), axis=None)
+        f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=tuple([0,0]), bounds_error=False)
         # Compton parameter 2D image
-        y_2d = ima_interpolate(y_mat, radius[sep-ub:sep+ub+1], y)
+        y_2d = f(y_mat)
         # Convolution with the PSF
         conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
         # Convolution with the transfer function
