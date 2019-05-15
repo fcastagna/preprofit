@@ -184,7 +184,7 @@ def dist(naxis):
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
-            d_mat, beam_2d, step, filtering, sep, flux_data, conv, output='ll'):
+            d_mat, beam_2d, step, filtering, sep, flux_data, mJy_beam, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -204,7 +204,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         y_data = flux density
         r_sec = x-axis values for y_data
         err = statistical errors of the flux density
-    conv = conversion rate from Jy to beam
+    mJy_beam = conversion rate from mJy to beam
     r500 = characteristic radius
     output = desired output
     --------------------------------------------------------------
@@ -228,7 +228,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in*filtering))
-        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:] * conv
+        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*mJy_beam
         g = interp1d(radius[sep:sep+map_prof.size], map_prof, fill_value='extrapolate')
         # Log-likelihood calculation
         log_lik = -np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)/2
@@ -300,6 +300,6 @@ def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci,
     plt.axhline(y=0, color='black', linestyle=':')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('Flux (mJy/beam)')
-    plt.title('Flux density profile - best fit with %s%% CI' %ci)
+    plt.title('Flux density profile: best-fit with %s%% CI' %ci)
     pdf.savefig()
     pdf.close()
