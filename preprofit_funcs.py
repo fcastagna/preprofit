@@ -153,6 +153,23 @@ def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None):
         beam_2d = g(beam_mat)
     return beam_2d, fwhm_beam
 
+def read_tf(filename, skiprows=1):
+    '''
+    Read the transfer function data from the specified file
+    -------------------------------------------------------
+    skiprows = number of header rows to be skipped
+    -----------------------------------------------------------
+    RETURN: the vectors of wave numbers and transmission values
+    '''
+    if filename[filename.find('.', -5)+1:] == 'fits':
+        tf_data = fits.open(filename)[1].data[0]
+    elif filename[filename.find('.', -5)+1:] in ('txt', 'dat'):
+        tf_data = np.loadtxt(tf_filename, skiprows=skiprows, unpack=True)
+    else:
+        raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
+    wn, tf = tf_data[:2] # wave number, transmission
+    return wn, tf
+
 def dist(naxis):
     '''
     Returns a symmetric matrix in which the value of each element is proportional to its frequency 
