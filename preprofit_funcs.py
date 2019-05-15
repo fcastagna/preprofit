@@ -136,7 +136,7 @@ def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None):
     beam_mat = centdistmat(r_reg)
     if filename == None:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
-        beam_2d = norm.pdf(d, loc=0, scale=sigma_beam)
+        beam_2d = norm.pdf(beam_mat, loc=0, scale=sigma_beam)
         beam_2d /= np.sum(beam_2d)*step**2
     else:
         if regularize == True:
