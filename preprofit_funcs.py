@@ -87,8 +87,8 @@ class Pressure:
 
 def read_beam(filename):
     '''
-    Read the beam data up to the first negative or nan value
-    --------------------------------------------------------
+    Read the beam data from the specified file up to the first negative or nan value
+    --------------------------------------------------------------------------------
     '''
     file = fits.open(filename)
     data = file[''].data
@@ -103,30 +103,42 @@ def read_beam(filename):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None):
+def centdistmat(r, offset=0):
     '''
-    Read the beam data, optionally set a regular step, normalize the 2D distribution and return the beam profile
-    ------------------------------------------------------------------------------------------------------------
-    filename = name of the file including the beam data
+    Create a symmetric matrix of distances from the radius vector
+    -------------------------------------------------------------
+    r = vector of negative and positive distances with a given step (center value has to be 0)
+    offset = value to be added to every distance in the matrix (default is 0)
+    ---------------------------------------------
+    RETURN: the matrix of distances centered on 0
+    '''
+    x, y = np.meshgrid(r, r)
+    return np.sqrt(x**2+y**2)+offset
+
+def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None):
+    '''
+    Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
+    --------------------------------------------------------------------------------------------------------
     r_reg = radius with regular step (arcsec)
-    regularize = whether to regularize the step (True/False)
-    --------------------------------------------------------------
-    RETURN: the normalized beam and the Full Width at Half Maximum
+    filename = name of the file including the beam data
+    regularize = whether to regularize the step in the file data (True/False)
+    fwhm_beam = Full Width at Half Maximum
+    -------------------------------------------------------------------
+    RETURN: the 2D image of the beam and his Full Width at Half Maximum
     '''
-    step = r_reg[1]-r_reg[0]
-    if filename == None:
-        x, y = np.meshgrid(r_reg, r_reg)
-        d = np.sqrt(x**2+y**2)
-        sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
-        d = np.delete(d, np.where(d[d.shape[0]//2,:] > 10*sigma_beam), axis=0)
-        d = np.delete(d, np.where(d[d.shape[0]//2,:] > 10*sigma_beam), axis=1)
-        beam_2d = norm.pdf(d, loc=0, scale=sigma_beam)
-        beam_2d /= np.sum(beam_2d)*step**2
-    else:
+    if filename is not None:
         r_irreg, b = read_beam(filename)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0, 0))
         inv_f = lambda x: f(x)-f(0)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
+    step = r_reg[1]-r_reg[0]
+    r_reg = r_reg[np.where(abs(r_reg) <= 3*fwhm_beam)]
+    beam_mat = centdistmat(r_reg)
+    if filename == None:
+        sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
+        beam_2d = norm.pdf(d, loc=0, scale=sigma_beam)
+        beam_2d /= np.sum(beam_2d)*step**2
+    else:
         if regularize == True:
             b = f(r_reg)
             sep = r_reg.size//2
@@ -137,27 +149,9 @@ def mybeam_prof(r_reg, filename=None, regularize=True, fwhm_beam=None):
             z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
             b = np.hstack((z, b[::-1], f(0), b, z))
         b = b/norm_2d
-        beam_mat = centdistmat(step, max_dist=3*fwhm_beam)
         g = interp1d(r_reg, b, 'cubic', bounds_error=False, fill_value=(0, 0))
         beam_2d = g(beam_mat)
     return beam_2d, fwhm_beam
-
-def centdistmat(step, max_dist, offset=0):
-    '''
-    Create a matrix of distances from the central element
-    -----------------------------------------------------
-    step = distance in arcsec equivalent to 1 pixel
-    max_dist = maximum distance needed
-    offset = basic value for all the distances in the matrix (default is 0)
-    -----------------------------------------------------------------------
-    RETURN: the matrix of distances centered on 0
-    '''
-    r = np.arange(0, max_dist*2+step, step)
-    if r.size%2 == 0: 
-        r = np.append(r, r[-1]+step) # if even, makes it odd
-    x, y = np.meshgrid(r, r)
-    centre = r[r.size//2]
-    return np.sqrt((x-centre)**2+(y-centre)**2)+offset
 
 def dist(naxis):
     '''
@@ -173,7 +167,7 @@ def dist(naxis):
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
-            y_mat, beam_2d, step, filtering, sep, flux_data, conv, output='ll'):
+            d_mat, beam_2d, step, filtering, sep, flux_data, conv, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -184,7 +178,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     r_pp = radius used to compute the pressure profile
     phys_const = physical constants
     radius = radius (arcsec)
-    y_mat = matrix of distances for the Compton parameter
+    d_mat = matrix of distances
     beam_2d = PSF image
     step = radius[1]-radius[0]
     filtering = transfer function matrix
@@ -211,7 +205,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         y = phys_const[2]*phys_const[1]/phys_const[0]*ab
         f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=(0, 0), bounds_error=False)
         # Compton parameter 2D image
-        y_2d = f(y_mat)
+        y_2d = f(d_mat)
         # Convolution with the PSF
         conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
         # Convolution with the transfer function
@@ -288,7 +282,7 @@ def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci,
     plt.legend(('Filtered profile', '%s%% CI' %ci, 'Flux density'), loc='lower right')
     plt.axhline(y=0, color='black', linestyle=':')
     plt.xlabel('Radius (arcsec)')
-    plt.ylabel('y x 10$^{4}$')
-    plt.title('Compton parameter profile - best fit with %s%% CI' %ci)
+    plt.ylabel('Flux (mJy/beam)')
+    plt.title('Flux density profile - best fit with %s%% CI' %ci)
     pdf.savefig()
     pdf.close()
