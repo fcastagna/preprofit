@@ -1,4 +1,4 @@
-from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, dist, log_lik, traceplot, triangle, plot_best
+from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, dist, log_lik, mcmc_run, traceplot, triangle, plot_best
 import numpy as np
 import mbproj2 as mb
 from astropy.io import fits
