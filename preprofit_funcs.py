@@ -164,7 +164,7 @@ def read_tf(filename, skiprows=1):
     if filename[filename.find('.', -5)+1:] == 'fits':
         tf_data = fits.open(filename)[1].data[0]
     elif filename[filename.find('.', -5)+1:] in ('txt', 'dat'):
-        tf_data = np.loadtxt(tf_filename, skiprows=skiprows, unpack=True)
+        tf_data = np.loadtxt(filename, skiprows=skiprows, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
     wn, tf = tf_data[:2] # wave number, transmission
@@ -224,7 +224,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         # Compton parameter 2D image
         y_2d = f(d_mat)
         # Convolution with the PSF
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in*filtering))
