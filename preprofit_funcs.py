@@ -184,7 +184,7 @@ def dist(naxis):
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
-            d_mat, beam_2d, step, filtering, sep, flux_data, mJy_beam, output='ll'):
+            d_mat, beam_2d, step, filtering, sep, flux_data, compt_mJy_beam, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -204,7 +204,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         y_data = flux density
         r_sec = x-axis values for y_data
         err = statistical errors of the flux density
-    mJy_beam = conversion rate from mJy to beam
+    compt_mJy_beam = conversion rate from compton parameter to mJy/beam
     r500 = characteristic radius
     output = desired output
     --------------------------------------------------------------
@@ -228,7 +228,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in*filtering))
-        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*mJy_beam
+        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*compt_mJy_beam
         g = interp1d(radius[sep:sep+map_prof.size], map_prof, fill_value='extrapolate')
         # Log-likelihood calculation
         log_lik = -np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)/2
@@ -240,6 +240,34 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
             return map_prof
     else:
         return -np.inf
+
+def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
+    '''
+    Run the MCMC
+    ------------
+    sampler = emcee.EnsembleSampler object
+    p0 = initial position of the walkers in the parameter space
+    nburn = number of steps to burn
+    nsteps = number of steps to run
+    comp_time = whether to show or not the computation time (True/False)
+    '''
+    import time
+    time0 = time.time()
+    print('Starting burn-in')
+    for i, result in enumerate(sampler.sample(p0, iterations=nburn, storechain=False)):
+        if i%10 == 0:
+            print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
+        val = result[0]
+    print('Finished burn-in \nStarting sampling')
+    for i, result in enumerate(sampler.sample(val, iterations = nsteps)):
+        if i%10 == 0:
+            print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
+    print('Finished sampling')
+    time1 = time.time()
+    if comp_time == True:
+        h, rem = divmod(time1-time0, 3600)
+        print('Computation time: '+str(int(h))+'h '+str(int(rem//60))+'m')
+    print('Acceptance fraction: %s' %np.mean(sampler.acceptance_fraction))
 
 def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
     '''
