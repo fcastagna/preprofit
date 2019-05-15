@@ -1,4 +1,4 @@
-from preprofit_funcs import Pressure, mybeam_prof, centdistmat, dist, log_lik, traceplot, triangle, plot_best
+from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, dist, log_lik, traceplot, triangle, plot_best
 import numpy as np
 import mbproj2 as mb
 from astropy.io import fits
@@ -47,11 +47,11 @@ redshift = 0.888
 compt_param_mJy = -10.9*1e3 # Compton parameter to Jy/beam conversion factor
 
 # File names
-files_dir = './data'
+files_dir = './data' # directory
 beam_filename = '%s/Beam150GHz.fits' %files_dir
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_data_Adam.dat' %files_dir
-convert_name = '%s/Jy_per_beam_to_Compton.dat' %files_dir
+compt_convert_name = '%s/Jy_per_beam_to_Compton.dat' %files_dir
 
 # Cosmological parameters
 cosmology = mb.Cosmology(redshift)
@@ -76,51 +76,36 @@ flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arc
 mymaxr = 60*(np.ceil(flux_data[0][-1]/60)+1) # max radius needed (arcsec)
 # here we set it to the integer unit of arcmin that follows the highest x-value in the data
 radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
-rad_kpc = radius*kpc_as # radius in kpc
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size//2 # index of radius 0
-r_pp = np.arange(mystep*kpc_as, 5*1000+mystep*kpc_as, mystep*kpc_as) # radius used to compute the pressure profile
+r_pp = np.arange(mystep*kpc_as, 5*1000+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
 
-
-# Basic matrix to represent the 2D image of the integrated Compton parameter
-y_mat = centdistmat(mystep, max_dist=mymaxr)
+# Matrix of distances centered on 0 with step=mystep
+d_mat = centdistmat(radius)
 
 # PSF computation and creation of the 2D image
-beam_2d, fwhm_beam = mybeam_prof(radius, filename=beam_filename, regularize=True)
+beam_2d, fwhm_beam = mybeam(radius, filename=beam_filename, regularize=True)
 
 # Transfer function
-tf_data = fits.open(tf_filename)[1].data[0] # transfer function data
-wn_as, tf = tf_data[:2] # wave number in arcsec^(-1), transmission
-f = interp1d(wn_as, tf, fill_value=tuple([tf[0], tf[-1]]), bounds_error=False) # tf interpolation
+wn_as, tf = read_tf(tf_filename) # wave number in arcsec^(-1), transmission
+f = interp1d(wn_as, tf, bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
 tf_mat_side = y_mat.shape[0] # one side length of the tf image
-reso = mystep # resolution of the map in arcsec (= FWHM of the PSF)
-kmax = 1/reso
-karr = dist(tf_mat_side)
-karr = karr/tf_mat_side*kmax
+kmax = 1/mystep
+karr = dist(tf_mat_side)/tf_mat_side*kmax
 filtering = f(np.rot90(np.rot90(karr)))
 
-# Compton parameter to Jy/beam conversion
-convert_data = np.loadtxt(convert_name, skiprows=1, unpack=True)
-convert = np.mean(convert_data[1]*1e3)
+# Compton parameter to mJy/beam conversion
+t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
+compt_mJy_beam = np.mean(compt_Jy_beam*1e3)
 
 # Bayesian fit
 starting_guess = [pars[i].val for i in fit_pars]
 starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
-    press, pars, fit_pars, r_pp, phys_const, radius, y_mat, beam_2d, 
-    mystep, filtering, sep, flux_data, convert], threads=nthreads)
-print('Starting burn-in')
-for i, result in enumerate(sampler.sample(starting_guesses, iterations=nburn, storechain=False)):
-    if i%10 == 0:
-        print('Burn %i / %i (%.1f%%)' % (i, nburn, i*100/nburn))
-    val = result[0]
-print('Finished burn-in \nStarting sampling')
-for i, result in enumerate(sampler.sample(val, iterations=nsteps)):
-    if i%10 == 0:
-        print('Sampling %i / %i (%.1f%%)' % (i, nsteps, i*100/nsteps))
-print('Finished sampling')
-print('Acceptance fraction: %s' %np.mean(sampler.acceptance_fraction))
+    press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
+    mystep, filtering, sep, flux_data, compt_mJy_beam], threads=nthreads)
+mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=True)
 mysamples = sampler.chain.reshape(-1, ndim, order='F')
 
 ## Save the chain
@@ -153,5 +138,5 @@ out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_con
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50, 50-ci/2, 50+ci/2], axis=0)
 
-# Best fit
+# Best-fit
 plot_best(param_med, fit_pars, quant[0], quant[1], quant[2], radius, sep, flux_data, ci, plotdir)
