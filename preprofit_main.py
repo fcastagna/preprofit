@@ -89,7 +89,7 @@ beam_2d, fwhm_beam = mybeam(radius, filename=beam_filename, regularize=True)
 # Transfer function
 wn_as, tf = read_tf(tf_filename) # wave number in arcsec^(-1), transmission
 f = interp1d(wn_as, tf, bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
-tf_mat_side = y_mat.shape[0] # one side length of the tf image
+tf_mat_side = d_mat.shape[0] # one side length of the tf image
 kmax = 1/mystep
 karr = dist(tf_mat_side)/tf_mat_side*kmax
 filtering = f(np.rot90(np.rot90(karr)))
@@ -133,7 +133,7 @@ triangle(mysamples, fit_pars, plotdir)
 
 # Random samples of at most 1000 profiles
 prof_size = min(1000, mysamples.shape[0])
-out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, y_mat, beam_2d, mystep,
+out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep,
                              filtering, sep, flux_data, convert, output='out_prof') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50, 50-ci/2, 50+ci/2], axis=0)
