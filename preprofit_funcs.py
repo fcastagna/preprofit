@@ -235,7 +235,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         if output == 'll':
             return log_lik
         elif output == 'pp':
-            return pp[:ub]
+            return pp
         else:
             return map_prof
     else:
