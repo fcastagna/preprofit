@@ -52,11 +52,11 @@ class Pressure:
         r_p = characteristic radius
         '''
         pars = {
-            'P0': Param(0.4, minval=0, maxval=20),
-            'a': Param(1.33, minval=0.1, maxval=10),
-            'b': Param(4.13, minval=0.1, maxval=15),
-            'c': Param(0.014, minval=0, maxval=3),
-            'r_p': Param(500, minval=5, maxval=3000)
+            'P0': Param(0.4, minval=0., maxval=20.),
+            'a': Param(1.33, minval=0.1, maxval=10.),
+            'b': Param(4.13, minval=0.1, maxval=15.),
+            'c': Param(0.014, minval=0., maxval=3.),
+            'r_p': Param(500., minval=5., maxval=3000.)
             }
         return pars
 
@@ -103,7 +103,7 @@ def read_beam(filename):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def centdistmat(r, offset=0):
+def centdistmat(r, offset=0.):
     '''
     Create a symmetric matrix of distances from the radius vector
     -------------------------------------------------------------
@@ -136,7 +136,7 @@ def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None):
     beam_mat = centdistmat(r_reg_cut)
     if filename == None:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
-        beam_2d = norm.pdf(beam_mat, loc=0, scale=sigma_beam)
+        beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
         beam_2d /= np.sum(beam_2d)*step**2
     else:
         if regularize == True:
