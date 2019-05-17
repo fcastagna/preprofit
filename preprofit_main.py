@@ -29,7 +29,7 @@ name_pars = list(pars.keys())
 fit_pars = ['P0', 'r_p']
 
 # Sampling step
-mystep = 2 # constant step in arcsec (values higher than 1/3 * FWHM of the PSF are not recommended)
+mystep = 2. # constant step in arcsec (values higher than 1/3 * FWHM of the PSF are not recommended)
 
 # MCMC parameters
 ndim = len(fit_pars)
@@ -38,7 +38,7 @@ nthreads = 8
 nburn = 1000
 nsteps = 1000
 np.random.seed(0) # optionally, we set a random seed
-ci = 95 # confidence interval level
+ci = 95. # confidence interval level
 
 
 ### Local variables
@@ -70,7 +70,7 @@ for i in name_pars:
         pars[i].frozen = True
 
 # Flux density data
-flux_data = np.loadtxt(flux_filename, skiprows = 1, unpack = True) # radius (arcsec), flux density, statistical error
+flux_data = np.loadtxt(flux_filename, skiprows=1, unpack=True) # radius (arcsec), flux density, statistical error
 
 # Radius definition
 mymaxr = 60*(np.ceil(flux_data[0][-1]/60)+1) # max radius needed (arcsec)
@@ -96,6 +96,7 @@ filtering = f(np.rot90(np.rot90(karr)))
 
 # Compton parameter to mJy/beam conversion
 t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
+convert = interp1d(t_keV, compt_Jy_beam, 'linear', fill_value='extrapolate')
 compt_mJy_beam = np.mean(compt_Jy_beam*1e3)
 
 # Bayesian fit
@@ -136,7 +137,7 @@ prof_size = min(1000, mysamples.shape[0])
 out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep,
                              filtering, sep, flux_data, compt_mJy_beam, output='out_prof') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
-quant = np.percentile(out_prof, [50, 50-ci/2, 50+ci/2], axis=0)
+quant = np.percentile(out_prof, [50., 50-ci/2, 50+ci/2], axis=0)
 
 # Best-fit
 plot_best(param_med, fit_pars, quant[0], quant[1], quant[2], radius, sep, flux_data, ci, plotdir)
