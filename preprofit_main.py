@@ -139,4 +139,4 @@ out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_con
 quant = np.percentile(out_prof, [50., 50-ci/2, 50+ci/2], axis=0)
 
 # Best-fit
-plot_best(param_med, fit_pars, quant[0], quant[1], quant[2], radius, sep, flux_data, ci, plotdir)
+plot_best(param_med, fit_pars, quant[0], quant[1], quant[2], radius, sep, flux_data, int(ci), plotdir)
