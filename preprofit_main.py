@@ -49,7 +49,7 @@ compt_param_mJy = -10.9*1e3 # Compton parameter to Jy/beam conversion factor
 files_dir = './data' # directory
 beam_filename = '%s/Beam150GHz.fits' %files_dir
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
-flux_filename = '%s/press_data_flagsource.dat' %files_dir
+flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
 compt_convert_name = '%s/Jy_per_beam_to_Compton.dat' %files_dir
 
 # Cosmological parameters
