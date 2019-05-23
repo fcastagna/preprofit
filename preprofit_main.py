@@ -32,10 +32,10 @@ mystep = 2. # constant step in arcsec (values higher than 1/3 * FWHM of the PSF 
 
 # MCMC parameters
 ndim = len(fit_pars)
-nwalkers = 100
+nwalkers = 14
 nthreads = 8
-nburn = 1000
-nsteps = 1000
+nburn = 3000
+nsteps = 2000
 np.random.seed(0) # optionally, we set a random seed
 ci = 95. # confidence interval level
 
