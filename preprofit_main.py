@@ -70,10 +70,13 @@ for i in name_pars:
 
 # Flux density data
 flux_data = np.loadtxt(flux_filename, skiprows=1, unpack=True) # radius (arcsec), flux density, statistical error
+maxr_data = flux_data[0][-1] # highest radius in the data
+
+# PSF computation and creation of the 2D image
+beam_2d, fwhm_beam = mybeam(mystep, maxr_data, filename=beam_filename, regularize=True)
 
 # Radius definition
-mymaxr = 60*(np.ceil(flux_data[0][-1]/60)+1) # max radius needed (arcsec)
-# here we set it to the integer unit of arcmin that follows the highest x-value in the data
+mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
 radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size//2 # index of radius 0
@@ -81,9 +84,6 @@ r_pp = np.arange(mystep*kpc_as, 5*1000+mystep*kpc_as, mystep*kpc_as) # radius in
 
 # Matrix of distances in kpc centered on 0 with step=mystep
 d_mat = centdistmat(radius*kpc_as)
-
-# PSF computation and creation of the 2D image
-beam_2d, fwhm_beam = mybeam(radius, filename=beam_filename, regularize=True)
 
 # Transfer function
 wn_as, tf = read_tf(tf_filename) # wave number in arcsec^(-1), transmission
