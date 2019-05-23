@@ -293,7 +293,8 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
         plt.ylabel('%s' %param_names[i])
         if (abs((i+1)%2) < 0.01):
             pdf.savefig()
-            plt.clf()
+            if i < mysamples.shape[1]:
+                plt.clf()
     pdf.savefig()                 
     pdf.close()
 
