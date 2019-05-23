@@ -224,7 +224,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         # Compton parameter 2D image
         y_2d = f(d_mat)
         # Convolution with the PSF
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in*filtering))
