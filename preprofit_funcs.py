@@ -115,11 +115,12 @@ def centdistmat(r, offset=0.):
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, filename=None, regularize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
-    r_reg = radius with regular step (arcsec)
+    step = sampling step
+    maxr_data = highest radius in the data
     filename = name of the file including the beam data
     regularize = whether to regularize the step in the file data (True/False)
     fwhm_beam = Full Width at Half Maximum
@@ -131,25 +132,26 @@ def mybeam(r_reg, filename=None, regularize=True, fwhm_beam=None):
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0, 0))
         inv_f = lambda x: f(x)-f(0)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
-    step = r_reg[1]-r_reg[0]
-    r_reg_cut = r_reg[np.where(abs(r_reg) <= 3*fwhm_beam)]
-    beam_mat = centdistmat(r_reg_cut)
+    maxr = (maxr_data+3*fwhm_beam)//step*step
+    rad = np.arange(-maxr, maxr, step)    
+    rad_beam = rad[np.where(abs(rad) <= 3*fwhm_beam)]
+    beam_mat = centdistmat(rad_beam)
     if filename == None:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
         beam_2d /= np.sum(beam_2d)*step**2
     else:
         if regularize == True:
-            b = f(r_reg)
-            sep = r_reg.size//2
-            norm_2d = simps(r_reg[sep:]*b[sep:], r_reg[sep:])*2*np.pi
+            b = f(rad)
+            sep = rad.size//2
+            norm_2d = simps(rad[sep:]*b[sep:], rad[sep:])*2*np.pi
         else:
             step = np.mean(np.diff(r_irreg))
             norm_2d = simps(r_irreg*b, r_irreg)*2*np.pi
-            z = np.zeros(int((r_reg.size-2*r_irreg.size-1)/2))
+            z = np.zeros(int((rad.size-2*r_irreg.size-1)/2))
             b = np.hstack((z, b[::-1], f(0), b, z))
         b = b/norm_2d
-        g = interp1d(r_reg, b, 'cubic', bounds_error=False, fill_value=(0, 0))
+        g = interp1d(rad, b, 'cubic', bounds_error=False, fill_value=(0, 0))
         beam_2d = g(beam_mat)
     return beam_2d, fwhm_beam
 
