@@ -109,7 +109,7 @@ mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=Tru
 mysamples = sampler.chain.reshape(-1, ndim, order='F')
 
 ## Save the chain
-file = open('mychain', 'wb') # create file
+file = open('mychain.dat', 'wb') # create file
 res = list([sampler.chain, sampler.lnprobability])
 pickle.dump(res, file) # write
 file.close()
