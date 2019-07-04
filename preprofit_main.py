@@ -96,7 +96,7 @@ filtering = f(np.rot90(np.rot90(karr)))
 # Compton parameter to mJy/beam conversion
 t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
 convert = interp1d(t_keV, compt_Jy_beam, 'linear', fill_value='extrapolate')
-compt_mJy_beam = np.mean(compt_Jy_beam*1e3)
+compt_mJy_beam = convert(10) # we assume a constant temperature of 10 keV
 
 # Bayesian fit
 starting_guess = [pars[i].val for i in fit_pars]
