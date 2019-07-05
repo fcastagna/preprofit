@@ -44,6 +44,8 @@ ci = 95. # confidence interval level
 
 redshift = 0.888
 compt_param_mJy = -10.9*1e3 # Compton parameter to Jy/beam conversion factor
+R_b = 5000 # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
+t_const = 10 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
 
 # File names
 files_dir = './data' # directory
@@ -80,7 +82,7 @@ mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
 radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size//2 # index of radius 0
-r_pp = np.arange(mystep*kpc_as, 5*1000+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
+r_pp = np.arange(mystep*kpc_as, R_b+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
 
 # Matrix of distances in kpc centered on 0 with step=mystep
 d_mat = centdistmat(radius*kpc_as)
@@ -96,7 +98,7 @@ filtering = f(np.rot90(np.rot90(karr)))
 # Compton parameter to mJy/beam conversion
 t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
 convert = interp1d(t_keV, compt_Jy_beam, 'linear', fill_value='extrapolate')
-compt_mJy_beam = convert(10) # we assume a constant temperature of 10 keV
+compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
 
 # Bayesian fit
 starting_guess = [pars[i].val for i in fit_pars]
