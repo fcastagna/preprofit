@@ -271,7 +271,7 @@ def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
         print('Computation time: '+str(int(h))+'h '+str(int(rem//60))+'m')
     print('Acceptance fraction: %s' %np.mean(sampler.acceptance_fraction))
 
-def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
+def traceplot(mysamples, param_names, nsteps, nw, plotw=20, ppp=4, plotdir='./'):
     '''
     Traceplot of the MCMC
     ---------------------
@@ -280,6 +280,7 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
     nsteps = number of steps in the chain (after burn-in) 
     nw = number of random walkers
     plotw = number of random walkers that we wanna plot (default is 20)
+    ppp = number of plots per page
     plotdir = directory where to place the plot
     '''
     nw_step = int(np.ceil(nw/plotw))
@@ -287,11 +288,11 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
     pdf = PdfPages(plotdir+'traceplot.pdf')
     plt.figure().suptitle('Traceplot')
     for i in np.arange(mysamples.shape[1]):
-        plt.subplot(2, 1, i%2+1)
+        plt.subplot(ppp, 1, i%ppp+1)
         for j in range(nw)[::nw_step]:
             plt.plot(np.arange(nsteps)+1, mysamples[j::nw,i], linewidth=.2)
         plt.ylabel('%s' %param_latex[i])
-        if (abs((i+1)%2) < 0.01):
+        if (abs((i+1)%ppp) < 0.01):
             plt.xlabel('Iteration number')
             pdf.savefig()
             if i+1 < mysamples.shape[1]:
