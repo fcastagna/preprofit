@@ -308,7 +308,7 @@ def triangle(mysamples, param_names, plotdir='./'):
     '''
     plt.clf()
     pdf = PdfPages(plotdir+'cornerplot.pdf')
-    corner.corner(mysamples, labels=param_names, quantiles=np.repeat(.5, param_names.size))
+    corner.corner(mysamples, labels=param_names, quantiles=np.repeat(.5, len(param_names)), show_titles=True)
     pdf.savefig()
     pdf.close()
     
