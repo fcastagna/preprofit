@@ -45,14 +45,14 @@ class Pressure:
         '''
         Default parameter values
         ------------------------
-        P0 = normalizing constant
+        P_0 = normalizing constant
         a = slope at intermediate radii
         b = slope at large radii
         c = slope at small radii
         r_p = characteristic radius
         '''
         pars = {
-            'P0': Param(0.4, minval=0., maxval=1.),
+            'P_0': Param(0.4, minval=0., maxval=1.),
             'a': Param(1.33, minval=0.5, maxval=5.),
             'b': Param(4.13, minval=2., maxval=8.),
             'c': Param(0.014, minval=0., maxval=0.5),
@@ -78,12 +78,12 @@ class Pressure:
         pars = set of pressure parameters
         r_kpc = radius (kpc)
         '''
-        P0 = pars['P0'].val
+        P_0 = pars['P_0'].val
         a = pars['a'].val
         b = pars['b'].val
         c = pars['c'].val
         r_p = pars['r_p'].val
-        return P0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
+        return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
 
 def read_beam(filename):
     '''
@@ -283,19 +283,22 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
     plotdir = directory where to place the plot
     '''
     nw_step = int(np.ceil(nw/plotw))
+    param_latex = ['${}$'.format(i) for i in param_names]
     pdf = PdfPages(plotdir+'traceplot.pdf')
     plt.figure().suptitle('Traceplot')
     for i in np.arange(mysamples.shape[1]):
         plt.subplot(2, 1, i%2+1)
         for j in range(nw)[::nw_step]:
             plt.plot(np.arange(nsteps)+1, mysamples[j::nw,i], linewidth=.2)
-        plt.xlabel('Iteration number')
-        plt.ylabel('%s' %param_names[i])
+        plt.ylabel('%s' %param_latex[i])
         if (abs((i+1)%2) < 0.01):
+            plt.xlabel('Iteration number')
             pdf.savefig()
-            if i < mysamples.shape[1]:
+            if i+1 < mysamples.shape[1]:
                 plt.clf()
-    pdf.savefig()                 
+        elif i+1 == mysamples.shape[1]:
+            plt.xlabel('Iteration number')
+            pdf.savefig()
     pdf.close()
 
 def triangle(mysamples, param_names, plotdir='./'):
@@ -306,9 +309,10 @@ def triangle(mysamples, param_names, plotdir='./'):
     param_names = names of the parameters
     plotdir = directory where to place the plot
     '''
+    param_latex = ['${}$'.format(i) for i in param_names]
     plt.clf()
     pdf = PdfPages(plotdir+'cornerplot.pdf')
-    corner.corner(mysamples, labels=param_names, quantiles=np.repeat(.5, len(param_names)), show_titles=True)
+    corner.corner(mysamples, labels=param_latex, quantiles=np.repeat(.5, len(param_latex)), show_titles=True)
     pdf.savefig()
     pdf.close()
     
