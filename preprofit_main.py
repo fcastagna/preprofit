@@ -24,8 +24,8 @@ press = Pressure()
 pars = press.defPars()
 name_pars = list(pars.keys())
 
-# Parameters that we want to fit (among P0, r_p, a, b, c)
-fit_pars = ['P0', 'r_p']
+# Parameters that we want to fit (among P_0, r_p, a, b, c)
+fit_pars = ['P_0', 'r_p']
 
 # Sampling step
 mystep = 2. # constant step in arcsec (values higher than 1/3 * FWHM of the PSF are not recommended)
