@@ -241,6 +241,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         else:
             return map_prof
     else:
+        # if some parameter is out of the parameter space
         return -np.inf
 
 def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
