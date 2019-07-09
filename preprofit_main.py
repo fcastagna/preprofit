@@ -43,9 +43,8 @@ ci = 95. # confidence interval level
 ### Local variables
 
 redshift = 0.888
-compt_param_mJy = -10.9*1e3 # Compton parameter to Jy/beam conversion factor
 R_b = 5000 # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
-t_const = 10 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
+t_const = 12 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
 
 # File names
 files_dir = './data' # directory
