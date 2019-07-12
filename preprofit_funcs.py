@@ -139,14 +139,13 @@ def mybeam(step, maxr_data, filename=None, regularize=True, fwhm_beam=None):
     if filename == None:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
-        beam_2d /= np.sum(beam_2d)*step**2
+        beam_2d /= np.sum(beam_2d)
     else:
         if regularize == True:
             b = f(rad)
             sep = rad.size//2
-            norm_2d = simps(rad[sep:]*b[sep:], rad[sep:])*2*np.pi
+            norm_2d = simps(rad[sep:]*b[sep:], rad[sep:])*2*np.pi/step**2
         else:
-            step = np.mean(np.diff(r_irreg))
             norm_2d = simps(r_irreg*b, r_irreg)*2*np.pi
             z = np.zeros(int((rad.size-2*r_irreg.size-1)/2))
             b = np.hstack((z, b[::-1], f(0), b, z))
@@ -226,7 +225,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         # Compton parameter 2D image
         y_2d = f(d_mat)
         # Convolution with the PSF
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
+        conv_2d = fftconvolve(y_2d, beam_2d, 'same')
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in*filtering))
