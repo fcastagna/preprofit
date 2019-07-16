@@ -82,6 +82,7 @@ radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size//2 # index of radius 0
 r_pp = np.arange(mystep*kpc_as, R_b+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
+ub = min(sep, r_pp.size) # ub=sep unless r500 is too low and then r_pp.size < sep
 
 # Matrix of distances in kpc centered on 0 with step=mystep
 d_mat = centdistmat(radius*kpc_as)
@@ -105,7 +106,7 @@ starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
     press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
-    mystep, filtering, sep, flux_data, compt_mJy_beam], threads=nthreads)
+    mystep, filtering, sep, ub, flux_data, compt_mJy_beam], threads=nthreads)
 mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=True)
 mysamples = sampler.chain.reshape(-1, ndim, order='F')
 
@@ -135,7 +136,7 @@ triangle(mysamples, fit_pars, plotdir)
 # Random samples of at most 1000 profiles
 prof_size = min(1000, mysamples.shape[0])
 out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep,
-                             filtering, sep, flux_data, compt_mJy_beam, output='out_prof') for j in 
+                             filtering, sep, ub, flux_data, compt_mJy_beam, output='out_prof') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50., 50-ci/2, 50+ci/2], axis=0)
 
