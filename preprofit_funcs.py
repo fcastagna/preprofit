@@ -201,6 +201,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     step = radius[1]-radius[0]
     filtering = transfer function matrix
     sep = index of radius 0
+    ub = index of the highest radius considered (ub=sep unless r500 is too low and then r_pp.size < sep)
     flux data:
         y_data = flux density
         r_sec = x-axis values for y_data
@@ -216,7 +217,6 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
         # pressure profile
         pp = press.press_fun(pars, r_pp)
-        ub = min(pp.size, sep)
         # abel transform
         ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
         # Compton parameter
