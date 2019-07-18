@@ -74,7 +74,7 @@ flux_data = np.loadtxt(flux_filename, skiprows=1, unpack=True) # radius (arcsec)
 maxr_data = flux_data[0][-1] # highest radius in the data
 
 # PSF computation and creation of the 2D image
-beam_2d, fwhm_beam = mybeam(mystep, maxr_data, filename=beam_filename, regularize=True)
+beam_2d, fwhm_beam = mybeam(mystep, maxr_data, filename=beam_filename, normalize=True)
 
 # Radius definition
 mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
