@@ -97,7 +97,7 @@ def read_beam(filename):
         first_nan = np.where(np.isnan(beam_prof))[0][0]
         radius = radius[:first_nan]
         beam_prof = beam_prof[:first_nan]
-    if np.min(beam_prof) < 0:
+    if beam_prof.min() < 0:
         first_neg = np.where(beam_prof < 0)[0][0]
         radius = radius[:first_neg]
         beam_prof = beam_prof[:first_neg]
@@ -140,7 +140,7 @@ def mybeam(r_reg, filename=None, normalize=True, fwhm_beam=None):
     else:
         beam_2d = f(beam_mat)
     if normalize == True:
-        beam_2d /= np.sum(beam_2d)*step**2
+        beam_2d /= beam_2d.sum()*step**2
     return beam_2d, fwhm_beam
 
 def read_tf(filename, skiprows=1):
