@@ -1,4 +1,4 @@
-from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, dist, log_lik, mcmc_run, traceplot, triangle, plot_best
+from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, tf_image, log_lik, mcmc_run, traceplot, triangle, plot_best
 import numpy as np
 import mbproj2 as mb
 from scipy.interpolate import interp1d
@@ -89,11 +89,7 @@ d_mat = centdistmat(radius*kpc_as)
 
 # Transfer function
 wn_as, tf = read_tf(tf_filename) # wave number in arcsec^(-1), transmission
-f = interp1d(wn_as, tf, bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
-tf_mat_side = d_mat.shape[0] # one side length of the tf image
-kmax = 1/mystep
-karr = dist(tf_mat_side)/tf_mat_side*kmax
-filtering = f(np.rot90(np.rot90(karr)))
+filtering = tf_image(wn_as, tf)
 
 # Compton parameter to mJy/beam conversion
 t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
