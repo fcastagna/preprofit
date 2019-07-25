@@ -1,4 +1,4 @@
-from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, tf_image, log_lik, mcmc_run, traceplot, triangle, plot_best
+from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, filt_image, log_lik, mcmc_run, traceplot, triangle, plot_best
 import numpy as np
 import mbproj2 as mb
 from scipy.interpolate import interp1d
