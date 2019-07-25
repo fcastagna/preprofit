@@ -160,6 +160,22 @@ def read_tf(filename, skiprows=1):
     wn, tf = tf_data[:2] # wave number, transmission
     return wn, tf
 
+def filt_image(wn_as, tf, side, step):
+    '''
+    Create the 2D filtering image from the transfer function data
+    -------------------------------------------------------------
+    wn_as = vector of wave numbers in arcsec
+    tf = transmission data
+    side = one side length for the output image
+    step = binning step
+    -------------------------------
+    RETURN: the (side x side) image
+    '''
+    f = interp1d(wn_as, tf, bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
+    kmax = 1/step
+    karr = dist(side)/side*kmax
+    return f(np.rot90(np.rot90(karr)))
+
 def dist(naxis):
     '''
     Returns a symmetric matrix in which the value of each element is proportional to its frequency 
