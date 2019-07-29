@@ -26,6 +26,9 @@ name_pars = list(pars.keys())
 
 # Parameters that we want to fit (among P_0, r_p, a, b, c)
 fit_pars = ['P_0', 'r_p']
+# For each parameter, use the following to change the bounds of the prior distribution:
+#pars['P_0'].minval = 0.1
+#pars['P_0'].maxval = 10.
 
 # Sampling step
 mystep = 2. # constant step in arcsec (values higher than 1/3 * FWHM of the PSF are not recommended)
