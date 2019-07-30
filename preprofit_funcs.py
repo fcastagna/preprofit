@@ -192,7 +192,7 @@ def dist(naxis):
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
-            d_mat, beam_2d, step, filtering, sep, flux_data, compt_mJy_beam, output='ll'):
+            d_mat, beam_2d, step, filtering, sep, ub, flux_data, compt_mJy_beam, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
