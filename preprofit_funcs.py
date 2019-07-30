@@ -115,11 +115,12 @@ def centdistmat(r, offset=0.):
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def mybeam(r_reg, filename=None, normalize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, filename=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
-    r_reg = radius with regular step (arcsec)
+    step = binning step
+    maxr_data = highest radius in the data
     filename = name of the file including the beam data
     normalize = whether to normalize or not the output 2D image (True/False)
     fwhm_beam = Full Width at Half Maximum
@@ -131,9 +132,10 @@ def mybeam(r_reg, filename=None, normalize=True, fwhm_beam=None):
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0, 0))
         inv_f = lambda x: f(x)-f(0)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
-    step = r_reg[1]-r_reg[0]
-    r_reg_cut = r_reg[np.where(abs(r_reg) <= 3*fwhm_beam)]
-    beam_mat = centdistmat(r_reg_cut)
+    maxr = (maxr_data+3*fwhm_beam)//step*step
+    rad = np.arange(-maxr, maxr, step)
+    rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
+    beam_mat = centdistmat(rad_cut)
     if filename == None:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
