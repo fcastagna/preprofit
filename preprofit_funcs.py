@@ -45,18 +45,18 @@ class Pressure:
         '''
         Default parameter values
         ------------------------
-        P0 = normalizing constant
+        P_0 = normalizing constant
         a = slope at intermediate radii
         b = slope at large radii
         c = slope at small radii
         r_p = characteristic radius
         '''
         pars = {
-            'P0': Param(0.4, minval=0., maxval=20.),
-            'a': Param(1.33, minval=0.1, maxval=10.),
-            'b': Param(4.13, minval=0.1, maxval=15.),
-            'c': Param(0.014, minval=0., maxval=3.),
-            'r_p': Param(500., minval=5., maxval=3000.)
+            'P_0': Param(0.4, minval=0., maxval=1.),
+            'a': Param(1.33, minval=0.5, maxval=5.),
+            'b': Param(4.13, minval=3., maxval=7.),
+            'c': Param(0.014, minval=0., maxval=0.5),
+            'r_p': Param(300., minval=100., maxval=1000.)
             }
         return pars
 
@@ -78,12 +78,12 @@ class Pressure:
         pars = set of pressure parameters
         r_kpc = radius (kpc)
         '''
-        P0 = pars['P0'].val
+        P_0 = pars['P_0'].val
         a = pars['a'].val
         b = pars['b'].val
         c = pars['c'].val
         r_p = pars['r_p'].val
-        return P0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
+        return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
 
 def read_beam(filename):
     '''
@@ -97,7 +97,7 @@ def read_beam(filename):
         first_nan = np.where(np.isnan(beam_prof))[0][0]
         radius = radius[:first_nan]
         beam_prof = beam_prof[:first_nan]
-    if np.min(beam_prof) < 0:
+    if beam_prof.min() < 0:
         first_neg = np.where(beam_prof < 0)[0][0]
         radius = radius[:first_neg]
         beam_prof = beam_prof[:first_neg]
@@ -115,14 +115,14 @@ def centdistmat(r, offset=0.):
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def mybeam(step, maxr_data, filename=None, regularize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, filename=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
-    step = sampling step
+    step = binning step
     maxr_data = highest radius in the data
     filename = name of the file including the beam data
-    regularize = whether to regularize the step in the file data (True/False)
+    normalize = whether to normalize or not the output 2D image (True/False)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
@@ -133,34 +133,26 @@ def mybeam(step, maxr_data, filename=None, regularize=True, fwhm_beam=None):
         inv_f = lambda x: f(x)-f(0)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
     maxr = (maxr_data+3*fwhm_beam)//step*step
-    rad = np.arange(-maxr, maxr, step)    
-    rad_beam = rad[np.where(abs(rad) <= 3*fwhm_beam)]
-    beam_mat = centdistmat(rad_beam)
+    rad = np.arange(0, maxr+step, step)
+    rad = np.append(-rad[:0:-1], rad)
+    rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
+    beam_mat = centdistmat(rad_cut)
     if filename == None:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
-        beam_2d /= np.sum(beam_2d)*step**2
     else:
-        if regularize == True:
-            b = f(rad)
-            sep = rad.size//2
-            norm_2d = simps(rad[sep:]*b[sep:], rad[sep:])*2*np.pi
-        else:
-            step = np.mean(np.diff(r_irreg))
-            norm_2d = simps(r_irreg*b, r_irreg)*2*np.pi
-            z = np.zeros(int((rad.size-2*r_irreg.size-1)/2))
-            b = np.hstack((z, b[::-1], f(0), b, z))
-        b = b/norm_2d
-        g = interp1d(rad, b, 'cubic', bounds_error=False, fill_value=(0, 0))
-        beam_2d = g(beam_mat)
+        beam_2d = f(beam_mat)
+    if normalize == True:
+        beam_2d /= beam_2d.sum()*step**2
     return beam_2d, fwhm_beam
 
-def read_tf(filename, skiprows=1):
+def read_tf(filename, skiprows=1, approx=False):
     '''
     Read the transfer function data from the specified file
     -------------------------------------------------------
     skiprows = number of header rows to be skipped
-    -----------------------------------------------------------
+    approx = whether to approximate or not the tf to the normal cdf (True/False)
+    ----------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     '''
     if filename[filename.find('.', -5)+1:] == 'fits':
@@ -170,7 +162,25 @@ def read_tf(filename, skiprows=1):
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
     wn, tf = tf_data[:2] # wave number, transmission
+    if approx == True:
+        tf = norm.cdf(wn, 0, .02)
     return wn, tf
+
+def filt_image(wn_as, tf, side, step):
+    '''
+    Create the 2D filtering image from the transfer function data
+    -------------------------------------------------------------
+    wn_as = vector of wave numbers in arcsec
+    tf = transmission data
+    side = one side length for the output image
+    step = binning step
+    -------------------------------
+    RETURN: the (side x side) image
+    '''
+    f = interp1d(wn_as, tf, bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
+    kmax = 1/step
+    karr = dist(side)/side*kmax
+    return f(np.rot90(np.rot90(karr)))
 
 def dist(naxis):
     '''
@@ -186,7 +196,7 @@ def dist(naxis):
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
-            d_mat, beam_2d, step, filtering, sep, flux_data, compt_mJy_beam, output='ll'):
+            d_mat, beam_2d, step, filtering, sep, ub, flux_data, compt_mJy_beam, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -202,6 +212,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     step = radius[1]-radius[0]
     filtering = transfer function matrix
     sep = index of radius 0
+    ub = index of the highest radius considered (ub=sep unless r500 is too low and then r_pp.size < sep)
     flux data:
         y_data = flux density
         r_sec = x-axis values for y_data
@@ -217,7 +228,6 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
         # pressure profile
         pp = press.press_fun(pars, r_pp)
-        ub = min(pp.size, sep)
         # abel transform
         ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
         # Compton parameter
@@ -241,6 +251,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         else:
             return map_prof
     else:
+        # if some parameter is out of the parameter space
         return -np.inf
 
 def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
@@ -271,7 +282,7 @@ def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
         print('Computation time: '+str(int(h))+'h '+str(int(rem//60))+'m')
     print('Acceptance fraction: %s' %np.mean(sampler.acceptance_fraction))
 
-def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
+def traceplot(mysamples, param_names, nsteps, nw, plotw=20, ppp=4, plotdir='./'):
     '''
     Traceplot of the MCMC
     ---------------------
@@ -280,22 +291,26 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw=20, plotdir='./'):
     nsteps = number of steps in the chain (after burn-in) 
     nw = number of random walkers
     plotw = number of random walkers that we wanna plot (default is 20)
+    ppp = number of plots per page
     plotdir = directory where to place the plot
     '''
     nw_step = int(np.ceil(nw/plotw))
+    param_latex = ['${}$'.format(i) for i in param_names]
     pdf = PdfPages(plotdir+'traceplot.pdf')
     plt.figure().suptitle('Traceplot')
     for i in np.arange(mysamples.shape[1]):
-        plt.subplot(2, 1, i%2+1)
+        plt.subplot(ppp, 1, i%ppp+1)
         for j in range(nw)[::nw_step]:
             plt.plot(np.arange(nsteps)+1, mysamples[j::nw,i], linewidth=.2)
-        plt.xlabel('Iteration number')
-        plt.ylabel('%s' %param_names[i])
-        if (abs((i+1)%2) < 0.01):
+        plt.ylabel('%s' %param_latex[i])
+        if (abs((i+1)%ppp) < 0.01):
+            plt.xlabel('Iteration number')
             pdf.savefig()
-            if i < mysamples.shape[1]:
+            if i+1 < mysamples.shape[1]:
                 plt.clf()
-    pdf.savefig()                 
+        elif i+1 == mysamples.shape[1]:
+            plt.xlabel('Iteration number')
+            pdf.savefig()
     pdf.close()
 
 def triangle(mysamples, param_names, plotdir='./'):
@@ -306,9 +321,10 @@ def triangle(mysamples, param_names, plotdir='./'):
     param_names = names of the parameters
     plotdir = directory where to place the plot
     '''
+    param_latex = ['${}$'.format(i) for i in param_names]
     plt.clf()
     pdf = PdfPages(plotdir+'cornerplot.pdf')
-    corner.corner(mysamples, labels=param_names)
+    corner.corner(mysamples, labels=param_latex, quantiles=np.repeat(.5, len(param_latex)), show_titles=True)
     pdf.savefig()
     pdf.close()
     
