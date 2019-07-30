@@ -97,8 +97,8 @@ filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
 
 # Compton parameter to mJy/beam conversion
 t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
-convert = interp1d(t_keV, compt_Jy_beam, 'linear', fill_value='extrapolate')
-compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
+conv_mJy_beam = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
+compt_mJy_beam = conv_mJy_beam(t_const) # we assume a constant value of temperature
 
 # Bayesian fit
 starting_guess = [pars[i].val for i in fit_pars]
