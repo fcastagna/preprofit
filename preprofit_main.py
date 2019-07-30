@@ -93,7 +93,7 @@ d_mat = centdistmat(radius*kpc_as)
 
 # Transfer function
 wn_as, tf = read_tf(tf_filename) # wave number in arcsec^(-1), transmission
-filtering = tf_image(wn_as, tf)
+filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
 
 # Compton parameter to mJy/beam conversion
 t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
