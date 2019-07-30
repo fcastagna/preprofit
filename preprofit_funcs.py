@@ -54,7 +54,7 @@ class Pressure:
         pars = {
             'P_0': Param(0.4, minval=0., maxval=1.),
             'a': Param(1.33, minval=0.5, maxval=5.),
-            'b': Param(4.13, minval=2., maxval=8.),
+            'b': Param(4.13, minval=3., maxval=7.),
             'c': Param(0.014, minval=0., maxval=0.5),
             'r_p': Param(300., minval=100., maxval=1000.)
             }
