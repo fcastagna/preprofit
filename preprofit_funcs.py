@@ -133,7 +133,8 @@ def mybeam(step, maxr_data, filename=None, normalize=True, fwhm_beam=None):
         inv_f = lambda x: f(x)-f(0)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
     maxr = (maxr_data+3*fwhm_beam)//step*step
-    rad = np.arange(-maxr, maxr, step)
+    rad = np.arange(0, maxr+step, step)
+    rad = np.append(-rad[:0:-1], rad)
     rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
     beam_mat = centdistmat(rad_cut)
     if filename == None:
