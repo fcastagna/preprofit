@@ -146,13 +146,14 @@ def mybeam(step, maxr_data, filename=None, normalize=True, fwhm_beam=None):
         beam_2d /= beam_2d.sum()*step**2
     return beam_2d, fwhm_beam
 
-def read_tf(filename, skiprows=1, approx=False):
+def read_tf(filename, skiprows=1, approx=False, loc=0, scale=0.02, c=0.95):
     '''
     Read the transfer function data from the specified file
     -------------------------------------------------------
     skiprows = number of header rows to be skipped
     approx = whether to approximate or not the tf to the normal cdf (True/False)
-    ----------------------------------------------------------------------------
+    loc, scale, c = location, scale and normalization parameters for the normal cdf approximation
+    ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     '''
     if filename[filename.find('.', -5)+1:] == 'fits':
@@ -163,7 +164,7 @@ def read_tf(filename, skiprows=1, approx=False):
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
     wn, tf = tf_data[:2] # wave number, transmission
     if approx == True:
-        tf = norm.cdf(wn, 0, .02)
+        tf = c*norm.cdf(wn, loc, scale)
     return wn, tf
 
 def filt_image(wn_as, tf, side, step):
