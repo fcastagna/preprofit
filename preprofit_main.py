@@ -25,7 +25,7 @@ pars = press.defPars()
 name_pars = list(pars.keys())
 
 # Parameters that we want to fit (among P_0, r_p, a, b, c)
-fit_pars = ['P_0', 'r_p']
+fit_pars = ['P_0', 'r_p', 'a', 'b']
 # To see the default parameter space extent, use: print(pars)
 # For each parameter, use the following to change the bounds of the prior distribution:
 #pars['P_0'].minval = 0.1
@@ -48,7 +48,7 @@ ci = 95. # confidence interval level
 
 redshift = 0.888
 R_b = 5000 # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
-t_const = 12 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
+t_const = 10 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
 
 # File names
 files_dir = './data' # directory
