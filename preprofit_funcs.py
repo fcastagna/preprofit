@@ -298,13 +298,14 @@ def traceplot(mysamples, param_names, nsteps, nw, plotw=20, ppp=4, plotdir='./')
     nw_step = int(np.ceil(nw/plotw))
     param_latex = ['${}$'.format(i) for i in param_names]
     pdf = PdfPages(plotdir+'traceplot.pdf')
-    plt.figure().suptitle('Traceplot')
     for i in np.arange(mysamples.shape[1]):
         plt.subplot(ppp, 1, i%ppp+1)
         for j in range(nw)[::nw_step]:
             plt.plot(np.arange(nsteps)+1, mysamples[j::nw,i], linewidth=.2)
-        plt.ylabel('%s' %param_latex[i])
+            plt.tick_params(labelbottom=False)
+        plt.ylabel('%s' %param_latex[i], fontdict={'fontsize': 20})
         if (abs((i+1)%ppp) < 0.01):
+            plt.tick_params(labelbottom=True)
             plt.xlabel('Iteration number')
             pdf.savefig()
             if i+1 < mysamples.shape[1]:
@@ -325,7 +326,8 @@ def triangle(mysamples, param_names, plotdir='./'):
     param_latex = ['${}$'.format(i) for i in param_names]
     plt.clf()
     pdf = PdfPages(plotdir+'cornerplot.pdf')
-    corner.corner(mysamples, labels=param_latex, quantiles=np.repeat(.5, len(param_latex)), show_titles=True)
+    corner.corner(mysamples, labels=param_latex, quantiles=np.repeat(.5, len(param_latex)), show_titles=True, 
+                  title_kwargs={'fontsize': 20}, label_kwargs={'fontsize': 30})
     pdf.savefig()
     pdf.close()
     
