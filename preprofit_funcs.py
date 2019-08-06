@@ -345,7 +345,6 @@ def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci=
     plt.fill_between(radius[sep:sep+mp_med.size], mp_lb, mp_ub, color='powderblue', label='_nolegend_')
     plt.errorbar(r_sec, y_data, yerr=err, fmt='.', color='r')
     plt.legend(('Model (%i%% CI)' %ci, 'Observed flux'), loc='lower right')
-    plt.axhline(y=0, color='black', linestyle=':')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('Flux (mJy/beam)')
     plt.xlim(0, np.ceil(r_sec[-1]/60)*60*7/6)
