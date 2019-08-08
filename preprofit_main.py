@@ -89,7 +89,7 @@ flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, 
 maxr_data = flux_data[0][-1] # highest radius in the data
 
 # PSF computation and creation of the 2D image
-beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True)
+beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
 
 # Radius definition
 mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
