@@ -109,7 +109,7 @@ def read_xy_err(filename, ncol):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
-    return data[:,:ncol]
+    return data[:ncol]
     
 def read_beam(filename):
     '''
