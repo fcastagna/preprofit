@@ -85,24 +85,6 @@ class Pressure:
         r_p = pars['r_p'].val
         return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
 
-def read_beam(filename):
-    '''
-    Read the beam data from the specified file up to the first negative or nan value
-    --------------------------------------------------------------------------------
-    '''
-    file = fits.open(filename)
-    data = file[''].data
-    radius, beam_prof = data[0][:2]
-    if np.isnan(beam_prof).sum() > 0:
-        first_nan = np.where(np.isnan(beam_prof))[0][0]
-        radius = radius[:first_nan]
-        beam_prof = beam_prof[:first_nan]
-    if beam_prof.min() < 0:
-        first_neg = np.where(beam_prof < 0)[0][0]
-        radius = radius[:first_neg]
-        beam_prof = beam_prof[:first_neg]
-    return radius, beam_prof
-
 def centdistmat(r, offset=0.):
     '''
     Create a symmetric matrix of distances from the radius vector
@@ -115,19 +97,50 @@ def centdistmat(r, offset=0.):
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def mybeam(step, maxr_data, filename=None, normalize=True, fwhm_beam=None):
+def read_xy_err(filename, ncol):
+    '''
+    Read the data from FITS or ASCII file
+    -------------------------------------
+    ncol = number of columns to read
+    '''
+    if filename[filename.find('.', -5)+1:] == 'fits':
+        data = fits.open(filename)[''].data[0]
+    elif filename[filename.find('.', -5)+1:] in ('txt', 'dat'):
+        data = np.loadtxt(filename, unpack=True)
+    else:
+        raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
+    return data[:,:ncol]
+    
+def read_beam(filename):
+    '''
+    Read the beam data from the specified file up to the first negative or nan value
+    --------------------------------------------------------------------------------
+    '''
+    radius, beam_prof = read_xy_err(filename, ncol=2)
+    if np.isnan(beam_prof).sum() > 0:
+        first_nan = np.where(np.isnan(beam_prof))[0][0]
+        radius = radius[:first_nan]
+        beam_prof = beam_prof[:first_nan]
+    if beam_prof.min() < 0:
+        first_neg = np.where(beam_prof < 0)[0][0]
+        radius = radius[:first_neg]
+        beam_prof = beam_prof[:first_neg]
+    return radius, beam_prof
+
+def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
     step = binning step
     maxr_data = highest radius in the data
+    approx = whether to approximate or not the beam to the normal distribution (True/False)
     filename = name of the file including the beam data
     normalize = whether to normalize or not the output 2D image (True/False)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
     '''
-    if filename is not None:
+    if not approx:
         r_irreg, b = read_beam(filename)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0, 0))
         inv_f = lambda x: f(x)-f(0)/2
@@ -137,33 +150,26 @@ def mybeam(step, maxr_data, filename=None, normalize=True, fwhm_beam=None):
     rad = np.append(-rad[:0:-1], rad)
     rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
     beam_mat = centdistmat(rad_cut)
-    if filename == None:
+    if approx:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
     else:
         beam_2d = f(beam_mat)
-    if normalize == True:
+    if normalize:
         beam_2d /= beam_2d.sum()*step**2
     return beam_2d, fwhm_beam
 
-def read_tf(filename, skiprows=1, approx=False, loc=0, scale=0.02, c=0.95):
+def read_tf(filename, approx=False, loc=0, scale=0.02, c=0.95):
     '''
     Read the transfer function data from the specified file
     -------------------------------------------------------
-    skiprows = number of header rows to be skipped
     approx = whether to approximate or not the tf to the normal cdf (True/False)
     loc, scale, c = location, scale and normalization parameters for the normal cdf approximation
     ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     '''
-    if filename[filename.find('.', -5)+1:] == 'fits':
-        tf_data = fits.open(filename)[1].data[0]
-    elif filename[filename.find('.', -5)+1:] in ('txt', 'dat'):
-        tf_data = np.loadtxt(filename, skiprows=skiprows, unpack=True)
-    else:
-        raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
-    wn, tf = tf_data[:2] # wave number, transmission
-    if approx == True:
+    wn, tf = read_xy_err(filename, ncol=2) # wave number, transmission
+    if approx:
         tf = c*norm.cdf(wn, loc, scale)
     return wn, tf
 
@@ -278,7 +284,7 @@ def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
             print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
     print('Finished sampling')
     time1 = time.time()
-    if comp_time == True:
+    if comp_time:
         h, rem = divmod(time1-time0, 3600)
         print('Computation time: '+str(int(h))+'h '+str(int(rem//60))+'m')
     print('Acceptance fraction: %s' %np.mean(sampler.acceptance_fraction))
