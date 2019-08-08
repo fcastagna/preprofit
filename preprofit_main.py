@@ -55,7 +55,7 @@ comp_time = True # if you wanna output the computation time
 
 redshift = 0.888
 R_b = 5000 # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
-t_const = 10 # constant temperature value of the cluster (keV), serves for Compton y to mJy/beam conversion
+compt_mJy_beam = -11e3 # Compton parameter to mJy/beam conversion
 
 # File names (FITS and ASCII formats are accepted)
 files_dir = './data' # files directory
@@ -65,8 +65,6 @@ tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 # The first two columns must be [wave number (1/arcsec), tf]
 flux_filename = '%s/flux_density.dat' %files_dir 
 # The first three columns must be [radius (arcsec), flux (mJy/beam), error]
-compt_convert_name = '%s/Jy_per_beam_to_Compton.dat' %files_dir
-# The first two columns must be [temperature (keV), conversion]
 
 # Without beam or tf data, switch beam_approx and tf_approx to True and set the other parameters
 beam_approx = False
@@ -111,11 +109,6 @@ d_mat = centdistmat(radius*kpc_as)
 # Transfer function
 wn_as, tf = read_tf(tf_filename, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number in arcsec^(-1), transmission
 filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
-
-# Compton parameter to mJy/beam conversion
-t_keV, compt_Jy_beam = read_xy_err(compt_convert_name, ncol=2)
-conv_mJy_beam = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
-compt_mJy_beam = conv_mJy_beam(t_const)
 
 # Bayesian fit
 starting_guess = [pars[i].val for i in fit_pars]
