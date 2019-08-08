@@ -231,6 +231,10 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     compt_mJy_beam = conversion rate from compton parameter to mJy/beam
     r500 = characteristic radius
     output = desired output
+        'll' = log-likelihood
+        'chisq' = Chi-Squared
+        'pp' = pressure profile
+        'flux' = flux profile
     --------------------------------------------------------------
     RETURN: log-posterior probability or -inf whether theta is out of the parameter space
     '''
@@ -254,12 +258,15 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*compt_mJy_beam
         g = interp1d(radius[sep:], map_prof, fill_value='extrapolate')
         # Log-likelihood calculation
-        log_lik = -np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)/2
+        chisq = np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)
+        log_lik = -chisq/2
         if output == 'll':
             return log_lik
+        elif output == 'chisq':
+            return chisq
         elif output == 'pp':
             return pp
-        else:
+        elif output == 'flux':
             return map_prof
     else:
         # if some parameter is out of the parameter space
