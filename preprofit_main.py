@@ -103,7 +103,7 @@ ub = min(sep, r_pp.size) # ub=sep unless r500 is too low and then r_pp.size < se
 d_mat = centdistmat(radius*kpc_as)
 
 # Transfer function
-wn_as, tf = read_tf(tf_filename) # wave number in arcsec^(-1), transmission
+wn_as, tf = read_tf(tf_filename, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number in arcsec^(-1), transmission
 filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
 
 # Compton parameter to mJy/beam conversion
