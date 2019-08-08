@@ -279,7 +279,7 @@ def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
             print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
         val = result[0]
     print('Finished burn-in \nStarting sampling')
-    for i, result in enumerate(sampler.sample(val, iterations = nsteps)):
+    for i, result in enumerate(sampler.sample(val, iterations=nsteps)):
         if i%10 == 0:
             print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
     print('Finished sampling')
