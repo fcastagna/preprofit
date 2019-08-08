@@ -215,7 +215,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     phys_const = physical constants
     radius = radius (arcsec)
     d_mat = matrix of distances
-    beam_2d = PSF image
+    beam_2d = beam image
     step = radius[1]-radius[0]
     filtering = transfer function matrix
     sep = index of radius 0
@@ -242,7 +242,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=(0, 0), bounds_error=False)
         # Compton parameter 2D image
         y_2d = f(d_mat)
-        # Convolution with the PSF
+        # Convolution with the beam
         conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
         # Convolution with the transfer function
         FT_map_in = fft2(conv_2d)
