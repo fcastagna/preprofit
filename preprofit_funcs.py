@@ -221,8 +221,8 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     sep = index of radius 0
     ub = index of the highest radius considered (ub=sep unless r500 is too low and then r_pp.size < sep)
     flux data:
+        r_sec = radius (arcsec)
         y_data = flux density
-        r_sec = x-axis values for y_data
         err = statistical errors of the flux density
     compt_mJy_beam = conversion rate from compton parameter to mJy/beam
     r500 = characteristic radius
