@@ -1,3 +1,7 @@
+"""
+Authors: Castagna Fabio, Andreon Stefano, Pranjal RS.
+"""
+
 from preprofit_funcs import (Pressure, mybeam, centdistmat, read_xy_err, read_tf, filt_image, log_lik, mcmc_run, traceplot, 
                              triangle, plot_best)
 import numpy as np
@@ -7,7 +11,7 @@ import emcee
 import six.moves.cPickle as pickle
 
 plotdir = './' # plot directory
-output_file = 'mychain.dat'
+output_file = 'mychain.pickle'
 
 
 ### Global-global variables
@@ -59,7 +63,7 @@ beam_filename = '%s/Beam150GHz.fits' %files_dir
 # The first two columns must be [radius (arcsec), beam]
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 # The first two columns must be [wave number (1/arcsec), tf]
-flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir 
+flux_filename = '%s/flux_density.dat' %files_dir 
 # The first three columns must be [radius (arcsec), flux (mJy/beam), error]
 compt_convert_name = '%s/Jy_per_beam_to_Compton.dat' %files_dir
 # The first two columns must be [temperature (keV), conversion]
