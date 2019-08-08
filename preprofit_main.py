@@ -88,7 +88,7 @@ for i in name_pars:
 flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
 maxr_data = flux_data[0][-1] # highest radius in the data
 
-# PSF computation and creation of the 2D image
+# Beam computation and creation of the 2D image
 beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
 
 # Radius definition
@@ -109,7 +109,7 @@ filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
 # Compton parameter to mJy/beam conversion
 t_keV, compt_Jy_beam = read_xy_err(compt_convert_name, ncol=2)
 conv_mJy_beam = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
-compt_mJy_beam = conv_mJy_beam(t_const) # we assume a constant value of temperature
+compt_mJy_beam = conv_mJy_beam(t_const)
 
 # Bayesian fit
 starting_guess = [pars[i].val for i in fit_pars]
@@ -135,6 +135,10 @@ for i in np.arange(ndim):
     param_std[i] = np.std(mysamples[:,i])
     print('{:>13}'.format('Median(%s):' %fit_pars[i])+'%9s' %format(param_med[i], '.3f')+ 
           ';{:>12}'.format('Sd(%s):' %fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
+print('Best fit: [%s] = [%s] with loglik = %s' % 
+      (', '.join(fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), '{:.4f}'.format(
+        log_lik(param_med, press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep, filtering, sep, ub, 
+                flux_data, compt_mJy_beam))))
 
 
 ### Plots
