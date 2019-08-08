@@ -7,6 +7,7 @@ import emcee
 import six.moves.cPickle as pickle
 
 plotdir = './' # plot directory
+output_file = 'mychain.dat'
 
 
 ### Global-global variables
@@ -43,6 +44,7 @@ nburn = 3000
 nsteps = 2000
 np.random.seed(0) # optionally, we set a random seed
 ci = 95. # confidence interval level
+comp_time = True # if you wanna output the computation time
 
 
 ### Local variables
@@ -118,11 +120,11 @@ starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_gues
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
     press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
     mystep, filtering, sep, ub, flux_data, compt_mJy_beam], threads=nthreads)
-mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=True)
+mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=comp_time)
 mysamples = sampler.chain.reshape(-1, ndim, order='F')
 
 ## Save the chain
-file = open('mychain.dat', 'wb') # create file
+file = open(output_file, 'wb') # create file
 res = list([sampler.chain, sampler.lnprobability])
 pickle.dump(res, file) # write
 file.close()
