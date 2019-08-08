@@ -46,7 +46,6 @@ nwalkers = 14
 nthreads = 8
 nburn = 3000
 nsteps = 2000
-np.random.seed(0) # optionally, we set a random seed
 ci = 95. # confidence interval level
 comp_time = True # if you wanna output the computation time
 
@@ -134,10 +133,10 @@ for i in np.arange(ndim):
     param_std[i] = np.std(mysamples[:,i])
     print('{:>13}'.format('Median(%s):' %fit_pars[i])+'%9s' %format(param_med[i], '.3f')+ 
           ';{:>12}'.format('Sd(%s):' %fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
-print('Best fit: [%s] = [%s] with loglik = %s' % 
-      (', '.join(fit_pars), ', '.join(['{:.3f}'.format(i) for i in param_med]), '{:.4f}'.format(
-        log_lik(param_med, press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep, filtering, sep, ub, 
-                flux_data, compt_mJy_beam))))
+print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
+      (', '.join(fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
+       '{:.4f}'.format(log_lik(param_med, press, pars, fit_pars, r_pp, phys_const, radius, d_mat,beam_2d, mystep, filtering, 
+                               sep, ub, flux_data, compt_mJy_beam, 'chisq')), flux_data[1].size-ndim))
 
 
 ### Plots
