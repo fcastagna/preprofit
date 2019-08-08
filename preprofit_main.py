@@ -1,4 +1,5 @@
-from preprofit_funcs import Pressure, mybeam, centdistmat, read_tf, filt_image, log_lik, mcmc_run, traceplot, triangle, plot_best
+from preprofit_funcs import (Pressure, mybeam, centdistmat, read_xy_err, read_tf, filt_image, log_lik, mcmc_run, traceplot, 
+                             triangle, plot_best)
 import numpy as np
 import mbproj2 as mb
 from scipy.interpolate import interp1d
@@ -32,7 +33,7 @@ fit_pars = ['P_0', 'r_p', 'a', 'b']
 #pars['P_0'].maxval = 10.
 
 # Sampling step
-mystep = 2. # constant step in arcsec (values higher than 1/3 * FWHM of the PSF are not recommended)
+mystep = 2. # constant step in arcsec (values higher than (1/3)*FWHM of the beam are not recommended)
 
 # MCMC parameters
 ndim = len(fit_pars)
@@ -48,14 +49,24 @@ ci = 95. # confidence interval level
 
 redshift = 0.888
 R_b = 5000 # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
-t_const = 10 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
+t_const = 10 # constant temperature value of the cluster (keV), serves for Compton y to mJy/beam conversion
 
-# File names
-files_dir = './data' # directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir
+# File names (FITS and ASCII formats are accepted)
+files_dir = './data' # files directory
+beam_filename = '%s/Beam150GHz.fits' %files_dir 
+# The first two columns must be [radius (arcsec), beam]
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
-flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
+# The first two columns must be [wave number (1/arcsec), tf]
+flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir 
+# The first three columns must be [radius (arcsec), flux (mJy/beam), error]
 compt_convert_name = '%s/Jy_per_beam_to_Compton.dat' %files_dir
+# The first two columns must be [temperature (keV), conversion]
+
+# Without beam or tf data, switch beam_approx and tf_approx to True and set the other parameters
+beam_approx = False
+tf_approx = False
+fwhm_beam = None # fwhm of the normal distribution for the beam approximation
+loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
 
 # Cosmological parameters
 cosmology = mb.Cosmology(redshift)
@@ -74,11 +85,11 @@ for i in name_pars:
         pars[i].frozen = True
 
 # Flux density data
-flux_data = np.loadtxt(flux_filename, skiprows=1, unpack=True) # radius (arcsec), flux density, statistical error
+flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
 maxr_data = flux_data[0][-1] # highest radius in the data
 
 # PSF computation and creation of the 2D image
-beam_2d, fwhm_beam = mybeam(mystep, maxr_data, filename=beam_filename, normalize=True)
+beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True)
 
 # Radius definition
 mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
@@ -96,7 +107,7 @@ wn_as, tf = read_tf(tf_filename) # wave number in arcsec^(-1), transmission
 filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
 
 # Compton parameter to mJy/beam conversion
-t_keV, compt_Jy_beam = np.loadtxt(compt_convert_name, skiprows=1, unpack=True)
+t_keV, compt_Jy_beam = read_xy_err(compt_convert_name, ncol=2)
 conv_mJy_beam = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
 compt_mJy_beam = conv_mJy_beam(t_const) # we assume a constant value of temperature
 
