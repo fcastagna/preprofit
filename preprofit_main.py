@@ -6,7 +6,6 @@ from preprofit_funcs import (Pressure, mybeam, centdistmat, read_xy_err, read_tf
                              triangle, plot_best)
 import numpy as np
 import mbproj2 as mb
-from scipy.interpolate import interp1d
 import emcee
 import six.moves.cPickle as pickle
 
@@ -136,7 +135,7 @@ for i in np.arange(ndim):
 print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
       (', '.join(fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
        '{:.4f}'.format(log_lik(param_med, press, pars, fit_pars, r_pp, phys_const, radius, d_mat,beam_2d, mystep, filtering, 
-                               sep, ub, flux_data, compt_mJy_beam, 'chisq')), flux_data[1].size-ndim))
+                               sep, ub, flux_data, compt_mJy_beam, output='chisq')), flux_data[1].size-ndim))
 
 
 ### Plots
@@ -149,7 +148,7 @@ triangle(mysamples, fit_pars, plotdir)
 # Random samples of at most 1000 profiles
 prof_size = min(1000, mysamples.shape[0])
 out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep,
-                             filtering, sep, ub, flux_data, compt_mJy_beam, output='out_prof') for j in 
+                             filtering, sep, ub, flux_data, compt_mJy_beam, output='flux') for j in 
                      np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
 quant = np.percentile(out_prof, [50., 50-ci/2, 50+ci/2], axis=0)
 
