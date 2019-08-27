@@ -256,7 +256,7 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         FT_map_in = fft2(conv_2d)
         map_out = np.real(ifft2(FT_map_in*filtering))
         map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*compt_mJy_beam
-        g = interp1d(radius[sep:], map_prof, fill_value='extrapolate')
+        g = interp1d(radius[sep:], map_prof, 'cubic', fill_value='extrapolate')
         # Log-likelihood calculation
         chisq = np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)
         log_lik = -chisq/2
