@@ -72,9 +72,9 @@ loc, scale, c = None, None, None # location, scale and normalization parameters 
 
 # Cosmological parameters
 cosmology = mb.Cosmology(redshift)
-cosmology.H0 = 67.11 # Hubble's constant (km/s/Mpc)
-cosmology.WM = 0.3175 # matter density
-cosmology.WV = 0.6825 # vacuum density
+cosmology.H0 = 67.32 # Hubble's constant (km/s/Mpc)
+cosmology.WM = 0.3158 # matter density
+cosmology.WV = 0.6842 # vacuum density
 kpc_as = cosmology.kpc_per_arcsec # number of kpc per arcsec
 
 # -------------------------------------------------------------------------------------------------------------------------------
