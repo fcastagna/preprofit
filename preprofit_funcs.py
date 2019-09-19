@@ -240,37 +240,38 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     '''
     # update pars
     press.update_vals(pars, fit_pars, pars_val)
-    if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
-        # pressure profile
-        pp = press.press_fun(pars, r_pp)
-        # abel transform
-        ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
-        # Compton parameter
-        y = phys_const[2]*phys_const[1]/phys_const[0]*ab
-        f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=(0, 0), bounds_error=False)
-        # Compton parameter 2D image
-        y_2d = f(d_mat)
-        # Convolution with the beam
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
-        # Convolution with the transfer function
-        FT_map_in = fft2(conv_2d)
-        map_out = np.real(ifft2(FT_map_in*filtering))
-        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*compt_mJy_beam
-        g = interp1d(radius[sep:], map_prof, 'cubic', fill_value='extrapolate')
-        # Log-likelihood calculation
-        chisq = np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)
-        log_lik = -chisq/2
-        if output == 'll':
-            return log_lik
-        elif output == 'chisq':
-            return chisq
-        elif output == 'pp':
-            return pp
-        elif output == 'flux':
-            return map_prof
-    else:
+    if not all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
         # if some parameter is out of the parameter space
         return -np.inf
+    # pressure profile
+    pp = press.press_fun(pars, r_pp)
+    # abel transform
+    ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
+    # Compton parameter
+    y = phys_const[2]*phys_const[1]/phys_const[0]*ab
+    f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=(0, 0), bounds_error=False)
+    # Compton parameter 2D image
+    y_2d = f(d_mat)
+    # Convolution with the beam
+    conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
+    # Convolution with the transfer function
+    FT_map_in = fft2(conv_2d)
+    map_out = np.real(ifft2(FT_map_in*filtering))
+    map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*compt_mJy_beam
+    g = interp1d(radius[sep:], map_prof, 'cubic', fill_value='extrapolate')
+    # Log-likelihood calculation
+    chisq = np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)
+    log_lik = -chisq/2
+    if output == 'll':
+        return log_lik
+    if output == 'chisq':
+        return chisq
+    if output == 'pp':
+        return pp
+    if output == 'flux':
+        return map_prof
+    else:
+        raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp" or "flux")')
 
 def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
     '''
