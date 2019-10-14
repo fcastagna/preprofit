@@ -1,5 +1,5 @@
-# preprofit
-## PREssure PROfile FITter for galaxy clusters in Python
+# PreProFit
+## Pressure Profile Fitter for galaxy clusters in Python
 *Castagna Fabio, Andreon Stefano, Pranjal RS.*
 
 `preprofit` is a Python program that allows to fit the pressure profile of galaxy clusters using MCMC.
