@@ -14,7 +14,7 @@ Beam data and transfer function data come from the [NIKA data release](http://lp
 - [numpy](http://www.numpy.org/)
 - [scipy](http://www.scipy.org/)
 - [astropy](http://www.astropy.org/)
-- [emcee](http://dan.iel.fm/emcee/)
+- [emcee](https://emcee.readthedocs.io/)
 - [six](https://pypi.org/project/six/)
 - [matplotlib](https://matplotlib.org/)
 - [corner](https://pypi.org/project/corner/)
