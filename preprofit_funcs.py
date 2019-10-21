@@ -235,8 +235,8 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
         'chisq' = Chi-Squared
         'pp' = pressure profile
         'flux' = flux profile
-    --------------------------------------------------------------
-    RETURN: log-posterior probability or -inf whether theta is out of the parameter space
+    --------------------------------------------------------------------------
+    RETURN: desired output or -inf whether theta is out of the parameter space
     '''
     # update pars
     press.update_vals(pars, fit_pars, pars_val)
