@@ -50,9 +50,9 @@ class Pressure:
         Default parameter values
         ------------------------
         P_0 = normalizing constant
-        a = slope at intermediate radii
-        b = slope at large radii
-        c = slope at small radii
+        a = rate of turnover between b and c
+        b = logarithmic slope at r/r_p >> 1
+        c = logarithmic slope at r/r_p << 1
         r_p = characteristic radius
         '''
         pars = {
