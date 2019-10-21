@@ -352,11 +352,11 @@ def triangle(mysamples, param_names, plotdir='./'):
     
 def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci=95, plotdir='./'):
     '''
-    Plot of the Compton parameter profile compared to the flux density data
-    -----------------------------------------------------------------------
-    mp_med = Compton profile for the median parameter values
-    mp_lb, mp_ub = CI of the Compton profile
-    ci = confidence interval
+    Surface brightness profile (points with error bars) and best fitting profile with CI
+    ------------------------------------------------------------------------------------
+    mp_med = best (median) fitting profile
+    mp_lb, mp_ub = CI boundaries
+    ci = confidence interval level
     plotdir = directory where to place the plot
     '''
     r_sec, y_data, err = flux_data
