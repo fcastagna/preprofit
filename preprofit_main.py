@@ -99,7 +99,7 @@ radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
 radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
 sep = radius.size//2 # index of radius 0
 r_pp = np.arange(mystep*kpc_as, R_b+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
-ub = min(sep, r_pp.size) # ub=sep unless r500 is too low and then r_pp.size < sep
+ub = min(sep, r_pp.size) # ub=sep unless r_pp.size < sep
 
 # Matrix of distances in kpc centered on 0 with step=mystep
 d_mat = centdistmat(radius*kpc_as)
