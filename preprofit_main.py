@@ -135,7 +135,8 @@ for i in np.arange(ndim):
 print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
       (', '.join(fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
        '{:.4f}'.format(log_lik(param_med, press, pars, fit_pars, r_pp, phys_const, radius, d_mat,beam_2d, mystep, filtering, 
-                               sep, ub, flux_data, compt_mJy_beam, output='chisq')), flux_data[1].size-ndim))
+                               sep, ub, flux_data, compt_mJy_beam, output='chisq')), 
+       flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
 
 ### Plots
