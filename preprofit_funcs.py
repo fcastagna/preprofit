@@ -189,9 +189,10 @@ def filt_image(wn_as, tf, side, step):
     RETURN: the (side x side) image
     '''
     f = interp1d(wn_as, tf, bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
-    kmax = 1/step
-    karr = dist(side)/side*kmax
-    return f(np.rot90(np.rot90(karr)))
+    karr = dist(side)/side
+    karr /= karr.max()
+    karr *= kmax
+    return f(karr)
 
 def dist(naxis):
     '''
