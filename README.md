@@ -9,6 +9,8 @@
 As an example, we show the application of `preprofit` on the high-redshift cluster of galaxies CL J1226.9+3332 (z = 0.89).
 Beam data and transfer function data come from the [NIKA data release](http://lpsc.in2p3.fr/NIKA2LPSZ/nika2sz.release.php).
 
+PLEASE NOTE that the transfer function filtering method has been changed on March 30th, 2020.
+
 ### Requirements
 `preprofit` requires the following:
 - [mbproj2](https://github.com/jeremysanders/mbproj2)
