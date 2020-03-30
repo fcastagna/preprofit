@@ -67,7 +67,7 @@ flux_filename = '%s/flux_density.dat' %files_dir
 # Without beam or tf data, switch beam_approx and tf_approx to True and set the other parameters
 beam_approx = False
 tf_approx = False
-fwhm_beam = None # fwhm of the normal distribution for the beam approximation
+fwhm_norm = None # fwhm of the normal distribution for the beam approximation
 loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
 
 # Cosmological parameters
@@ -92,7 +92,7 @@ def main():
     maxr_data = flux_data[0][-1] # highest radius in the data
 
     # Beam computation and creation of the 2D image
-    beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_norm)
 
     # Radius definition
     mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
