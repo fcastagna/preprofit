@@ -81,77 +81,81 @@ kpc_as = cosmology.kpc_per_arcsec # number of kpc per arcsec
 # Code
 # -------------------------------------------------------------------------------------------------------------------------------
 
-# Parameter definition
-for i in name_pars:
-    if i not in fit_pars:
-        pars[i].frozen = True
+def main():
+    # Parameter definition
+    for i in name_pars:
+        if i not in fit_pars:
+            pars[i].frozen = True
 
-# Flux density data
-flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
-maxr_data = flux_data[0][-1] # highest radius in the data
+    # Flux density data
+    flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
+    maxr_data = flux_data[0][-1] # highest radius in the data
 
-# Beam computation and creation of the 2D image
-beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
+    # Beam computation and creation of the 2D image
+    beam_2d, fwhm_beam = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
 
-# Radius definition
-mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
-radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
-radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
-sep = radius.size//2 # index of radius 0
-r_pp = np.arange(mystep*kpc_as, R_b+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
-ub = min(sep, r_pp.size) # ub=sep unless r_pp.size < sep
+    # Radius definition
+    mymaxr = (maxr_data+3*fwhm_beam)//mystep*mystep # max radius needed (arcsec)
+    radius = np.arange(0, mymaxr+mystep, mystep) # array of radii in arcsec
+    radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
+    sep = radius.size//2 # index of radius 0
+    r_pp = np.arange(mystep*kpc_as, R_b+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
+    ub = min(sep, r_pp.size) # ub=sep unless r_pp.size < sep
 
-# Matrix of distances in kpc centered on 0 with step=mystep
-d_mat = centdistmat(radius*kpc_as)
+    # Matrix of distances in kpc centered on 0 with step=mystep
+    d_mat = centdistmat(radius*kpc_as)
 
-# Transfer function
-wn_as, tf = read_tf(tf_filename, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number in arcsec^(-1), transmission
-filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
+    # Transfer function
+    wn_as, tf = read_tf(tf_filename, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number in arcsec^(-1), transmission
+    filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep)
 
-# Bayesian fit
-starting_guess = [pars[i].val for i in fit_pars]
-starting_var = np.array(np.repeat(.1, ndim))
-starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
-sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
-    press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
-    mystep, filtering, sep, ub, flux_data, compt_mJy_beam], threads=nthreads)
-mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=comp_time)
-mysamples = sampler.chain.reshape(-1, ndim, order='F')
+    # Bayesian fit
+    starting_guess = [pars[i].val for i in fit_pars]
+    starting_var = np.array(np.repeat(.1, ndim))
+    starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
+        press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
+        mystep, filtering, sep, ub, flux_data, compt_mJy_beam], threads=nthreads)
+    mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=comp_time)
+    mysamples = sampler.chain.reshape(-1, ndim, order='F')
 
-## Save the chain
-file = open(output_file, 'wb') # create file
-res = list([sampler.chain, sampler.lnprobability])
-pickle.dump(res, file) # write
-file.close()
+    ## Save the chain
+    file = open(output_file, 'wb') # create file
+    res = list([sampler.chain, sampler.lnprobability])
+    pickle.dump(res, file) # write
+    file.close()
 
-# Posterior distribution's parameters
-param_med = np.empty(ndim)
-param_std = np.empty(ndim)
-for i in np.arange(ndim):
-    param_med[i] = np.median(mysamples[:,i])
-    param_std[i] = np.std(mysamples[:,i])
-    print('{:>13}'.format('Median(%s):' %fit_pars[i])+'%9s' %format(param_med[i], '.3f')+ 
-          ';{:>12}'.format('Sd(%s):' %fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
-print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
-      (', '.join(fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
-       '{:.4f}'.format(log_lik(param_med, press, pars, fit_pars, r_pp, phys_const, radius, d_mat,beam_2d, mystep, filtering, 
-                               sep, ub, flux_data, compt_mJy_beam, output='chisq')), 
-       flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+    # Posterior distribution's parameters
+    param_med = np.empty(ndim)
+    param_std = np.empty(ndim)
+    for i in np.arange(ndim):
+        param_med[i] = np.median(mysamples[:,i])
+        param_std[i] = np.std(mysamples[:,i])
+        print('{:>13}'.format('Median(%s):' %fit_pars[i])+'%9s' %format(param_med[i], '.3f')+ 
+              ';{:>12}'.format('Sd(%s):' %fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
+    print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
+          (', '.join(fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
+           '{:.4f}'.format(log_lik(param_med, press, pars, fit_pars, r_pp, phys_const, radius, d_mat,beam_2d, mystep, filtering, 
+                                   sep, ub, flux_data, compt_mJy_beam, output='chisq')), 
+           flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
+    ### Plots
+    ## Traceplot
+    traceplot(mysamples, fit_pars, nsteps, nwalkers, plotdir=plotdir)
 
-### Plots
-## Traceplot
-traceplot(mysamples, fit_pars, nsteps, nwalkers, plotdir=plotdir)
+    ## Corner plot
+    triangle(mysamples, fit_pars, plotdir)
 
-## Corner plot
-triangle(mysamples, fit_pars, plotdir)
+    # Random samples of at most 1000 profiles
+    prof_size = min(1000, mysamples.shape[0])
+    out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep,
+                                 filtering, sep, ub, flux_data, compt_mJy_beam, output='flux') for j in 
+                         np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
+    quant = np.percentile(out_prof, [50., 50-ci/2, 50+ci/2], axis=0)
 
-# Random samples of at most 1000 profiles
-prof_size = min(1000, mysamples.shape[0])
-out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep,
-                             filtering, sep, ub, flux_data, compt_mJy_beam, output='flux') for j in 
-                     np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
-quant = np.percentile(out_prof, [50., 50-ci/2, 50+ci/2], axis=0)
+    # Best-fit
+    plot_best(param_med, fit_pars, quant[0], quant[1], quant[2], radius, sep, flux_data, int(ci), plotdir)
 
-# Best-fit
-plot_best(param_med, fit_pars, quant[0], quant[1], quant[2], radius, sep, flux_data, int(ci), plotdir)
+    
+if __name__ == '__main__':
+    main()
