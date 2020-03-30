@@ -3,6 +3,7 @@
 *Castagna Fabio, Andreon Stefano, Pranjal RS.*
 
 `preprofit` is a Python program that allows to fit the pressure profile of galaxy clusters using MCMC.
+
 `preprofit` is embedded in [`JoXSZ`](https://github.com/fcastagna/JoXSZ), our complete program that allows to jointly fit the thermodynamic profiles of galaxy clusters from both SZ and X-ray data.
 
 As an example, we show the application of `preprofit` on the high-redshift cluster of galaxies CL J1226.9+3332 (z = 0.89).
