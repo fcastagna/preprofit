@@ -106,7 +106,7 @@ starting_var = np.array(np.repeat(.1, ndim))
 starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
     press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
-    mystep, filtering, sep, ub, flux_data, compt_mJy_beam], threads=nthreads)
+    mystep, filtering, sep, ub, flux_data, compt_mJy_beam, kpc_as, calc_integ, integ_mu, integ_sig], threads=nthreads)
 mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=True)
 mysamples = sampler.chain.reshape(-1, ndim, order='F')
 
