@@ -177,6 +177,20 @@ def read_tf(filename, approx=False, loc=0, scale=0.02, c=0.95):
         tf = c*norm.cdf(wn, loc, scale)
     return wn, tf
 
+def dist(naxis):
+    '''
+    Returns a matrix in which the value of each element is proportional to its frequency 
+    (https://www.harrisgeospatial.com/docs/DIST.html)
+    If you shift the 0 to the centre using fftshift, you obtain a symmetric matrix
+    ------------------------------------------------------------------------------------
+    naxis = number of elements per row and per column
+    -------------------------------------------------
+    RETURN: the (naxis x naxis) matrix
+    '''
+    axis = np.linspace(-naxis//2+1, naxis//2, naxis)
+    result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
+    return np.roll(result, naxis//2+1, axis=(0, 1))
+
 def filt_image(wn_as, tf, side, step):
     '''
     Create the 2D filtering image from the transfer function data
@@ -194,19 +208,6 @@ def filt_image(wn_as, tf, side, step):
     karr /= karr.max()
     karr *= kmax
     return f(karr)
-
-def dist(naxis):
-    '''
-    Returns a symmetric matrix in which the value of each element is proportional to its frequency 
-    (https://www.harrisgeospatial.com/docs/DIST.html)
-    ----------------------------------------------------------------------------------------------
-    naxis = number of elements per row and per column
-    -------------------------------------------------
-    RETURN: the (naxis x naxis) matrix
-    '''
-    axis = np.linspace(-naxis//2+1, naxis//2, naxis)
-    result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
-    return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
             d_mat, beam_2d, step, filtering, sep, ub, flux_data, compt_mJy_beam, output='ll'):
