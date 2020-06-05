@@ -55,7 +55,7 @@ files_dir = './data' # directory
 beam_filename = '%s/Beam150GHz.fits' %files_dir
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
-compt_convert_name = '%s/Jy_per_beam_to_Compton.dat' %files_dir
+compt_convert_name = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
 
 # Cosmological parameters
 cosmology = mb.Cosmology(redshift)
