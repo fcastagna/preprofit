@@ -9,7 +9,7 @@ from scipy.signal import fftconvolve
 from scipy.fftpack import fft2, ifft2
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-import corner
+import time
 
 font = {'size': 8}
 plt.rc('font', **font)
@@ -224,8 +224,8 @@ def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius,
     sep = index of radius 0
     ub = index of the highest radius considered (ub=sep unless r500 is too low and then r_pp.size < sep)
     flux data:
+        r_sec = radius (arcsec)
         y_data = flux density
-        r_sec = x-axis values for y_data
         err = statistical errors of the flux density
     compt_mJy_beam = conversion rate from compton parameter to mJy/beam
     r500 = characteristic radius
@@ -274,7 +274,6 @@ def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
     nsteps = number of steps to run
     comp_time = whether to show or not the computation time (True/False)
     '''
-    import time
     time0 = time.time()
     print('Starting burn-in')
     for i, result in enumerate(sampler.sample(p0, iterations=nburn, storechain=False)):
