@@ -1,4 +1,4 @@
-from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf, filt_image, log_lik, mcmc_run
+from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf, filt_image, log_lik, prefit, MCMC
 from preprofit_plots import traceplot, triangle, plot_best
 import numpy as np
 import mbproj2 as mb
@@ -89,6 +89,7 @@ integ_sig = .36/1e3 # from Planck
 for i in name_pars:
     if i not in fit_pars:
         pars[i].frozen = True
+ndim = len(fit_pars)
 
 # Flux density data
 flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
@@ -123,7 +124,7 @@ starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_gues
 sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
     press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
     mystep, filtering, sep, ub, flux_data, compt_mJy_beam, kpc_as, calc_integ, integ_mu, integ_sig], threads=nthreads)
-mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nsteps, comp_time=True)
+mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nlength, comp_time=True)
 mysamples = sampler.chain.reshape(-1, ndim, order='F')
 
 ## Save the chain
@@ -144,7 +145,7 @@ for i in np.arange(ndim):
 
 ### Plots
 ## Traceplot
-traceplot(mysamples, fit_pars, nsteps, nwalkers, plotdir=plotdir)
+traceplot(mysamples, fit_pars, nlength, nwalkers, plotdir=plotdir)
 
 ## Corner plot
 triangle(mysamples, fit_pars, plotdir)
