@@ -346,29 +346,120 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
         pars[name].val = val
     return like
 
-def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
-    '''
-    Run the MCMC
-    ------------
-    sampler = emcee.EnsembleSampler object
-    p0 = initial position of the walkers in the parameter space
-    nburn = number of steps to burn
-    nsteps = number of steps to run
-    comp_time = whether to show or not the computation time (True/False)
-    '''
-    time0 = time.time()
-    print('Starting burn-in')
-    for i, result in enumerate(sampler.sample(p0, iterations=nburn, storechain=False)):
-        if i%10 == 0:
-            print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
-        val = result[0]
-    print('Finished burn-in \nStarting sampling')
-    for i, result in enumerate(sampler.sample(val, iterations = nsteps)):
-        if i%10 == 0:
-            print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
-    print('Finished sampling')
-    time1 = time.time()
-    if comp_time == True:
-        h, rem = divmod(time1-time0, 3600)
-        print('Computation time: '+str(int(h))+'h '+str(int(rem//60))+'m')
-    print('Acceptance fraction: %s' %np.mean(sampler.acceptance_fraction))
+class MCMC:
+    def __init__(self, sampler, pars, fit_pars, seed=None, start_var=0.01, processes=1, initspread=0.01):
+        self.initspread = initspread
+        self.pars = pars
+        self.fit_pars = fit_pars
+        self.seed = seed
+        self.start_var = start_var
+        # for doing the mcmc sampling
+        self.sampler = sampler
+        # starting point
+        self.pos0 = None
+        # header items to write to output file
+        self.header = {
+            'burn': 0,
+            }
+
+    def _generateInitPars(self):
+        '''
+        Generate initial set of parameters from fit
+        -------------------------------------------
+        '''
+        thawedpars = np.array([self.pars[name].val for name in self.fit_pars])
+        assert np.all(np.isfinite(thawedpars))
+        # create enough parameters with finite likelihoods
+        p0 = []
+        _ = 0
+        while len(p0) < self.sampler.k:
+            if self.seed is not None:
+                _ += 1
+                np.random.seed(self.seed*_)
+            p = thawedpars*(1+np.random.normal(0, self.initspread, size=len(self.fit_pars)))
+            if np.isfinite(self.sampler.lnprobfn(p)):
+                p0.append(p)
+        return p0
+
+    def mcmc_run(self, #sampler, pars, fit_pars, 
+                 nburn, nsteps, nthin=1, #pos0=None, seed=None, 
+                 comp_time=True, #start_var=0.01, 
+                 autorefit=True, minfrac=0.2, minimprove=0.01):
+        def innerburn():#pars):
+            '''
+            Return False if new minimum found and autorefit is set. Adapted from MBProj2
+            ----------------------------------------------------------------------------
+            '''
+            bestfit = None
+            starting_guess = [self.pars[name].val for name in self.fit_pars]
+            bestprob = initprob = self.sampler.lnprobfn(starting_guess)#np.mean(p0, axis=0))
+            p0 = self._generateInitPars()
+            self.header['burn'] = nburn
+            for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
+                if i%10 == 0:
+                    print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
+                self.pos0, lnprob, rstate0 = result[:3]
+                if lnprob.max()-bestprob > minimprove:
+                    bestprob = lnprob.max()
+                    maxidx = lnprob.argmax()
+                    bestfit = self.pos0[maxidx]
+                if (autorefit and i > nburn*minfrac and bestfit is not None ):
+                    print('Restarting burn as new best fit has been found (%g > %g)' % (bestprob, initprob))
+                    for name, i in zip(self.fit_pars, range(len(self.fit_pars))):
+                        self.pars[name].val = bestfit[i] 
+                    self.sampler.reset()
+                    return False
+            self.sampler.reset()
+            return True
+        time0 = time.time()
+        print('Starting burn-in')
+        while not innerburn():#pars):
+            print('Restarting, as new mininimum found')
+            prelim_fit(self.sampler, self.pars, self.fit_pars)
+        print('Finished burn-in')
+        self.header['length'] = nsteps
+        # initial parameters
+        if self.pos0 is None:
+            print(' Generating initial parameters')
+            p0 = self._generateInitPars()
+        else:
+            print(' Starting from end of burn-in position')
+            p0 = self.pos0
+        for i, result in enumerate(self.sampler.sample(p0, iterations=nsteps, thin=nthin)):
+            if i%10 == 0:
+                print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
+        print('Finished sampling')
+        time1 = time.time()
+        if comp_time:
+            h, rem = divmod(time1-time0, 3600)
+            print('Computation time: '+str(int(h))+'h '+str(int(rem//60))+'m')
+        print('Acceptance fraction: %s' %np.mean(self.sampler.acceptance_fraction))
+
+    def save(self, outfilename, thin=1):
+        """Save chain to HDF5 file.
+        :param str outfilename: output hdf5 filename
+        :param int thin: save every N samples from chain
+        """
+        self.header['thin'] = thin
+        print('Saving chain to', outfilename)
+        with h5py.File(outfilename, 'w') as f:
+            # write header entries
+            for h in sorted(self.header):
+                f.attrs[h] = self.header[h]
+            # write list of parameters which are thawed
+            f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
+            # output chain
+            f.create_dataset(
+                'chain',
+                data=self.sampler.chain[:, ::thin, :].astype(np.float32),
+                compression=True, shuffle=True)
+            # likelihoods for each walker, iteration
+            f.create_dataset(
+                'likelihood',
+                data=self.sampler.lnprobability[:, ::thin].astype(np.float32),
+                compression=True, shuffle=True)
+            # acceptance fraction
+            f['acceptfrac'] = self.sampler.acceptance_fraction.astype(np.float32)
+            # last position in chain
+            f['lastpos'] = self.sampler.chain[:, -1, :].astype(np.float32)
+        print('Done')
