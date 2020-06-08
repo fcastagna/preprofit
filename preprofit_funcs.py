@@ -7,8 +7,6 @@ from scipy import optimize
 from scipy.integrate import simps
 from scipy.signal import fftconvolve
 from scipy.fftpack import fft2, ifft2
-import matplotlib.pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 import time
 
 font = {'size': 8}
@@ -32,6 +30,11 @@ class Param:
     def __repr__(self):
         return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, frozen=%s>' % (
             self.val, self.minval, self.maxval, self.frozen)
+
+    def prior(self):
+        if self.val < self.minval or self.val > self.maxval:
+            return -np.inf
+        return 0.
 
 class Pressure:
     '''
