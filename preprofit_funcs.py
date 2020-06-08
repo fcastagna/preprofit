@@ -7,6 +7,7 @@ from scipy import optimize
 from scipy.integrate import simps
 from scipy.signal import fftconvolve
 from scipy.fftpack import fft2, ifft2
+from scipy.optimize import minimize
 import time
 
 font = {'size': 8}
@@ -208,64 +209,142 @@ def filt_image(wn_as, tf, side, step):
     karr *= kmax
     return f(karr)
 
-def log_lik(pars_val, press, pars, fit_pars, r_pp, phys_const, radius, 
-            d_mat, beam_2d, step, filtering, sep, ub, flux_data, compt_mJy_beam, output='ll'):
+class SZ_data:
+    '''
+    Class for the SZ data required for the analysis
+    -----------------------------------------------
+    phys_const = physical constants required (electron rest mass - keV, Thomson cross section - cm^2)
+    step = binning step
+    kpc_as = kpc in arcsec
+    compt_mJy_beam = conversion factor Compton to mJy
+    flux_data = radius (arcsec), flux density, statistical error
+    beam_2d = 2D image of the beam
+    radius = array of radii in arcsec
+    sep = index of radius 0
+    r_pp = radius in kpc used to compute the pressure profile
+    d_mat = matrix of distances in kpc centered on 0 with given step
+    filtering = transfer function matrix
+    calc_integ = whether to include integrated Compton parameter in the likelihood (boolean, default is False)
+    integ_mu = if calc_integ == True, prior mean
+    integ_sig = if calc_integ == True, prior sigma
+    '''
+    def __init__(self, phys_const, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False,
+                 integ_mu=None, integ_sig=None):
+        self.phys_const = phys_const
+        self.step = step
+        self.kpc_as = kpc_as
+        self.compt_mJy_beam = compt_mJy_beam
+        self.flux_data = flux_data
+        self.beam_2d = beam_2d
+        self.radius = radius
+        self.sep = sep
+        self.r_pp = r_pp
+        self.d_mat = d_mat
+        self.filtering = filtering
+        self.calc_integ = calc_integ
+        self.integ_mu = integ_mu
+        self.integ_sig = integ_sig
+
+def log_lik(pars_val, pars, fit_pars, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
     pars_val = array of free parameters
-    press = pressure object of the class Pressure
     pars = set of pressure parameters
     fit_pars = name of the parameters to fit
-    r_pp = radius used to compute the pressure profile
-    phys_const = physical constants
-    radius = radius (arcsec)
-    d_mat = matrix of distances
-    beam_2d = PSF image
-    step = radius[1]-radius[0]
-    filtering = transfer function matrix
-    sep = index of radius 0
-    ub = index of the highest radius considered (ub=sep unless r500 is too low and then r_pp.size < sep)
-    flux data:
-        r_sec = radius (arcsec)
-        y_data = flux density
-        err = statistical errors of the flux density
-    compt_mJy_beam = conversion rate from compton parameter to mJy/beam
-    r500 = characteristic radius
+    press = pressure object of the class Pressure
+    sz = class of SZ data required
     output = desired output
-    --------------------------------------------------------------
-    RETURN: log-posterior probability or -inf whether theta is out of the parameter space
+        'll' = log-likelihood
+        'chisq' = Chi-Squared
+        'pp' = pressure profile
+        'bright' = surface brightness profile
+        'integ' = integrated Compton parameter (only if calc_integ == True)
+    -----------------------------------------------------------------------
+    RETURN: desired output or -inf when theta is out of the parameter space
     '''
     # update pars
     press.update_vals(pars, fit_pars, pars_val)
-    if all([pars[i].minval < pars[i].val < pars[i].maxval for i in pars]):
-        # pressure profile
-        pp = press.press_fun(pars, r_pp)
-        # abel transform
-        ab = direct_transform(pp, r=r_pp, direction='forward', backend='Python')[:ub]
-        # Compton parameter
-        y = phys_const[2]*phys_const[1]/phys_const[0]*ab
-        f = interp1d(np.append(-r_pp[:ub], r_pp[:ub]), np.append(y, y), 'cubic', fill_value=(0, 0), bounds_error=False)
-        # Compton parameter 2D image
-        y_2d = f(d_mat)
-        # Convolution with the PSF
-        conv_2d = fftconvolve(y_2d, beam_2d, 'same')*step**2
-        # Convolution with the transfer function
-        FT_map_in = fft2(conv_2d)
-        map_out = np.real(ifft2(FT_map_in*filtering))
-        map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*compt_mJy_beam
-        g = interp1d(radius[sep:], map_prof, fill_value='extrapolate')
-        # Log-likelihood calculation
-        log_lik = -np.sum(((flux_data[1]-g(flux_data[0]))/flux_data[2])**2)/2
-        if output == 'll':
-            return log_lik
-        elif output == 'pp':
-            return pp
-        else:
-            return map_prof
-    else:
-        # if some parameter is out of the parameter space
+    # prior on parameters (-inf if at least one parameter value is out of the parameter space)
+    parprior = sum((pars[p].prior() for p in pars))
+    if not np.isfinite(parprior):
         return -np.inf
+    # pressure profile
+    pp = press.press_fun(pars, sz.r_pp)
+    # abel transform
+    ab = direct_transform(pp, r=sz.r_pp, direction='forward', backend='Python')
+    # Compton parameter
+    y = sz.phys_const[2]*sz.phys_const[1]/sz.phys_const[0]*ab
+    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
+    # Compton parameter 2D image
+    y_2d = f(sz.d_mat)
+    # Convolution with the beam
+    conv_2d = fftconvolve(y_2d, sz.beam_2d, 'same')*sz.step**2
+    # Convolution with the transfer function
+    FT_map_in = fft2(conv_2d)
+    map_out = np.real(ifft2(FT_map_in*sz.filtering))
+    # Conversion from Compton parameter to mJy/beam
+    map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam
+    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
+    # Log-likelihood calculation
+    chisq = np.nansum(((sz.flux_data[1]-g(sz.flux_data[0]))/sz.flux_data[2])**2)
+    log_lik = -chisq/2
+    if sz.calc_integ:
+        cint = simps(np.concatenate((f(0), y), axis=None)*
+                     np.arange(0, sz.r_pp[-1]/sz.kpc_as/60+sz.step/60, sz.step/60), 
+                     np.arange(0, sz.r_pp[-1]/sz.kpc_as/60+sz.step/60, sz.step/60))*2*np.pi
+        new_chi = np.nansum(((cint-sz.integ_mu)/sz.integ_sig)**2)
+        log_lik -= new_chi/2
+        if output == 'integ':
+            return cint
+    if output == 'll':
+        return log_lik
+    elif output == 'chisq':
+        return chisq
+    elif output == 'pp':
+        return pp
+    elif output == 'bright':
+        return map_prof
+    else:
+        raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
+
+def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
+    '''
+    Preliminary fit on parameters to increase likelihood. Adapted from MBProj2
+    --------------------------------------------------------------------------
+    sampler = emcee EnsembleSampler object
+    pars = set of pressure parameters
+    fit_pars = name of the parameters to fit
+    silent = print output during fitting (boolean, default is False)
+    maxiter = maximum number of iterations (default is 10)
+    '''
+    print('Fitting (Iteration 1)')
+    ctr = [0]
+    def minfunc(prs):
+        like = sampler.lnprobfn(prs)
+        if ctr[0] % 1000 == 0 and not silent:
+            print('%10i %10.1f' % (ctr[0], like))
+        ctr[0] += 1
+        return -like
+    thawedpars = [pars[name].val for name in fit_pars]
+    lastlike = sampler.lnprobfn(thawedpars)
+    fpars = thawedpars
+    for i in range(maxiter):
+        fitpars = minimize(minfunc, fpars, method='Nelder-Mead')
+        fpars = fitpars.x
+        fitpars = minimize(minfunc, fpars, method='Powell')
+        fpars = fitpars.x
+        like = -fitpars.fun
+        if abs(lastlike-like) < 0.1:
+            break
+        if not silent:
+            print('Iteration %i' % (i+2))
+        lastlike = like
+    if not silent:
+        print('Fit Result:   %.1f' % like)
+    for val, name in zip(fpars, fit_pars):
+        pars[name].val = val
+    return like
 
 def mcmc_run(sampler, p0, nburn, nsteps, comp_time=True):
     '''
