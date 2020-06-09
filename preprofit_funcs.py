@@ -348,7 +348,7 @@ class MCMC:
     pars = set of pressure parameters
     fit_pars = name of the parameters to fit
     seed = random seed (default is None)
-    initspread = random Gaussian width added to create initial parameters
+    initspread = random Gaussian width added to create initial parameters (either scalar or array of same length as fit_pars)
     '''
     def __init__(self, sampler, pars, fit_pars, seed=None, initspread=0.01):
         self.pars = pars
