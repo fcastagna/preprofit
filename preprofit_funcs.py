@@ -341,12 +341,20 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     return like
 
 class MCMC:
-    def __init__(self, sampler, pars, fit_pars, seed=None, start_var=0.01, processes=1, initspread=0.01):
-        self.initspread = initspread
+    '''
+    Class for running Markov Chain Monte Carlo
+    ------------------------------------------
+    sampler = emcee EnsembleSampler object
+    pars = set of pressure parameters
+    fit_pars = name of the parameters to fit
+    seed = random seed (default is None)
+    initspread = random Gaussian width added to create initial parameters
+    '''
+    def __init__(self, sampler, pars, fit_pars, seed=None, initspread=0.01):
         self.pars = pars
         self.fit_pars = fit_pars
         self.seed = seed
-        self.start_var = start_var
+        self.initspread = initspread
         # for doing the mcmc sampling
         self.sampler = sampler
         # starting point
@@ -375,11 +383,19 @@ class MCMC:
                 p0.append(p)
         return p0
 
-    def mcmc_run(self, #sampler, pars, fit_pars, 
-                 nburn, nsteps, nthin=1, #pos0=None, seed=None, 
-                 comp_time=True, #start_var=0.01, 
-                 autorefit=True, minfrac=0.2, minimprove=0.01):
-        def innerburn():#pars):
+    def mcmc_run(self, nburn, nsteps, nthin=1, comp_time=True, autorefit=True, minfrac=0.2, minimprove=0.01):
+        '''
+        MCMC execution
+        --------------
+        nburn = number of burn-in iterations
+        nsteps = number of chain iterations (after burn-in)
+        nthin = thinning
+        comp_time = shows the computation time (boolean, default is True)
+        autorefit = refit position if new minimum is found during burn in (boolean, default is True)
+        minfrac = minimum fraction of burn in to do if new minimum found
+        minimprove = minimum improvement in fit statistic to do a new fit
+        '''
+        def innerburn():
             '''
             Return False if new minimum found and autorefit is set. Adapted from MBProj2
             ----------------------------------------------------------------------------
@@ -430,10 +446,12 @@ class MCMC:
         print('Acceptance fraction: %s' %np.mean(self.sampler.acceptance_fraction))
 
     def save(self, outfilename, thin=1):
-        """Save chain to HDF5 file.
-        :param str outfilename: output hdf5 filename
-        :param int thin: save every N samples from chain
-        """
+        '''
+        Save chain to HDF5 file. Adapted from MBProj2
+        ---------------------------------------------
+        outfilename = output hdf5 filename
+        thin = save every N samples from chain
+        '''
         self.header['thin'] = thin
         print('Saving chain to', outfilename)
         with h5py.File(outfilename, 'w') as f:
