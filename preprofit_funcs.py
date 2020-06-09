@@ -41,7 +41,6 @@ class Pressure:
     '''
     def __init__(self):
         self.pars = self.defPars()
-#        pass
         
     def defPars(self):
         '''
