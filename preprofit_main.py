@@ -84,76 +84,80 @@ integ_sig = .36/1e3 # from Planck
 # Code
 # -------------------------------------------------------------------------------------------------------------------------------
 
-# Parameter definition
-for i in name_pars:
-    if i not in press.fit_pars:
-        pars[i].frozen = True
-ndim = len(press.fit_pars)
+def main():
+    # Parameter definition
+    for i in name_pars:
+        if i not in press.fit_pars:
+            pars[i].frozen = True
+    ndim = len(press.fit_pars)
 
-# Flux density data
-flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
-maxr_data = flux_data[0][-1] # highest radius in the data
+    # Flux density data
+    flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
+    maxr_data = flux_data[0][-1] # highest radius in the data
 
-# PSF computation and creation of the 2D image
-beam_2d, fwhm = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
+    # PSF computation and creation of the 2D image
+    beam_2d, fwhm = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
 
-# Radius definition
-mymaxr = (maxr_data+3*fwhm)//mystep*mystep # max radius needed (arcsec)
-radius = np.arange(0., mymaxr+mystep, mystep) # array of radii in arcsec
-radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
-sep = radius.size//2 # index of radius 0
-r_pp = np.arange(mystep*kpc_as, R_b+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
+    # Radius definition
+    mymaxr = (maxr_data+3*fwhm)//mystep*mystep # max radius needed (arcsec)
+    radius = np.arange(0., mymaxr+mystep, mystep) # array of radii in arcsec
+    radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
+    sep = radius.size//2 # index of radius 0
+    r_pp = np.arange(mystep*kpc_as, R_b+mystep*kpc_as, mystep*kpc_as) # radius in kpc used to compute the pressure profile
 
-# Matrix of distances in kpc centered on 0 with step=mystep
-d_mat = centdistmat(radius*kpc_as)
+    # Matrix of distances in kpc centered on 0 with step=mystep
+    d_mat = centdistmat(radius*kpc_as)
 
-# Transfer function
-wn_as, tf = read_tf(tf_filename, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number in arcsec^(-1), transmission
-filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
+    # Transfer function
+    wn_as, tf = read_tf(tf_filename, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number in arcsec^(-1), transmission
+    filtering = filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
 
-# Compton parameter to mJy/beam conversion
-t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
-convert = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
-compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
+    # Compton parameter to mJy/beam conversion
+    t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
+    convert = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
+    compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
 
-# Set of SZ data required for the analysis
-sz = SZ_data(phys_const, mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ,
-             integ_mu, integ_sig)
+    # Set of SZ data required for the analysis
+    sz = SZ_data(phys_const, mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ,
+                 integ_mu, integ_sig)
 
-# Bayesian fit
-sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[pars, press, sz], threads=nthreads)
-# Preliminary fit to increase likelihood
-prelim_fit(sampler, pars, press.fit_pars)
-# construct MCMC object and do burn in
-mcmc = MCMC(sampler, pars, press.fit_pars, seed=seed, initspread=0.1)
-chainfilename = '%s%s_chain.hdf5' % (savedir, name)
-# run mcmc proper and save the chain
-mcmc.mcmc_run(nburn, nlength, nthin)
-mcmc.save(chainfilename)
-print('Acceptance fraction: %.3f' %np.mean(mcmc.sampler.acceptance_fraction))
-# print('Autocorrelation: %.3f' %np.mean(mcmc.sampler.acor))
-cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
-flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
+    # Bayesian fit
+    sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[pars, press, sz], threads=nthreads)
+    # Preliminary fit to increase likelihood
+    prelim_fit(sampler, pars, press.fit_pars)
+    # construct MCMC object and do burn in
+    mcmc = MCMC(sampler, pars, press.fit_pars, seed=seed, initspread=0.1)
+    chainfilename = '%s%s_chain.hdf5' % (savedir, name)
+    # run mcmc proper and save the chain
+    mcmc.mcmc_run(nburn, nlength, nthin)
+    mcmc.save(chainfilename)
+    print('Acceptance fraction: %.3f' %np.mean(mcmc.sampler.acceptance_fraction))
+    # print('Autocorrelation: %.3f' %np.mean(mcmc.sampler.acor))
+    cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
+    flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
 
-# Posterior distribution's parameters
-param_med = np.median(flat_chain, axis=0)
-param_std = np.std(flat_chain, axis=0)
-for i in range(ndim):
-    print('{:>13}'.format('Median(%s):' %press.fit_pars[i])+'%9s' %format(param_med[i], '.3f')+
-          ';{:>12}'.format('Sd(%s):' %press.fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
-print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
-      (', '.join(press.fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
-       '{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+    # Posterior distribution's parameters
+    param_med = np.median(flat_chain, axis=0)
+    param_std = np.std(flat_chain, axis=0)
+    for i in range(ndim):
+        print('{:>13}'.format('Median(%s):' %press.fit_pars[i])+'%9s' %format(param_med[i], '.3f')+
+              ';{:>12}'.format('Sd(%s):' %press.fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
+    print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
+          (', '.join(press.fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
+           '{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
-### Plots
-# Bayesian diagnostics
-traceplot(cube_chain, press.fit_pars, seed=None, plotdir=plotdir)
-triangle(flat_chain, press.fit_pars, plotdir=plotdir)
+    ### Plots
+    # Bayesian diagnostics
+    traceplot(cube_chain, press.fit_pars, seed=None, plotdir=plotdir)
+    triangle(flat_chain, press.fit_pars, plotdir=plotdir)
 
-# Best fitting profile on SZ surface brightness
-perc_sz = best_fit_prof(cube_chain, log_lik, press, sz, ci=ci)
-fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
+    # Best fitting profile on SZ surface brightness
+    perc_sz = best_fit_prof(cube_chain, log_lik, press, sz, ci=ci)
+    fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
-# Radial pressure profile
-p_prof = press_prof(cube_chain, log_lik, press, sz, ci=ci)
-plot_press(r_pp, p_prof, ci=ci, plotdir=plotdir)
+    # Radial pressure profile
+    p_prof = press_prof(cube_chain, log_lik, press, sz, ci=ci)
+    plot_press(r_pp, p_prof, ci=ci, plotdir=plotdir)
+
+if __name__ == '__main__':
+    main()
