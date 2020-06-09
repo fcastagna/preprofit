@@ -116,6 +116,7 @@ t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
 convert = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
 compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
 
+# Set of SZ data required for the analysis
 sz = SZ_data(phys_const, mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ,
              integ_mu, integ_sig)
 
