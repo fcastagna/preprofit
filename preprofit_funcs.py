@@ -9,10 +9,7 @@ from scipy.signal import fftconvolve
 from scipy.fftpack import fft2, ifft2
 from scipy.optimize import minimize
 import time
-
-font = {'size': 8}
-plt.rc('font', **font)
-plt.style.use('classic')
+import h5py
 
 class Param:
     '''
@@ -43,7 +40,7 @@ class Pressure:
     -----------------------------------------    
     '''
     def __init__(self):
-        pass
+        self.pars = self.defPars()
         
     def defPars(self):
         '''
@@ -54,7 +51,7 @@ class Pressure:
         b = logarithmic slope at r/r_p >> 1
         c = logarithmic slope at r/r_p << 1
         r_p = characteristic radius
-        '''        
+        '''
         pars = {
             'P_0': Param(0.4, minval=0., maxval=20.),
             'a': Param(1.33, minval=0.1, maxval=10.),
@@ -64,29 +61,27 @@ class Pressure:
             }
         return pars
 
-    def update_vals(self, pars, fit_pars, pars_val):
+    def update_vals(self, fit_pars, pars_val):
         '''
         Update the parameter values
         ---------------------------
-        pars = set of pressure parameters
         fit_pars = name of the parameters to update
         pars_val = new parameter values
         '''
         for name, i in zip(fit_pars, range(len(fit_pars))):
-            pars[name].val = pars_val[i] 
+            self.pars[name].val = pars_val[i] 
 
-    def press_fun(self, pars, r_kpc):
+    def press_fun(self, r_kpc):
         '''
         Compute the gNFW pressure profile
         ---------------------------------
-        pars = set of pressure parameters
         r_kpc = radius (kpc)
         '''
-        P_0 = pars['P_0'].val
-        a = pars['a'].val
-        b = pars['b'].val
-        c = pars['c'].val
-        r_p = pars['r_p'].val
+        P_0 = self.pars['P_0'].val
+        a = self.pars['a'].val
+        b = self.pars['b'].val
+        c = self.pars['c'].val
+        r_p = self.pars['r_p'].val
         return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
 
 def read_xy_err(filename, ncol):
@@ -102,7 +97,7 @@ def read_xy_err(filename, ncol):
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
     return data[:ncol]
-
+    
 def read_beam(filename):
     '''
     Read the beam data from the specified file up to the first negative or nan value
@@ -228,8 +223,8 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, phys_const, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False,
-                 integ_mu=None, integ_sig=None):
+    def __init__(self, phys_const, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, 
+                 calc_integ=False, integ_mu=None, integ_sig=None):
         self.phys_const = phys_const
         self.step = step
         self.kpc_as = kpc_as
@@ -245,15 +240,14 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-def log_lik(pars_val, pars, fit_pars, press, sz, output='ll'):
+def log_lik(pars_val, pars, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
     pars_val = array of free parameters
     pars = set of pressure parameters
-    fit_pars = name of the parameters to fit
     press = pressure object of the class Pressure
-    sz = class of SZ data required
+    sz = class of SZ data
     output = desired output
         'll' = log-likelihood
         'chisq' = Chi-Squared
@@ -264,13 +258,13 @@ def log_lik(pars_val, pars, fit_pars, press, sz, output='ll'):
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
     # update pars
-    press.update_vals(pars, fit_pars, pars_val)
+    press.update_vals(press.fit_pars, pars_val)
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
     parprior = sum((pars[p].prior() for p in pars))
     if not np.isfinite(parprior):
         return -np.inf
     # pressure profile
-    pp = press.press_fun(pars, sz.r_pp)
+    pp = press.press_fun(sz.r_pp)
     # abel transform
     ab = direct_transform(pp, r=sz.r_pp, direction='forward', backend='Python')
     # Compton parameter
