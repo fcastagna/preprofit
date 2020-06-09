@@ -125,7 +125,7 @@ sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[pars, press, sz],
 # Preliminary fit to increase likelihood
 prelim_fit(sampler, pars, press.fit_pars)
 # construct MCMC object and do burn in
-mcmc = MCMC(sampler, pars, press.fit_pars, seed=seed)
+mcmc = MCMC(sampler, pars, press.fit_pars, seed=seed, initspread=0.1)
 chainfilename = '%s%s_chain.hdf5' % (savedir, name)
 # run mcmc proper and save the chain
 mcmc.mcmc_run(nburn, nlength, nthin)
