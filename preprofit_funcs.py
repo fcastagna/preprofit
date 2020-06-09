@@ -53,10 +53,10 @@ class Pressure:
         r_p = characteristic radius
         '''
         pars = {
-            'P_0': Param(0.4, minval=0., maxval=2.),
-            'a': Param(1.33, minval=0., maxval=10.),
-            'b': Param(4.13, minval=1., maxval=10.),
-            'c': Param(0.014, minval=0., maxval=2.),
+            'P_0': Param(0.4, minval=0., maxval=20.),
+            'a': Param(1.33, minval=0.1, maxval=10.),
+            'b': Param(4.13, minval=0.1, maxval=15.),
+            'c': Param(0.014, minval=0., maxval=3.),
             'r_p': Param(300., minval=100., maxval=1000.)
             }
         return pars
@@ -84,18 +84,6 @@ class Pressure:
         r_p = self.pars['r_p'].val
         return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
 
-def centdistmat(r, offset=0.):
-    '''
-    Create a symmetric matrix of distances from the radius vector
-    -------------------------------------------------------------
-    r = vector of negative and positive distances with a given step (center value has to be 0)
-    offset = value to be added to every distance in the matrix (default is 0)
-    ---------------------------------------------
-    RETURN: the matrix of distances centered on 0
-    '''
-    x, y = np.meshgrid(r, r)
-    return np.sqrt(x**2+y**2)+offset
-
 def read_xy_err(filename, ncol):
     '''
     Read the data from FITS or ASCII file
@@ -116,11 +104,11 @@ def read_beam(filename):
     --------------------------------------------------------------------------------
     '''
     radius, beam_prof = read_xy_err(filename, ncol=2)
-    if np.isnan(beam_prof).sum() > 0:
+    if np.isnan(beam_prof).sum() > 0.:
         first_nan = np.where(np.isnan(beam_prof))[0][0]
         radius = radius[:first_nan]
         beam_prof = beam_prof[:first_nan]
-    if beam_prof.min() < 0:
+    if beam_prof.min() < 0.:
         first_neg = np.where(beam_prof < 0)[0][0]
         radius = radius[:first_neg]
         beam_prof = beam_prof[:first_neg]
@@ -132,20 +120,20 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
     --------------------------------------------------------------------------------------------------------
     step = binning step
     maxr_data = highest radius in the data
-    approx = whether to approximate or not the beam to the normal distribution (True/False)
+    approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
-    normalize = whether to normalize or not the output 2D image (True/False)
+    normalize = whether to normalize or not the output 2D image (boolean, default is False)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
     '''
     if not approx:
         r_irreg, b = read_beam(filename)
-        f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0, 0))
-        inv_f = lambda x: f(x)-f(0)/2
-        fwhm_beam = 2*optimize.newton(inv_f, x0=5) 
+        f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
+        inv_f = lambda x: f(x)-f(0.)/2
+        fwhm_beam = 2*optimize.newton(inv_f, x0=5.) 
     maxr = (maxr_data+3*fwhm_beam)//step*step
-    rad = np.arange(0, maxr+step, step)
+    rad = np.arange(0., maxr+step, step)
     rad = np.append(-rad[:0:-1], rad)
     rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
     beam_mat = centdistmat(rad_cut)
@@ -158,11 +146,23 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
         beam_2d /= beam_2d.sum()*step**2
     return beam_2d, fwhm_beam
 
-def read_tf(filename, approx=False, loc=0, scale=0.02, c=0.95):
+def centdistmat(r, offset=0.):
+    '''
+    Create a symmetric matrix of distances from the radius vector
+    -------------------------------------------------------------
+    r = vector of negative and positive distances with a given step (center value has to be 0)
+    offset = value to be added to every distance in the matrix (default is 0)
+    ---------------------------------------------
+    RETURN: the matrix of distances centered on 0
+    '''
+    x, y = np.meshgrid(r, r)
+    return np.sqrt(x**2+y**2)+offset
+
+def read_tf(filename, approx=False, loc=0., scale=0.02, c=0.95):
     '''
     Read the transfer function data from the specified file
     -------------------------------------------------------
-    approx = whether to approximate or not the tf to the normal cdf (True/False)
+    approx = whether to approximate or not the tf to the normal cdf (boolean, default is False)
     loc, scale, c = location, scale and normalization parameters for the normal cdf approximation
     ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
@@ -171,6 +171,20 @@ def read_tf(filename, approx=False, loc=0, scale=0.02, c=0.95):
     if approx:
         tf = c*norm.cdf(wn, loc, scale)
     return wn, tf
+
+def dist(naxis):
+    '''
+    Returns a matrix in which the value of each element is proportional to its frequency 
+    (https://www.harrisgeospatial.com/docs/DIST.html)
+    If you shift the 0 to the centre using fftshift, you obtain a symmetric matrix
+    ------------------------------------------------------------------------------------
+    naxis = number of elements per row and per column
+    -------------------------------------------------
+    RETURN: the (naxis x naxis) matrix
+    '''
+    axis = np.linspace(-naxis//2+1, naxis//2, naxis)
+    result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
+    return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def filt_image(wn_as, tf, side, step):
     '''
@@ -185,24 +199,10 @@ def filt_image(wn_as, tf, side, step):
     '''
     f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
     kmax = 1/step
-#    karr = dist(side)/side*kmax
     karr = dist(side)/side
     karr /= karr.max()
     karr *= kmax
-    return f(karr)#(np.rot90(np.rot90(karr)))
-
-def dist(naxis):
-    '''
-    Returns a symmetric matrix in which the value of each element is proportional to its frequency 
-    (https://www.harrisgeospatial.com/docs/DIST.html)
-    ----------------------------------------------------------------------------------------------
-    naxis = number of elements per row and per column
-    -------------------------------------------------
-    RETURN: the (naxis x naxis) matrix
-    '''
-    axis = np.linspace(-naxis//2+1, naxis//2, naxis)
-    result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
-    return np.roll(result, naxis//2+1, axis=(0, 1))
+    return f(karr)
 
 class SZ_data:
     '''
@@ -303,6 +303,15 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
         raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
 
 def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
+    '''
+    Preliminary fit on parameters to increase likelihood. Adapted from MBProj2
+    --------------------------------------------------------------------------
+    sampler = emcee EnsembleSampler object
+    pars = set of pressure parameters
+    fit_pars = name of the parameters to fit
+    silent = print output during fitting (boolean, default is False)
+    maxiter = maximum number of iterations (default is 10)
+    '''
     print('Fitting (Iteration 1)')
     ctr = [0]
     def minfunc(prs):
