@@ -1,10 +1,9 @@
-from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf, filt_image, log_lik, prefit, MCMC
-from preprofit_plots import traceplot, triangle, plot_best
+from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
+from preprofit_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
 import numpy as np
 import mbproj2 as mb
 from scipy.interpolate import interp1d
 import emcee
-import six.moves.cPickle as pickle
 
 
 ### Global-global variables
@@ -20,7 +19,7 @@ phys_const = [m_e, sigma_T, kpc_cm]
 
 # Pressure parameters
 press = Pressure()
-pars = press.defPars()
+pars = press.pars
 name_pars = list(pars.keys())
 
 # name for outputs
@@ -51,7 +50,7 @@ cosmology.WV = 0.6842 # vacuum density
 kpc_as = cosmology.kpc_per_arcsec # number of kpc per arcsec
 
 # Parameters that we want to fit (among P_0, r_p, a, b, c)
-fit_pars = ['P_0', 'r_p', 'a', 'b']
+press.fit_pars = ['P_0', 'r_p', 'a', 'b']
 # To see the default parameter space extent, use: print(pars)
 # For each parameter, use the following to change the bounds of the prior distribution:
 #pars['P_0'].minval = 0.1
@@ -67,8 +66,8 @@ t_const = 12 # constant value of temperature of the cluster (keV), serves for Co
 files_dir = './data' # directory
 beam_filename = '%s/Beam150GHz.fits' %files_dir
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
-flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
-convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
+flux_filename = '%s/flux_density.dat' %files_dir
+convert_filename = '%s/Jy_per_beam_to_Compton.dat' %files_dir # conversion Compton -> Jy/beam
 
 # Beam and transfer function. From raw data or Gaussian approximation?
 beam_approx = False
@@ -87,9 +86,9 @@ integ_sig = .36/1e3 # from Planck
 
 # Parameter definition
 for i in name_pars:
-    if i not in fit_pars:
+    if i not in press.fit_pars:
         pars[i].frozen = True
-ndim = len(fit_pars)
+ndim = len(press.fit_pars)
 
 # Flux density data
 flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
@@ -117,45 +116,43 @@ t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
 convert = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
 compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
 
-# Bayesian fit
-starting_guess = [pars[i].val for i in fit_pars]
-starting_var = np.array(np.repeat(.1, ndim))
-starting_guesses = np.random.random((nwalkers, ndim))*starting_var+starting_guess
-sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[
-    press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, 
-    mystep, filtering, sep, ub, flux_data, compt_mJy_beam, kpc_as, calc_integ, integ_mu, integ_sig], threads=nthreads)
-mcmc_run(sampler, p0=starting_guesses, nburn=nburn, nsteps=nlength, comp_time=True)
-mysamples = sampler.chain.reshape(-1, ndim, order='F')
+sz = SZ_data(phys_const, mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ,
+             integ_mu, integ_sig)
 
-## Save the chain
-file = open('mychain.dat', 'wb') # create file
-res = list([sampler.chain, sampler.lnprobability])
-pickle.dump(res, file) # write
-file.close()
+# Bayesian fit
+sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[pars, press, sz], threads=nthreads)
+# Preliminary fit to increase likelihood
+prelim_fit(sampler, pars, press.fit_pars)
+# construct MCMC object and do burn in
+mcmc = MCMC(sampler, pars, press.fit_pars, seed=seed)
+chainfilename = '%s%s_chain.hdf5' % (savedir, name)
+# run mcmc proper and save the chain
+mcmc.mcmc_run(nburn, nlength, nthin)
+mcmc.save(chainfilename)
+print('Acceptance fraction: %.3f' %np.mean(mcmc.sampler.acceptance_fraction))
+# print('Autocorrelation: %.3f' %np.mean(mcmc.sampler.acor))
+cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
+flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
 
 # Posterior distribution's parameters
-param_med = np.empty(ndim)
-param_std = np.empty(ndim)
-for i in np.arange(ndim):
-    param_med[i] = np.median(mysamples[:,i])
-    param_std[i] = np.std(mysamples[:,i])
-    print('{:>13}'.format('Median(%s):' %fit_pars[i])+'%9s' %format(param_med[i], '.3f')+ 
-          ';{:>12}'.format('Sd(%s):' %fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
-
+param_med = np.median(flat_chain, axis=0)
+param_std = np.std(flat_chain, axis=0)
+for i in range(ndim):
+    print('{:>13}'.format('Median(%s):' %press.fit_pars[i])+'%9s' %format(param_med[i], '.3f')+
+          ';{:>12}'.format('Sd(%s):' %press.fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
+print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
+      (', '.join(press.fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
+       '{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
 ### Plots
-## Traceplot
-traceplot(mysamples, fit_pars, nlength, nwalkers, plotdir=plotdir)
+# Bayesian diagnostics
+traceplot(cube_chain, press.fit_pars, seed=None, plotdir=plotdir)
+triangle(flat_chain, press.fit_pars, plotdir=plotdir)
 
-## Corner plot
-triangle(mysamples, fit_pars, plotdir)
+# Best fitting profile on SZ surface brightness
+perc_sz = best_fit_prof(cube_chain, log_lik, press, sz, ci=ci)
+fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
-# Random samples of at most 1000 profiles
-prof_size = min(1000, mysamples.shape[0])
-out_prof = np.array([log_lik(mysamples[j], press, pars, fit_pars, r_pp, phys_const, radius, d_mat, beam_2d, mystep,
-                             filtering, sep, ub, flux_data, compt_mJy_beam, output='out_prof') for j in 
-                     np.random.choice(mysamples.shape[0], size=prof_size, replace=False)])
-quant = np.percentile(out_prof, [50., 50-ci/2, 50+ci/2], axis=0)
-
-# Best-fit
-plot_best(param_med, fit_pars, quant[0], quant[1], quant[2], radius, sep, flux_data, int(ci), plotdir)
+# Radial pressure profile
+p_prof = press_prof(cube_chain, log_lik, press, sz, ci=ci)
+plot_press(r_pp, p_prof, ci=ci, plotdir=plotdir)
