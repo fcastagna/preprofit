@@ -66,8 +66,8 @@ t_const = 12 # constant value of temperature of the cluster (keV), serves for Co
 files_dir = './data' # directory
 beam_filename = '%s/Beam150GHz.fits' %files_dir
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
-flux_filename = '%s/flux_density.dat' %files_dir
-convert_filename = '%s/Jy_per_beam_to_Compton.dat' %files_dir # conversion Compton -> Jy/beam
+flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
+convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
 
 # Beam and transfer function. From raw data or Gaussian approximation?
 beam_approx = False
