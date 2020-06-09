@@ -122,7 +122,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
     maxr_data = highest radius in the data
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
-    normalize = whether to normalize or not the output 2D image (boolean, default is False)
+    normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
