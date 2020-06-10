@@ -46,11 +46,11 @@ class Pressure:
         '''
         Default parameter values
         ------------------------
-        P_0 = normalizing constant
+        P_0 = normalizing constant (keV cm^{-3})
         a = rate of turnover between b and c
         b = logarithmic slope at r/r_p >> 1
         c = logarithmic slope at r/r_p << 1
-        r_p = characteristic radius
+        r_p = characteristic radius (kpc)
         '''
         pars = {
             'P_0': Param(0.4, minval=0., maxval=20.),
