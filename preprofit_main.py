@@ -139,12 +139,12 @@ def main():
     # Posterior distribution's parameters
     param_med = np.median(flat_chain, axis=0)
     param_std = np.std(flat_chain, axis=0)
+    print('{:>6}'.format('|')+'%11s' % 'Median |'+'%11s' % 'Sd |'+'%13s' % 'Unit\n'+'-'*40)
     for i in range(ndim):
-        print('{:>13}'.format('Median(%s):' %press.fit_pars[i])+'%9s' %format(param_med[i], '.3f')+
-              ';{:>12}'.format('Sd(%s):' %press.fit_pars[i])+'%9s' %format(param_std[i], '.3f'))
-    print('Best fit: [%s] = [%s] \nChi2 = %s with %s df' % 
-          (', '.join(press.fit_pars), ', '.join(['{:.2f}'.format(i) for i in param_med]), 
-           '{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+        print('{:>6}'.format('%s |' %press.fit_pars[i])+'%9s |' %format(param_med[i], '.3f')+
+              '%9s |' %format(param_std[i], '.3f')+'%12s' % [pars[n].unit for n in press.fit_pars][i])
+    print('Chi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), 
+                                    flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
     ### Plots
     # Bayesian diagnostics
