@@ -131,8 +131,6 @@ def main():
     # run mcmc proper and save the chain
     mcmc.mcmc_run(nburn, nlength, nthin)
     mcmc.save(chainfilename)
-    print('Acceptance fraction: %.3f' %np.mean(mcmc.sampler.acceptance_fraction))
-    # print('Autocorrelation: %.3f' %np.mean(mcmc.sampler.acor))
     cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
     flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
 
