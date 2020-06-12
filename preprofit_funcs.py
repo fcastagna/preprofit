@@ -337,7 +337,7 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
         lastlike = like
     if not silent:
         print('Fit Result:   %.1f' % like)
-    for val, name in zip(fpars, fit_pars):
+    for val, name in zip([fpars], fit_pars):
         pars[name].val = val
     return like
 
