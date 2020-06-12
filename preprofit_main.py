@@ -147,7 +147,7 @@ def main():
     ### Plots
     # Bayesian diagnostics
     traceplot(cube_chain, press.fit_pars, seed=None, plotdir=plotdir)
-    triangle(flat_chain, press.fit_pars, plotdir=plotdir)
+    triangle(flat_chain, press.fit_pars, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
     # Best fitting profile on SZ surface brightness
     perc_sz = best_fit_prof(cube_chain, log_lik, press, sz, ci=ci)
