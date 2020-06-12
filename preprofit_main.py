@@ -141,8 +141,8 @@ def main():
     for i in range(ndim):
         print('{:>6}'.format('%s |' %press.fit_pars[i])+'%9s |' %format(param_med[i], '.3f')+
               '%9s |' %format(param_std[i], '.3f')+'%12s' % [pars[n].unit for n in press.fit_pars][i])
-    print('Chi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), 
-                                    flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), 
+                                             flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
     ### Plots
     # Bayesian diagnostics
