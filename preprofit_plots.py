@@ -81,7 +81,8 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
                     axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=labsize)
+            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), 
+                       fontsize=titsize+len(param_names))
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
