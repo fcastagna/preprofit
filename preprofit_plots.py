@@ -81,7 +81,7 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
                     axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-            axes[0,0].legend(loc='center left', bbox_to_anchor=(np.max([1, len(param_names)-1]), 0.5), fontsize=titsize)
+            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=labsize)
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
@@ -93,8 +93,8 @@ def get_equal_tailed(data, ci=95):
     ----------------------------------------
     RETURN: lower bound, median, upper bound
     '''
-    low, med, upp = np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0)
-    return map(np.atleast_1d, [low, med, upp])
+    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
+    return np.array([low, med, upp])
 
 def best_fit_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
     '''
