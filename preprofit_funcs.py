@@ -266,6 +266,8 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
         return -np.inf
     # pressure profile
     pp = press.press_fun(sz.r_pp)
+    if output == 'pp':
+        return pp
     # abel transform
     ab = direct_transform(pp, r=sz.r_pp, direction='forward', backend='Python')
     # Compton parameter
@@ -280,6 +282,8 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     map_out = np.real(ifft2(FT_map_in*sz.filtering))
     # Conversion from Compton parameter to mJy/beam
     map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam
+    if output == 'bright':
+        return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
     # Log-likelihood calculation
     chisq = np.nansum(((sz.flux_data[1]-g(sz.flux_data[0]))/sz.flux_data[2])**2)
@@ -296,10 +300,6 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
         return log_lik
     elif output == 'chisq':
         return chisq
-    elif output == 'pp':
-        return pp
-    elif output == 'bright':
-        return map_prof
     else:
         raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
 
