@@ -170,23 +170,24 @@ def press_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
     perc_press = get_equal_tailed(press_prof, ci)
     return perc_press
 
-def plot_press(r_kpc, press, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./'):
+def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./'):
     '''
     Plot the radial pressure profiles
     ---------------------------------
     r_kpc = radius (kpc)
-    press = best fitting pressure profile (median and interval)
+    press_prof = best fitting pressure profile (median and interval)
     xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
     ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
     pdf = PdfPages(plotdir+'press_fit.pdf')
     plt.clf()
+    l_press, m_press, u_press = press_prof
     xmin, xmax = np.nanmax([r_kpc[0], xmin]), np.nanmin([r_kpc[-1], xmax])
     ind = np.where((r_kpc > xmin) & (r_kpc < xmax))
     e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
-    plt.plot(r_kpc[e_ind], press[1][e_ind])
-    plt.fill_between(r_kpc[e_ind], press[0][e_ind], press[2][e_ind], color='powderblue')
+    plt.plot(r_kpc[e_ind], m_press[e_ind])
+    plt.fill_between(r_kpc[e_ind], l_press[e_ind], u_press[e_ind], color='powderblue')
     plt.xscale('log')
     plt.yscale('log')
     plt.xlabel('Radius (kpc)')
