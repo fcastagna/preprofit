@@ -154,7 +154,7 @@ def main():
     fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
-    p_prof = press_prof(cube_chain, press, r_pp, sz, ci=ci)
+    p_prof = press_prof(cube_chain, press, r_pp, ci=ci)
     plot_press(r_pp, p_prof, ci=ci, plotdir=plotdir)
 
 if __name__ == '__main__':
