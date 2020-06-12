@@ -101,6 +101,9 @@ def best_fit_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
     Compute the surface brightness profile (median and uncertainty interval) for the best fitting parameters
     --------------------------------------------------------------------------------------------------------
     cube_chain = 3d array of sampled values (nw x niter x nparam)
+    log_lik = log-likelihood function
+    press = pressure object of the class Pressure
+    sz = class of SZ data
     num = number of set of parameters to include (default is 'all', i.e. nw x niter parameters)
     seed = random seed (default is None)
     ci = uncertainty level of the interval
@@ -145,11 +148,13 @@ def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def press_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
+def press_prof(cube_chain, press, r_kpc, num='all', seed=None, ci=95):
     '''
     Radial pressure profile (median and uncertainty interval) from given number of samples
     --------------------------------------------------------------------------------------
     cube_chain = 3d array of sampled values (nw x niter x nparam)
+    press = pressure object of the class Pressure
+    r_kpc = radius (kpc)
     num = number of samples to include (default is 'all', i.e. nw x niter parameters)
     seed = random seed (default is None)
     ci = uncertainty level of the interval
@@ -166,7 +171,8 @@ def press_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
     rand = np.random.choice(w.size, num, replace=False)
     press_prof = []
     for j in rand:
-        press_prof.append(log_lik(cube_chain[w[j],it[j],:], press.pars, press, sz, output='pp'))
+        press.update_vals(press.fit_pars, cube_chain[w[j],it[j],:])
+        press_prof.append(press.press_fun(r_kpc))
     perc_press = get_equal_tailed(press_prof, ci)
     return perc_press
 
