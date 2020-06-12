@@ -403,7 +403,7 @@ class MCMC:
             '''
             bestfit = None
             starting_guess = [self.pars[name].val for name in self.fit_pars]
-            bestprob = initprob = self.sampler.lnprobfn(starting_guess)#np.mean(p0, axis=0))
+            bestprob = initprob = self.sampler.lnprobfn(starting_guess)
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
             for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
@@ -424,7 +424,7 @@ class MCMC:
             return True
         time0 = time.time()
         print('Starting burn-in')
-        while not innerburn():#pars):
+        while not innerburn():
             print('Restarting, as new mininimum found')
             prelim_fit(self.sampler, self.pars, self.fit_pars)
         print('Finished burn-in')
