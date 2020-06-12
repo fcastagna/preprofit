@@ -3,6 +3,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import corner
 
+plt.style.use('classic')
+
 def traceplot(cube_chain, param_names, plotw=20, seed=None, ppp=4, labsize=18., ticksize=10., plotdir='./'):
     '''
     Traceplot of the MCMC
