@@ -55,7 +55,7 @@ class Pressure:
         '''
         pars = {
             'P_0': Param(0.4, unit='keV.cm^{-3}', minval=0., maxval=20.),
-            'a': Param(1.33, unit='.', minval=0.1, maxval=10.),
+            'a': Param(1.33, unit='.', minval=0.1, maxval=20.),
             'b': Param(4.13, unit='.', minval=0.1, maxval=15.),
             'c': Param(0.014, unit='.', minval=0., maxval=3.),
             'r_p': Param(300., unit='kpc', minval=100., maxval=3000.)
