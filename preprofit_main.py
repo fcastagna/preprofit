@@ -134,7 +134,7 @@ def main():
     cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
     flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
 
-    # Posterior distribution's parameters
+    # Posterior distribution parameters
     param_med = np.median(flat_chain, axis=0)
     param_std = np.std(flat_chain, axis=0)
     print('{:>6}'.format('|')+'%11s' % 'Median |'+'%11s' % 'Sd |'+'%13s' % 'Unit\n'+'-'*40)
