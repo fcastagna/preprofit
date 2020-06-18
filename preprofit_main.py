@@ -60,7 +60,7 @@ press.fit_pars = ['P_0', 'r_p', 'a', 'b']
 mystep = 2. # constant step in arcsec (values higher than (1/3)*FWHM of the beam are not recommended)
 
 R_b = 5000 # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
-compt_mJy_beam = -11e3 # Compton parameter to mJy/beam conversion
+t_const = 12 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
 
 # File names (FITS and ASCII formats are accepted)
 files_dir = './data' # files directory
