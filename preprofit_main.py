@@ -2,6 +2,7 @@ from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf,
 from preprofit_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
 import numpy as np
 import mbproj2 as mb
+from scipy.interpolate import interp1d
 import emcee
 
 
