@@ -2,7 +2,6 @@ from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf,
 from preprofit_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
 import numpy as np
 import mbproj2 as mb
-from scipy.interpolate import interp1d
 import emcee
 
 
@@ -57,14 +56,15 @@ press.fit_pars = ['P_0', 'r_p', 'a', 'b']
 #pars['P_0'].maxval = 10.
 
 # Sampling step
-mystep = 2. # constant step in arcsec (values higher than 1/3 * FWHM of the PSF are not recommended)
+mystep = 2. # constant step in arcsec (values higher than (1/3)*FWHM of the beam are not recommended)
 
 R_b = 5000 # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
-t_const = 12 # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
+compt_mJy_beam = -11e3 # Compton parameter to mJy/beam conversion
 
-# File names
-files_dir = './data' # directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir
+# File names (FITS and ASCII formats are accepted)
+files_dir = './data' # files directory
+beam_filename = '%s/Beam150GHz.fits' %files_dir 
+# The first two columns must be [radius (arcsec), beam]
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam

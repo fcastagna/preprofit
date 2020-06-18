@@ -1,3 +1,7 @@
+"""
+Authors: Castagna Fabio, Andreon Stefano, Pranjal RS.
+"""
+
 import numpy as np
 from astropy.io import fits
 from scipy.stats import norm
