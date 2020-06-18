@@ -19,12 +19,12 @@ class Param:
     minval, maxval = minimum and maximum allowed values
     frozen = whether the parameter is allowed to vary (True/False)
     '''
-    def __init__(self, val, minval=-1e99, maxval=1e99, unit='.', frozen=False):
+    def __init__(self, val, minval=-1e99, maxval=1e99, frozen=False, unit='.'):
         self.val = float(val)
         self.minval = minval       
         self.maxval = maxval
-        self.unit = unit
         self.frozen = frozen
+        self.unit = unit
 
     def __repr__(self):
         return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, unit=%s, frozen=%s>' % (
@@ -54,7 +54,7 @@ class Pressure:
         r_p = characteristic radius (kpc)
         '''
         pars = {
-            'P_0': Param(0.4, minval=0., maxval=20., unit='keV.cm^{-3}'),
+            'P_0': Param(0.4, minval=0., maxval=2., unit='keV.cm^{-3}'),
             'a': Param(1.33, minval=0.1, maxval=20., unit='.'),
             'b': Param(4.13, minval=0.1, maxval=15., unit='.'),
             'c': Param(0.014, minval=0., maxval=3., unit='.'),
