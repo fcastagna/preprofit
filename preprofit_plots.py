@@ -3,9 +3,9 @@ from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import corner
 
-font = {'size': 8}
-plt.rc('font', **font)
 plt.style.use('classic')
+font = {'size': 20}
+plt.rc('font', **font)
 
 def traceplot(cube_chain, param_names, plotw=20, seed=None, ppp=4, labsize=18., ticksize=10., plotdir='./'):
     '''
