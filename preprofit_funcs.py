@@ -31,8 +31,7 @@ class Param:
         self.unit = unit
 
     def __repr__(self):
-        return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, unit=%s, frozen=%s>' % (
-            self.val, self.minval, self.maxval, self.unit, self.frozen)
+        return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, unit=%s, frozen=%s>' % (self.val, self.minval, self.maxval, self.unit, self.frozen)
     
     def prior(self):
         if self.val < self.minval or self.val > self.maxval:
@@ -137,7 +136,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
         inv_f = lambda x: f(x)-f(0.)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5.)
-            maxr = (maxr_data+3*fwhm_beam)//step*step
+    maxr = (maxr_data+3*fwhm_beam)//step*step
     rad = np.arange(0., maxr+step, step)
     rad = np.append(-rad[:0:-1], rad)
     rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
@@ -228,8 +227,7 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, phys_const, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, 
-                 calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, phys_const, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
         self.phys_const = phys_const
         self.step = step
         self.kpc_as = kpc_as
@@ -274,7 +272,7 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
         return pp
     # abel transform
     ab = direct_transform(pp, r=sz.r_pp, direction='forward', backend='Python')
-        # Compton parameter
+    # Compton parameter
     y = sz.phys_const[2]*sz.phys_const[1]/sz.phys_const[0]*ab
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
     # Compton parameter 2D image
@@ -293,8 +291,7 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     chisq = np.nansum(((sz.flux_data[1]-g(sz.flux_data[0]))/sz.flux_data[2])**2)
     log_lik = -chisq/2
     if sz.calc_integ:
-        cint = simps(np.concatenate((f(0), y), axis=None)*
-                     np.arange(0, sz.r_pp[-1]/sz.kpc_as/60+sz.step/60, sz.step/60), 
+        cint = simps(np.concatenate((f(0), y), axis=None)*np.arange(0, sz.r_pp[-1]/sz.kpc_as/60+sz.step/60, sz.step/60), 
                      np.arange(0, sz.r_pp[-1]/sz.kpc_as/60+sz.step/60, sz.step/60))*2*np.pi
         new_chi = np.nansum(((cint-sz.integ_mu)/sz.integ_sig)**2)
         log_lik -= new_chi/2
@@ -408,7 +405,7 @@ class MCMC:
             bestfit = None
             starting_guess = [self.pars[name].val for name in self.fit_pars]
             bestprob = initprob = self.sampler.lnprobfn(starting_guess)
-                        p0 = self._generateInitPars()
+            p0 = self._generateInitPars()
             self.header['burn'] = nburn
             for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
                 if i%10 == 0:
@@ -436,14 +433,14 @@ class MCMC:
         # initial parameters
         if self.pos0 is None:
             print(' Generating initial parameters')
-                        p0 = self._generateInitPars()
+            p0 = self._generateInitPars()
         else:
             print(' Starting from end of burn-in position')
             p0 = self.pos0
         for i, result in enumerate(self.sampler.sample(p0, iterations=nsteps, thin=nthin)):
             if i%10 == 0:
                 print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
-                        print('Finished sampling')
+        print('Finished sampling')
         time1 = time.time()
         if comp_time:
             h, rem = divmod(time1-time0, 3600)
@@ -466,15 +463,9 @@ class MCMC:
             # write list of parameters which are thawed
             f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
             # output chain
-            f.create_dataset(
-                'chain',
-                data=self.sampler.chain[:, ::thin, :].astype(np.float32),
-                                compression=True, shuffle=True)
+            f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
             # likelihoods for each walker, iteration
-            f.create_dataset(
-                'likelihood',
-                data=self.sampler.lnprobability[:, ::thin].astype(np.float32),
-                compression=True, shuffle=True)
+            f.create_dataset('likelihood', data=self.sampler.lnprobability[:, ::thin].astype(np.float32), compression=True, shuffle=True)
             # acceptance fraction
             f['acceptfrac'] = self.sampler.acceptance_fraction.astype(np.float32)
             # last position in chain
