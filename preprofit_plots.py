@@ -83,8 +83,7 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
                     axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), 
-                       fontsize=titsize+len(param_names))
+            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=titsize+len(param_names))
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
@@ -142,8 +141,7 @@ def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     lsz, msz, usz = perc_sz
     plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
     plt.fill_between(sz.radius[sz.sep:], lsz, usz, color='gold', label='%i%% CI' % ci)
-    plt.errorbar(sz.flux_data[0], sz.flux_data[1], yerr=sz.flux_data[2], fmt='o', fillstyle='none', color='black', 
-                                  label='Observed data')
+    plt.errorbar(sz.flux_data[0], sz.flux_data[1], yerr=sz.flux_data[2], fmt='o', fillstyle='none', color='black', label='Observed data')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('Surface brightness (mJy·beam$^{-1}$)')
     plt.xlim(0., np.ceil(sz.flux_data[0][-1]))
@@ -194,7 +192,7 @@ def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./')
     l_press, m_press, u_press = press_prof
     xmin, xmax = np.nanmax([r_kpc[0], xmin]), np.nanmin([r_kpc[-1], xmax])
     ind = np.where((r_kpc > xmin) & (r_kpc < xmax))
-        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+    e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
     plt.plot(r_kpc[e_ind], m_press[e_ind])
     plt.fill_between(r_kpc[e_ind], l_press[e_ind], u_press[e_ind], color='powderblue')
     plt.xscale('log')
