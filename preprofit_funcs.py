@@ -6,6 +6,8 @@ import numpy as np
 from astropy.io import fits
 from scipy.stats import norm
 from scipy.interpolate import interp1d
+from astropy import units as u
+from astropy import constants as const
 from abel.direct import direct_transform
 from scipy import optimize
 from scipy.integrate import simps
@@ -51,19 +53,19 @@ class Pressure:
         '''
         Default parameter values
         ------------------------
-        P_0 = normalizing constant (keV cm^{-3})
+        P_0 = normalizing constant (keV cm-3)
         a = rate of turnover between b and c
         b = logarithmic slope at r/r_p >> 1
         c = logarithmic slope at r/r_p << 1
         r_p = characteristic radius (kpc)
-        '''
+        '''        
         pars = {
-            'P_0': Param(0.4, minval=0., maxval=2., unit='keV.cm^{-3}'),
-            'a': Param(1.33, minval=0.1, maxval=20., unit='.'),
-            'b': Param(4.13, minval=0.1, maxval=15., unit='.'),
-            'c': Param(0.014, minval=0., maxval=3., unit='.'),
+            'P_0': Param(0.4, minval=0., maxval=2., unit='keV cm-3'),
+            'a': Param(1.33, minval=0.1, maxval=20., unit=''),
+            'b': Param(4.13, minval=0.1, maxval=15., unit=''),
+            'c': Param(0.014, minval=0., maxval=3., unit=''),
             'r_p': Param(300., minval=100., maxval=3000., unit='kpc')
-            }
+        }
         return pars
 
     def update_vals(self, fit_pars, pars_val):
@@ -82,18 +84,15 @@ class Pressure:
         ---------------------------------
         r_kpc = radius (kpc)
         '''
-        P_0 = self.pars['P_0'].val
-        a = self.pars['a'].val
-        b = self.pars['b'].val
-        c = self.pars['c'].val
-        r_p = self.pars['r_p'].val
-        return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a)) 
+        P_0, r_p, a, b, c = map(lambda x: self.pars[x].val*u.Unit(self.pars[x].unit), ['P_0', 'r_p', 'a', 'b', 'c'])
+        return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
 
-def read_xy_err(filename, ncol):
+def read_xy_err(filename, ncol, units):
     '''
     Read the data from FITS or ASCII file
     -------------------------------------
     ncol = number of columns to read
+    units = units in astropy.units format
     '''
     if filename[filename.find('.', -5)+1:] == 'fits':
         data = fits.open(filename)[''].data[0]
@@ -101,20 +100,20 @@ def read_xy_err(filename, ncol):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
-    return data[:ncol]
+    return list(map(lambda x, y: x*y, data[:ncol], units))
     
 def read_beam(filename):
     '''
     Read the beam data from the specified file up to the first negative or nan value
     --------------------------------------------------------------------------------
     '''
-    radius, beam_prof = read_xy_err(filename, ncol=2)
+    radius, beam_prof = read_xy_err(filename, ncol=2, units=[u.arcsec, u.beam])
     if np.isnan(beam_prof).sum() > 0.:
         first_nan = np.where(np.isnan(beam_prof))[0][0]
         radius = radius[:first_nan]
         beam_prof = beam_prof[:first_nan]
     if beam_prof.min() < 0.:
-        first_neg = np.where(beam_prof < 0)[0][0]
+        first_neg = np.where(beam_prof < 0.)[0][0]
         radius = radius[:first_neg]
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
@@ -136,9 +135,9 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
         r_irreg, b = read_beam(filename)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
         inv_f = lambda x: f(x)-f(0.)/2
-        fwhm_beam = 2*optimize.newton(inv_f, x0=5.) 
+        fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
     maxr = (maxr_data+3*fwhm_beam)//step*step
-    rad = np.arange(0., maxr+step, step)
+    rad = np.arange(0., (maxr+step).value, step.value)*step.unit
     rad = np.append(-rad[:0:-1], rad)
     rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
     beam_mat = centdistmat(rad_cut)
@@ -148,8 +147,8 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
     else:
         beam_2d = f(beam_mat)
     if normalize:
-        beam_2d /= beam_2d.sum()*step**2
-    return beam_2d, fwhm_beam
+        beam_2d /= beam_2d.sum()*step.value**2
+    return beam_2d*u.beam, fwhm_beam
 
 def centdistmat(r, offset=0.):
     '''
@@ -163,7 +162,7 @@ def centdistmat(r, offset=0.):
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def read_tf(filename, approx=False, loc=0., scale=0.02, c=0.95):
+def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., scale=0.02, c=0.95):
     '''
     Read the transfer function data from the specified file
     -------------------------------------------------------
@@ -172,7 +171,7 @@ def read_tf(filename, approx=False, loc=0., scale=0.02, c=0.95):
     ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     '''
-    wn, tf = read_xy_err(filename, ncol=2) # wave number, transmission
+    wn, tf = read_xy_err(filename, ncol=2, units=tf_units) # wave number, transmission
     if approx:
         tf = c*norm.cdf(wn, loc, scale)
     return wn, tf
@@ -204,7 +203,7 @@ def filt_image(wn_as, tf, side, step):
     '''
     f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
     kmax = 1/step
-    karr = dist(side)/side
+    karr = (dist(side)/side)*u.Unit('')
     karr /= karr.max()
     karr *= kmax
     return f(karr)
@@ -213,7 +212,6 @@ class SZ_data:
     '''
     Class for the SZ data required for the analysis
     -----------------------------------------------
-    phys_const = physical constants required (electron rest mass - keV, Thomson cross section - cm^2)
     step = binning step
     kpc_as = kpc in arcsec
     compt_mJy_beam = conversion factor Compton to mJy
@@ -228,9 +226,8 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, phys_const, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, 
+    def __init__(self, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, 
                  calc_integ=False, integ_mu=None, integ_sig=None):
-        self.phys_const = phys_const
         self.step = step
         self.kpc_as = kpc_as
         self.compt_mJy_beam = compt_mJy_beam
@@ -273,29 +270,28 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     if output == 'pp':
         return pp
     # abel transform
-    ab = direct_transform(pp, r=sz.r_pp, direction='forward', backend='Python')
+    ab = direct_transform(pp.value, r=sz.r_pp.value, direction='forward', backend='Python')*pp.unit*sz.r_pp.unit
     # Compton parameter
-    y = sz.phys_const[2]*sz.phys_const[1]/sz.phys_const[0]*ab
+    y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
     # Compton parameter 2D image
-    y_2d = f(sz.d_mat)
+    y_2d = f(sz.d_mat)*u.Unit('')
     # Convolution with the beam
     conv_2d = fftconvolve(y_2d, sz.beam_2d, 'same')*sz.step**2
     # Convolution with the transfer function
     FT_map_in = fft2(conv_2d)
     map_out = np.real(ifft2(FT_map_in*sz.filtering))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam
+    map_prof = map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam*u.Unit('mJy beam-1')
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
     # Log-likelihood calculation
-    chisq = np.nansum(((sz.flux_data[1]-g(sz.flux_data[0]))/sz.flux_data[2])**2)
+    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2)
     log_lik = -chisq/2
     if sz.calc_integ:
-        cint = simps(np.concatenate((f(0), y), axis=None)*
-                     np.arange(0, sz.r_pp[-1]/sz.kpc_as/60+sz.step/60, sz.step/60), 
-                     np.arange(0, sz.r_pp[-1]/sz.kpc_as/60+sz.step/60, sz.step/60))*2*np.pi
+        x = np.arange(0., (sz.r_pp[-1]/sz.kpc_as+sz.step).to('arcmin').value, sz.step.to('arcmin').value)*u.arcmin
+        cint = simps(np.concatenate((f(0.), y), axis=None)*x, x)*2*np.pi
         new_chi = np.nansum(((cint-sz.integ_mu)/sz.integ_sig)**2)
         log_lik -= new_chi/2
         if output == 'integ':
@@ -320,13 +316,19 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     print('Fitting (Iteration 1)')
     ctr = [0]
     def minfunc(prs):
-        like = sampler.lnprobfn(prs)
+        try:
+            like = sampler.log_prob_fn(prs)
+        except:
+            like = sampler.lnprobfn(prs)    
         if ctr[0] % 1000 == 0 and not silent:
             print('%10i %10.1f' % (ctr[0], like))
         ctr[0] += 1
         return -like
     thawedpars = [pars[name].val for name in fit_pars]
-    lastlike = sampler.lnprobfn(thawedpars)
+    try:
+        lastlike = sampler.log_prob_fn(thawedpars)
+    except:
+        lastlike = sampler.lnprobfn(thawedpars)
     fpars = thawedpars
     for i in range(maxiter):
         fitpars = minimize(minfunc, fpars, method='Nelder-Mead')
@@ -379,12 +381,18 @@ class MCMC:
         # create enough parameters with finite likelihoods
         p0 = []
         _ = 0
-        while len(p0) < self.sampler.k:
+        try:
+            nw = self.sampler.nwalkers
+            lfun = self.sampler.log_prob_fn
+        except:
+            nw = self.sampler.k
+            lfun = self.sampler.lnprobfn
+        while len(p0) < nw:
             if self.seed is not None:
                 _ += 1
                 np.random.seed(self.seed*_)
             p = thawedpars*(1+np.random.normal(0, self.initspread, size=len(self.fit_pars)))
-            if np.isfinite(self.sampler.lnprobfn(p)):
+            if np.isfinite(lfun(p)):
                 p0.append(p)
         return p0
 
@@ -407,13 +415,23 @@ class MCMC:
             '''
             bestfit = None
             starting_guess = [self.pars[name].val for name in self.fit_pars]
-            bestprob = initprob = self.sampler.lnprobfn(starting_guess)
+            try:
+                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)
+            except:
+                bestprob = initprob = self.sampler.lnprobfn(starting_guess)
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
-            for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
-                if i%10 == 0:
-                    print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
-                self.pos0, lnprob, rstate0 = result[:3]
+            if 'storechain' in self.sampler.sample.__code__.co_varnames:
+                myargs = {'storechain': False}
+            else:
+                myargs = {'progress': True}
+                nthin = nburn//2
+            for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, **myargs)):
+                if 'storechain' in self.sampler.sample.__code__.co_varnames:
+                    if i%10 == 0:
+                        print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
+                self.pos0 = result.coords
+                lnprob = result.log_prob
                 if lnprob.max()-bestprob > minimprove:
                     bestprob = lnprob.max()
                     maxidx = lnprob.argmax()
@@ -435,14 +453,18 @@ class MCMC:
         self.header['length'] = nsteps
         # initial parameters
         if self.pos0 is None:
-            print(' Generating initial parameters')
+            print('Generating initial parameters')
             p0 = self._generateInitPars()
         else:
-            print(' Starting from end of burn-in position')
+            print('Starting from end of burn-in position')
             p0 = self.pos0
-        for i, result in enumerate(self.sampler.sample(p0, iterations=nsteps, thin=nthin)):
-            if i%10 == 0:
-                print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
+        if 'progress' in self.sampler.sample.__code__.co_varnames:
+            for res in self.sampler.sample(p0, iterations=nsteps, thin=nthin, progress=True):
+                pass
+        else:
+            for i, result in enumerate(self.sampler.sample(p0, iterations=nsteps, thin=nthin)):
+                if i%10 == 0:
+                    print(' Sampling %i / %i (%.1f%%)' %(i, nsteps, i*100/nsteps))
         print('Finished sampling')
         time1 = time.time()
         if comp_time:
@@ -468,7 +490,7 @@ class MCMC:
             # output chain
             f.create_dataset(
                 'chain',
-                data=self.sampler.chain[:, ::thin, :].astype(np.float32),
+                data=self.sampler.backend.get_chain()[:, ::thin, :].astype(np.float32),
                 compression=True, shuffle=True)
             # likelihoods for each walker, iteration
             f.create_dataset(
