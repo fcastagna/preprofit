@@ -168,7 +168,7 @@ def press_prof(cube_chain, press, r_kpc, num='all', seed=None, ci=95):
     w, it = np.meshgrid(np.arange(nw), np.arange(cube_chain.shape[1]))
     w = w.flatten()
     it = it.flatten()
-        np.random.seed(seed)
+    np.random.seed(seed)
     rand = np.random.choice(w.size, num, replace=False)
     press_prof = []
     for j in rand:
