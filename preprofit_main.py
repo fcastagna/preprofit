@@ -94,7 +94,7 @@ def main():
 
     # Flux density data
     flux_data = read_xy_err(flux_filename, ncol=3) # radius (arcsec), flux density, statistical error
-        maxr_data = flux_data[0][-1] # highest radius in the data
+    maxr_data = flux_data[0][-1] # highest radius in the data
 
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
@@ -119,8 +119,7 @@ def main():
     compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
 
     # Set of SZ data required for the analysis
-    sz = SZ_data(phys_const, mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ,
-                 integ_mu, integ_sig)
+    sz = SZ_data(phys_const, mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
 
     # Bayesian fit
     sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[pars, press, sz], threads=nthreads)
@@ -142,17 +141,20 @@ def main():
     for i in range(ndim):
         print('{:>6}'.format('%s |' %press.fit_pars[i])+'%9s |' %format(param_med[i], '.3f')+
               '%9s |' %format(param_std[i], '.3f')+'%12s' % [pars[n].unit for n in press.fit_pars][i])
-    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')),
-                                                                                          flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+
     ### Plots
     # Bayesian diagnostics
     traceplot(cube_chain, press.fit_pars, seed=None, plotdir=plotdir)
     triangle(flat_chain, press.fit_pars, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
+    
     # Best fitting profile on SZ surface brightness
     perc_sz = best_fit_prof(cube_chain, log_lik, press, sz, ci=ci)
     fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
+    
     # Radial pressure profile
     p_prof = press_prof(cube_chain, press, r_pp, ci=ci)
     plot_press(r_pp, p_prof, ci=ci, plotdir=plotdir)
+
 if __name__ == '__main__':
     main()
