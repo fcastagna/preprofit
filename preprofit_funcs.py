@@ -304,7 +304,7 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     else:
         raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
 
- def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
+def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     '''
     Preliminary fit on parameters to increase likelihood. Adapted from MBProj2
     --------------------------------------------------------------------------
@@ -411,7 +411,7 @@ class MCMC:
                 if i%10 == 0:
                     print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
                 self.pos0, lnprob, rstate0 = result[:3]
-                                if lnprob.max()-bestprob > minimprove:
+                if lnprob.max()-bestprob > minimprove:
                     bestprob = lnprob.max()
                     maxidx = lnprob.argmax()
                     bestfit = self.pos0[maxidx]
