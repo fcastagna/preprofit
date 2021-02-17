@@ -142,11 +142,11 @@ def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     lsz, msz, usz = perc_sz
     plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
     plt.fill_between(sz.radius[sz.sep:], lsz, usz, color='gold', label='%i%% CI' % ci)
-    plt.errorbar(sz.flux_data[0], sz.flux_data[1], yerr=sz.flux_data[2], fmt='o', fillstyle='none', color='black', 
+    plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', 
                  label='Observed data')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('Surface brightness (mJy·beam$^{-1}$)')
-    plt.xlim(0., np.ceil(sz.flux_data[0][-1]))
+    plt.xlim(0., np.ceil(sz.flux_data[0][-1].value))
     plt.legend(loc='lower right')
     pdf.savefig(bbox_inches='tight')
     pdf.close()
@@ -192,8 +192,8 @@ def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./')
     pdf = PdfPages(plotdir+'press_fit.pdf')
     plt.clf()
     l_press, m_press, u_press = press_prof
-    xmin, xmax = np.nanmax([r_kpc[0], xmin]), np.nanmin([r_kpc[-1], xmax])
-    ind = np.where((r_kpc > xmin) & (r_kpc < xmax))
+    xmin, xmax = np.nanmax([r_kpc[0].value, xmin]), np.nanmin([r_kpc[-1].value, xmax])
+    ind = np.where((r_kpc.value > xmin) & (r_kpc.value < xmax))
     e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
     plt.plot(r_kpc[e_ind], m_press[e_ind])
     plt.fill_between(r_kpc[e_ind], l_press[e_ind], u_press[e_ind], color='powderblue')
