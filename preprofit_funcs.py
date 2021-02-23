@@ -76,8 +76,6 @@ class Pressure:
         ---------------------------------
         r_kpc = radius (kpc)
         '''
-#        pars = list(map(lambda x: self.pars[x].val*u.Unit(self.pars[x].unit), list(self.pars)))
-#        return eval('self.'+fun+'(pars, r_kpc)')
         return self.functional_form(r_kpc, **knots)
 
 class Press_gNFW(Pressure):
@@ -135,7 +133,6 @@ class Press_cubspline(Pressure):
         x = knots.to('kpc')
         f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')        
         return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
-        
 
 def read_xy_err(filename, ncol, units):
     '''
@@ -188,7 +185,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
         fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
     maxr = (maxr_data+3*fwhm_beam)//step*step
     rad = np.arange(0., (maxr+step).value, step.value)*step.unit
-    rad = np.append(-rad[:0:-1], rad)
+    rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
     rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
     beam_mat = centdistmat(rad_cut)
     if approx:
