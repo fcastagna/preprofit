@@ -7,127 +7,204 @@ plt.style.use('classic')
 font = {'size': 20}
 plt.rc('font', **font)
 
-def traceplot(mysamples, param_names, nsteps, nw, plotw=20, ppp=4, plotdir='./'):
+def traceplot(cube_chain, param_names, plotw=20, seed=None, ppp=4, labsize=18., ticksize=10., plotdir='./'):
     '''
     Traceplot of the MCMC
     ---------------------
-    mysamples = array of sampled values in the chain
+    cube_chain = 3d array of sampled values (nw x niter x nparam)
     param_names = names of the parameters
-    nsteps = number of steps in the chain (after burn-in) 
-    nw = number of random walkers
     plotw = number of random walkers that we wanna plot (default is 20)
+    seed = random seed (default is None)
     ppp = number of plots per page
+    labsize = label font size
+    ticksize = ticks font size
     plotdir = directory where to place the plot
     '''
-    nw_step = int(np.ceil(nw/plotw))
+    plt.clf()
+    nw, nsteps = cube_chain.shape[:2]
+    np.random.seed(seed)
+    ind_w = np.random.choice(nw, plotw, replace=False)
     param_latex = ['${}$'.format(i) for i in param_names]
     pdf = PdfPages(plotdir+'traceplot.pdf')
-    for i in np.arange(mysamples.shape[1]):
+    for i in np.arange(cube_chain.shape[2]):
         plt.subplot(ppp, 1, i%ppp+1)
-        for j in range(nw)[::nw_step]:
-            plt.plot(np.arange(nsteps)+1, mysamples[j::nw,i], linewidth=.2)
+        for j in ind_w:
+            plt.plot(np.arange(nsteps)+1, cube_chain[j,:,i], linewidth=.2)
             plt.tick_params(labelbottom=False)
-        plt.ylabel('%s' %param_latex[i], fontdict={'fontsize': 20})
+        plt.ylabel('%s' %param_latex[i], fontdict={'fontsize': labsize})
+        plt.tick_params('y', labelsize=ticksize)
         if (abs((i+1)%ppp) < 0.01):
             plt.tick_params(labelbottom=True)
             plt.xlabel('Iteration number')
-            pdf.savefig()
-            if i+1 < mysamples.shape[1]:
+            pdf.savefig(bbox_inches='tight')
+            if i+1 < cube_chain.shape[2]:
                 plt.clf()
-        elif i+1 == mysamples.shape[1]:
+        elif i+1 == cube_chain.shape[2]:
             plt.tick_params(labelbottom=True)
             plt.xlabel('Iteration number')
-            pdf.savefig()
+            pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def triangle(mysamples, param_names, plotdir='./', filename='cornerplot.pdf'):
+def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
-    mysamples = array of sampled values in the chain
+    mat_chain = 2d array of sampled values ((nw x niter) x nparam)
     param_names = names of the parameters
+    show_lines = whether to show lines for median and uncertainty interval (boolean, default is True)
+    col_lines = line colour (default is red)
+    ci = uncertainty level of the interval
+    labsize = label font size
+    titsize = titles font size
     plotdir = directory where to place the plot
     '''
+    plt.clf()
+    pdf = PdfPages(plotdir+'cornerplot.pdf')
     param_latex = ['${}$'.format(i) for i in param_names]
-    plt.clf()
-    #pdf = PdfPages(plotdir+'cornerplot.pdf')
-    pdf = PdfPages(plotdir+filename)
-    corner.corner(mysamples, labels=param_latex, quantiles=np.repeat(.5, len(param_latex)), show_titles=False, 
-                 label_kwargs={'fontsize': 30})  #,title_kwargs={'fontsize': 20}
-    pdf.savefig()
+    fig = corner.corner(mat_chain, labels=param_latex, title_kwargs={'fontsize': titsize}, label_kwargs={'fontsize': labsize})
+    axes = np.array(fig.axes).reshape((len(param_names), len(param_names)))
+    plb, pmed, pub = get_equal_tailed(mat_chain, ci=ci)
+    for i in range(len(param_names)):
+        l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
+        axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[i], pmed[i], l_err, u_err))
+        if show_lines:
+            axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
+            axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
+            axes[i,i].axvline(pub[i], color=col_lines, linestyle=':', label='_nolegend_')
+            for yi in range(len(param_names)):
+                for xi in range(yi):
+                    axes[yi,xi].axvline(pmed[xi], color=col_lines, linestyle='--')
+                    axes[yi,xi].axhline(pmed[yi], color=col_lines, linestyle='--')
+                    axes[yi,xi].plot(plb[xi], plb[yi], marker=1, color=col_lines)
+                    axes[yi,xi].plot(plb[xi], plb[yi], marker=2, color=col_lines)
+                    axes[yi,xi].plot(plb[xi], pub[yi], marker=1, color=col_lines)
+                    axes[yi,xi].plot(plb[xi], pub[yi], marker=3, color=col_lines)
+                    axes[yi,xi].plot(pub[xi], plb[yi], marker=0, color=col_lines)
+                    axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
+                    axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
+                    axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
+            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), 
+                       fontsize=titsize+len(param_names))
+    pdf.savefig(bbox_inches='tight')
     pdf.close()
-    
-def plot_best(theta, fit_pars, mp_med, mp_lb, mp_ub, radius, sep, flux_data, ci=95, plotdir='./'):
+
+def get_equal_tailed(data, ci=95):
     '''
-    Surface brightness profile (points with error bars) and best fitting profile with CI
-    ------------------------------------------------------------------------------------
-    mp_med = best (median) fitting profile
-    mp_lb, mp_ub = CI boundaries
-    ci = confidence interval level
+    Computes the median and lower/upper limits of the equal tailed uncertainty interval
+    -----------------------------------------------------------------------------------
+    ci = uncertainty level of the interval
+    ----------------------------------------
+    RETURN: lower bound, median, upper bound
+    '''
+    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
+    return np.array([low, med, upp])
+
+def best_fit_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
+    '''
+    Compute the surface brightness profile (median and uncertainty interval) for the best fitting parameters
+    --------------------------------------------------------------------------------------------------------
+    cube_chain = 3d array of sampled values (nw x niter x nparam)
+    log_lik = log-likelihood function
+    press = pressure object of the class Pressure
+    sz = class of SZ data
+    num = number of set of parameters to include (default is 'all', i.e. nw x niter parameters)
+    seed = random seed (default is None)
+    ci = uncertainty level of the interval
+    ------------------------------------------------
+    RETURN: median and uncertainty interval profiles
+    '''
+    nw = cube_chain.shape[0]
+    if num == 'all':
+        num = nw*cube_chain.shape[1]
+    w, it = np.meshgrid(np.arange(nw), np.arange(cube_chain.shape[1]))
+    w = w.flatten()
+    it = it.flatten()
+    np.random.seed(seed)
+    rand = np.random.choice(w.size, num, replace=False)
+    profs_sz = []
+    for j in rand:
+        out_prof = log_lik(cube_chain[w[j],it[j],:], press.pars, press, sz, output='bright')
+        profs_sz.append(out_prof)
+    perc_sz = get_equal_tailed(profs_sz, ci)
+    return perc_sz
+
+def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
+    '''
+    Surface brightness profile (points with error bars) and best fitting profile with uncertainties
+    -----------------------------------------------------------------------------------------------
+    sz = class of SZ data
+    perc_sz = best (median) SZ fitting profiles with uncertainties
+    ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
-    r_sec, y_data, err = flux_data
     plt.clf()
-    #print(plt.rcParams.get('figure.figsize'))
-    #matplotlib.use('TkAgg')
-    #print(plt.rcParams.get('backend'))
-    #plt.rcParams.update(plt.rcParamsDefault)
-    #plt.style.use('classic')
-    #print(plt.rcParams.get('backend'))
-    #print(plt.rcParams)
-    #plt.rcParams.update({'font.size': 20})   
-    plt.rcParams['errorbar.capsize'] = 0
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
-    plt.plot(radius[sep:sep+mp_med.size], mp_med*1e6)
-    plt.fill_between(radius[sep:sep+mp_med.size], mp_lb*1e6, mp_ub*1e6, color='powderblue', label='_nolegend_')
-    plt.errorbar(r_sec, y_data*1e6, yerr=err*1e6, fmt='o', fillstyle='none', color='r')
-    plt.legend(('A10 model (%i%% CI)' %ci, 'Observed data'), loc='lower right')
-    plt.legend(('Model (%i%% CI)' %ci, 'Observed data'), loc='lower right')
-    plt.xlabel('Radius [arcsec]')
-    plt.ylabel('Surface brightness [$\mu$K]')
-    #plt.xlim(0, np.ceil(r_sec[-1]/60)*60*7/6)
-    plt.xlim(0, 2*60*7/6)
-    #plt.xlim(0, 180)
-    plt.ylim(-400,50)
-    #plt.ylim(-120,14)
-    pdf.savefig()
+    lsz, msz, usz = perc_sz
+    plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
+    plt.fill_between(sz.radius[sz.sep:], lsz, usz, color='gold', label='%i%% CI' % ci)
+    plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', 
+                 label='Observed data')
+    plt.xlabel('Radius (arcsec)')
+    plt.ylabel('Surface brightness (mJy·beam$^{-1}$)')
+    plt.xlim(0., np.ceil(sz.flux_data[0][-1].value))
+    plt.legend(loc='lower right')
+    pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-
-def plot_press(rkpc, med, low, hi,ci,plotdir='./'):
-    plt.clf()
-    pdf = PdfPages(plotdir+'press_fit.pdf')
-    plt.plot(rkpc, med)
-    plt.xscale('log')
-    plt.yscale('log')   
-    plt.fill_between(rkpc, low, hi, color='powderblue')
-    #plt.legend(('Model (%i%% CI)' %ci), loc='lower right')
-    plt.xlabel('Radius [kpc]')
-    plt.ylabel('keV/cm3')
-    #plt.xlim(0, np.ceil(rkpc[-1]*7/6))
-    plt.xlim(50, 1000)
-    plt.ylim(1e-5,3e-1)
-    pdf.savefig()
-    pdf.close()
-
-
-def plot_guess(theta, fit_pars, mp_med, radius, sep, flux_data, plotdir='./'):
+def press_prof(cube_chain, press, r_kpc, num='all', seed=None, ci=95):
     '''
-    Surface brightness profile (points with error bars) and guess profile 
-    ------------------------------------------------------------------------------------
-    mp_med = first guess profile
+    Radial pressure profile (median and uncertainty interval) from given number of samples
+    --------------------------------------------------------------------------------------
+    cube_chain = 3d array of sampled values (nw x niter x nparam)
+    press = pressure object of the class Pressure
+    r_kpc = radius (kpc)
+    num = number of samples to include (default is 'all', i.e. nw x niter parameters)
+    seed = random seed (default is None)
+    ci = uncertainty level of the interval
+    ------------------------------------------------
+    RETURN: median and uncertainty interval profiles
+    '''
+    nw = cube_chain.shape[0]
+    if num == 'all':
+        num = nw*cube_chain.shape[1]
+    w, it = np.meshgrid(np.arange(nw), np.arange(cube_chain.shape[1]))
+    w = w.flatten()
+    it = it.flatten()
+    np.random.seed(seed)
+    rand = np.random.choice(w.size, num, replace=False)
+    press_prof = []
+    for j in rand:
+        press.update_vals(press.fit_pars, cube_chain[w[j],it[j],:])
+        try:
+            press_prof.append(press.press_fun(r_kpc))
+        except:
+            press_prof.append(press.press_fun(r_kpc=r_kpc, knots=press.knots))
+    perc_press = get_equal_tailed(press_prof, ci)
+    return perc_press
+
+def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./'):
+    '''
+    Plot the radial pressure profiles
+    ---------------------------------
+    r_kpc = radius (kpc)
+    press_prof = best fitting pressure profile (median and interval)
+    xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
+    ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
-    #print(plt.rcParams.get('figure.figsize'))
-    #print(plt.rcParams)
-    r_sec, y_data, err = flux_data
+    pdf = PdfPages(plotdir+'press_fit.pdf')
     plt.clf()
-    pdf = PdfPages(plotdir+'starting_guess.pdf')
-    plt.plot(radius[sep:sep+mp_med.size], 1e6*mp_med)
-    plt.errorbar(r_sec, 1e6*y_data, yerr=1e6*err, fmt='o', fillstyle='none', color='r')
-    plt.legend(('Guessed Model', 'Observed data'), loc='lower right')
-    plt.xlabel('Radius [arcsec]')
-    plt.ylabel('Surface brightness [muK]')
-    plt.xlim(0, np.ceil(r_sec[-1]/60)*60*7/6)
-    pdf.savefig()
+    l_press, m_press, u_press = press_prof
+    xmin, xmax = np.nanmax([r_kpc[0].value, xmin]), np.nanmin([r_kpc[-1].value, xmax])
+    ind = np.where((r_kpc.value > xmin) & (r_kpc.value < xmax))
+    e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+    plt.plot(r_kpc[e_ind], m_press[e_ind])
+    plt.fill_between(r_kpc[e_ind], l_press[e_ind], u_press[e_ind], color='powderblue')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('Radius (kpc)')
+    plt.ylabel('Pressure (keV cm$^{-3}$)')
+    plt.title('Radial pressure profile (median with %i%% CI)' % ci)
+    plt.xlim(xmin, xmax)
+    pdf.savefig(bbox_inches='tight')
     pdf.close()
