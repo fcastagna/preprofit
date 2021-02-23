@@ -83,8 +83,7 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
                     axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), 
-                       fontsize=titsize+len(param_names))
+            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=titsize+len(param_names))
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
@@ -142,8 +141,7 @@ def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     lsz, msz, usz = perc_sz
     plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
     plt.fill_between(sz.radius[sz.sep:], lsz, usz, color='gold', label='%i%% CI' % ci)
-    plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', 
-                 label='Observed data')
+    plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
     plt.xlabel('Radius (arcsec)')
     plt.ylabel('Surface brightness (mJy·beam$^{-1}$)')
     plt.xlim(0., np.ceil(sz.flux_data[0][-1].value))
