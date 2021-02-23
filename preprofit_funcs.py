@@ -554,10 +554,10 @@ class MCMC:
             # write list of parameters which are thawed
             f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
             # output chain
-            f.create_dataset(
-                'chain',
-                data=self.sampler.backend.get_chain()[:, ::thin, :].astype(np.float32),
-                compression=True, shuffle=True)
+            try:
+                f.create_dataset('chain', data=self.sampler.backend.get_chain()[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
+            except:
+                f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
             # likelihoods for each walker, iteration
             f.create_dataset(
                 'likelihood',
