@@ -134,7 +134,7 @@ class Press_cubspline(Pressure):
         f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')        
         return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
         
-class Press_nonparamRomero(Pressure):
+class Press_nonparam_plaw(Pressure):
 
     def __init__(self):
         Pressure.__init__(self)
