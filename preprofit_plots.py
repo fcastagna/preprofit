@@ -173,10 +173,7 @@ def press_prof(cube_chain, press, r_kpc, num='all', seed=None, ci=95):
     press_prof = []
     for j in rand:
         press.update_vals(press.fit_pars, cube_chain[w[j],it[j],:])
-        try:
-            press_prof.append(press.press_fun(r_kpc))
-        except:
-            press_prof.append(press.press_fun(r_kpc=r_kpc, knots=press.knots))
+        press_prof.append(press.press_fun(r_kpc))
     perc_press = get_equal_tailed(press_prof, ci)
     return perc_press
 

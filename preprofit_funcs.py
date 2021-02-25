@@ -70,13 +70,13 @@ class Pressure:
         for name, i in zip(fit_pars, range(len(fit_pars))):
             self.pars[name].val = pars_val[i] 
 
-    def press_fun(self, r_kpc, **knots):
+    def press_fun(self, r_kpc):
         '''
         Compute the gNFW pressure profile
         ---------------------------------
         r_kpc = radius (kpc)
         '''
-        return self.functional_form(r_kpc, **knots)
+        return self.functional_form(r_kpc)
 
 class Press_gNFW(Pressure):
 
@@ -128,11 +128,47 @@ class Press_cubspline(Pressure):
     def update_knots(self, knots):
         self.knots = knots
 
-    def functional_form(self, r_kpc, knots):
+    def functional_form(self, r_kpc):
         ped, P_0, P_1, P_2, P_3 = map(lambda x: self.pars[x].val, self.pars)
-        x = knots.to('kpc')
+        x = self.knots.to('kpc')
         f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')        
         return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
+        
+class Press_nonparam_plaw(Pressure):
+
+    def __init__(self):
+        Pressure.__init__(self)
+        self.rbins = [40, 120, 240, 480]*u.kpc
+        
+    def defPars(self):
+        '''
+        Default parameter values
+        ------------------------
+        P_i = normalizing constants (kev cm-3)
+        '''
+        pars = Pressure.defPars(self)
+        pars.update({
+            'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
+            'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
+            'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
+            'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')	    
+             })
+        return pars
+
+    def update_bins(self, rbins):
+        self.rbins = rbins
+
+    def functional_form(self, r_kpc):
+        pbins = list(map(lambda x: self.pars[x].val, list(self.pars)))[1:]*u.Unit(self.pars['P_0'].unit)
+        index = np.digitize(r_kpc, self.rbins)
+        r_low = self.rbins[np.maximum(0, index-1)]
+        r_upp = self.rbins[np.minimum(pbins.size-1, index)]
+        p_low = pbins[np.maximum(0, index-1)]
+        p_upp = pbins[np.minimum(index, pbins.size-1)]
+        alpha = np.log(p_upp/p_low)/np.log(r_upp/r_low)
+        alpha[index==0] = alpha[index==1][0]
+        alpha[index==pbins.size] = alpha[index==pbins.size-1][0]
+        return p_low*(r_kpc/r_low)**alpha
 
 def read_xy_err(filename, ncol, units):
     '''
