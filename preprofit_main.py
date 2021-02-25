@@ -1,5 +1,5 @@
-from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
-from preprofit_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
+from p_funcs import Press_gNFW, Press_cubspline, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
+from p_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
 import numpy as np
 from astropy.cosmology import Planck18_arXiv_v2 as cosmology
 from astropy import units as u
@@ -10,7 +10,7 @@ import emcee
 ### Global variables
 
 # Pressure parameters
-press = Pressure.Press_cubspline()
+press = Press_cubspline()
 pars = press.pars
 name_pars = list(pars)
 
@@ -119,8 +119,7 @@ def main():
     convert.unit = conv_units
     
     # Set of SZ data required for the analysis
-    sz = SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ,
-                 integ_mu, integ_sig)
+    sz = SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
 
     # Bayesian fit
     sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[pars, press, sz], threads=nthreads)
@@ -142,8 +141,7 @@ def main():
     for i in range(ndim):
         print('{:>6}'.format('%s |' %press.fit_pars[i])+'%9s |' %format(param_med[i], '.3f')+
               '%9s |' %format(param_std[i], '.3f')+'%12s' % [pars[n].unit for n in press.fit_pars][i])
-    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), 
-                                             flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
     ### Plots
     # Bayesian diagnostics
