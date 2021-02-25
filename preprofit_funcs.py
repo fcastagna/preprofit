@@ -155,7 +155,7 @@ class Press_nonparamRomero(Pressure):
              })
         return pars
 
-    def update_bins(self, rbins, pbins):
+    def update_bins(self, rbins):
         self.rbins = rbins
 
     def functional_form(self, r_kpc):
