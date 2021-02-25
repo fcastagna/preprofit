@@ -70,13 +70,13 @@ class Pressure:
         for name, i in zip(fit_pars, range(len(fit_pars))):
             self.pars[name].val = pars_val[i] 
 
-    def press_fun(self, r_kpc, **knots):
+    def press_fun(self, r_kpc):
         '''
         Compute the gNFW pressure profile
         ---------------------------------
         r_kpc = radius (kpc)
         '''
-        return self.functional_form(r_kpc, **knots)
+        return self.functional_form(r_kpc)
 
 class Press_gNFW(Pressure):
 
@@ -128,11 +128,47 @@ class Press_cubspline(Pressure):
     def update_knots(self, knots):
         self.knots = knots
 
-    def functional_form(self, r_kpc, knots):
+    def functional_form(self, r_kpc):
         ped, P_0, P_1, P_2, P_3 = map(lambda x: self.pars[x].val, self.pars)
-        x = knots.to('kpc')
+        x = self.knots.to('kpc')
         f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')        
         return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
+        
+class Press_nonparamRomero(Pressure):
+
+    def __init__(self):
+        Pressure.__init__(self)
+        self.rbins = [40, 120, 240, 480]*u.kpc
+        
+    def defPars(self):
+        '''
+        Default parameter values
+        ------------------------
+        P_i = normalizing constants (kev cm-3)
+        '''
+        pars = Pressure.defPars(self)
+        pars.update({
+            'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
+            'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
+            'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
+            'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')	    
+             })
+        return pars
+
+    def update_bins(self, rbins, pbins):
+        self.rbins = rbins
+
+    def functional_form(self, r_kpc):
+        pbins = list(map(lambda x: self.pars[x].val, list(self.pars)))[1:]*u.Unit(self.pars['P_0'].unit)
+        index = np.digitize(r_kpc, self.rbins)
+        r_low = self.rbins[np.maximum(0, index-1)]
+        r_upp = self.rbins[np.minimum(pbins.size-1, index)]
+        p_low = pbins[np.maximum(0, index-1)]
+        p_upp = pbins[np.minimum(index, pbins.size-1)]
+        alpha = np.log(p_upp/p_low)/np.log(r_upp/r_low)
+        alpha[index==0] = alpha[index==1][0]
+        alpha[index==pbins.size] = alpha[index==pbins.size-1][0]
+        return p_low*(r_kpc/r_low)**alpha
 
 def read_xy_err(filename, ncol, units):
     '''
@@ -148,7 +184,7 @@ def read_xy_err(filename, ncol, units):
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
     return list(map(lambda x, y: x*y, data[:ncol], units))
-
+    
 def read_beam(filename):
     '''
     Read the beam data from the specified file up to the first negative or nan value
@@ -273,7 +309,8 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering,
+                 calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.kpc_as = kpc_as
         self.compt_mJy_beam = compt_mJy_beam
@@ -470,7 +507,15 @@ class MCMC:
                 bestprob = initprob = self.sampler.lnprobfn(starting_guess)
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
-            try:
+# =============================================================================
+#             if 'storechain' in self.sampler.sample.__code__.co_varnames:
+#                 myargs = {'storechain': False}
+#             else:
+#                 myargs = {'progress': True}
+#                 nthin = nburn//2
+#             for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, **myargs)):
+# =============================================================================
+            try:#if 'storechain' in self.sampler.sample.__code__.co_varnames:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
                     if i%10 == 0:
                         print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
@@ -485,7 +530,7 @@ class MCMC:
                             self.pars[name].val = bestfit[i] 
                         self.sampler.reset()
                         return False
-            except:
+            except:#else:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nburn//2, progress=True)):
                     self.pos0 = result.coords
                     lnprob = result.log_prob
@@ -548,9 +593,12 @@ class MCMC:
             try:
                 f.create_dataset('chain', data=self.sampler.backend.get_chain()[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
             except:
-                f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
+                f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)            
             # likelihoods for each walker, iteration
-            f.create_dataset('likelihood', data=self.sampler.lnprobability[:, ::thin].astype(np.float32), compression=True, shuffle=True)
+            f.create_dataset(
+                'likelihood',
+                data=self.sampler.lnprobability[:, ::thin].astype(np.float32),
+                compression=True, shuffle=True)
             # acceptance fraction
             f['acceptfrac'] = self.sampler.acceptance_fraction.astype(np.float32)
             # last position in chain
