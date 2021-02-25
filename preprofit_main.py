@@ -1,4 +1,4 @@
-from preprofit_funcs import Press_gNFW, Press_cubspline, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
+from preprofit_funcs import Pressure, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
 from preprofit_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
 import numpy as np
 from astropy.cosmology import Planck18_arXiv_v2 as cosmology
@@ -10,7 +10,7 @@ import emcee
 ### Global variables
 
 # Pressure parameters
-press = Press_cubspline()
+press = Pressure.Press_cubspline()
 pars = press.pars
 name_pars = list(pars)
 
@@ -23,11 +23,11 @@ savedir = './' # directory for saved files
 ci = 95
 
 # MCMC parameters
-nburn = 2000 # number of burn-in iterations
-nlength = 5000 # number of chain iterations (after burn-in)
+nburn = 200 # number of burn-in iterations
+nlength = 500 # number of chain iterations (after burn-in)
 nwalkers = 30 # number of random walkers
 nthreads = 8 # number of processes/threads
-nthin = 50 # thinning
+nthin = 5 # thinning
 seed = None # random seed
 
 
@@ -38,8 +38,8 @@ z = 0.888
 cosmology.kpc_per_arcsec = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1')
 kpc_as = cosmology.kpc_per_arcsec # number of kpc per arcsec
 
-# Parameters that we want to fit
-press.fit_pars = ['pedestal', 'P_0', 'P_1', 'P_2', 'P_3']
+# Parameters that we want to fit (among P_0, r_p, a, b, c)
+press.fit_pars = ['pedestal', 'P_0', 'P_1', 'P_2', 'P_3']#, 'P_0', 'a', 'b', 'r_p']
 press.update_knots([5, 15, 30, 60]*u.arcsec*kpc_as)
 # To see the default parameter space extent, use: print(pars)
 # For each parameter, use the following to change the bounds of the prior distribution:
@@ -119,7 +119,8 @@ def main():
     convert.unit = conv_units
     
     # Set of SZ data required for the analysis
-    sz = SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
+    sz = SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ,
+                 integ_mu, integ_sig)
 
     # Bayesian fit
     sampler = emcee.EnsembleSampler(nwalkers, ndim, log_lik, args=[pars, press, sz], threads=nthreads)
@@ -141,7 +142,8 @@ def main():
     for i in range(ndim):
         print('{:>6}'.format('%s |' %press.fit_pars[i])+'%9s |' %format(param_med[i], '.3f')+
               '%9s |' %format(param_std[i], '.3f')+'%12s' % [pars[n].unit for n in press.fit_pars][i])
-    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(param_med, pars, press, sz, output='chisq')), 
+                                             flux_data[1][~np.isnan(flux_data[1])].size-ndim))
 
     ### Plots
     # Bayesian diagnostics
