@@ -1,5 +1,5 @@
-from p_funcs import Press_gNFW, Press_cubspline, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
-from p_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
+from preprofit_funcs import Press_gNFW, Press_cubspline, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
+from preprofit_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
 import numpy as np
 from astropy.cosmology import Planck18_arXiv_v2 as cosmology
 from astropy import units as u
