@@ -184,7 +184,7 @@ def read_xy_err(filename, ncol, units):
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
     return list(map(lambda x, y: x*y, data[:ncol], units))
-    
+
 def read_beam(filename):
     '''
     Read the beam data from the specified file up to the first negative or nan value
@@ -309,8 +309,7 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering,
-                 calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.kpc_as = kpc_as
         self.compt_mJy_beam = compt_mJy_beam
@@ -507,15 +506,7 @@ class MCMC:
                 bestprob = initprob = self.sampler.lnprobfn(starting_guess)
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
-# =============================================================================
-#             if 'storechain' in self.sampler.sample.__code__.co_varnames:
-#                 myargs = {'storechain': False}
-#             else:
-#                 myargs = {'progress': True}
-#                 nthin = nburn//2
-#             for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, **myargs)):
-# =============================================================================
-            try:#if 'storechain' in self.sampler.sample.__code__.co_varnames:
+            try:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
                     if i%10 == 0:
                         print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
@@ -530,7 +521,7 @@ class MCMC:
                             self.pars[name].val = bestfit[i] 
                         self.sampler.reset()
                         return False
-            except:#else:
+            except:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nburn//2, progress=True)):
                     self.pos0 = result.coords
                     lnprob = result.log_prob
@@ -593,12 +584,9 @@ class MCMC:
             try:
                 f.create_dataset('chain', data=self.sampler.backend.get_chain()[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
             except:
-                f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)            
+                f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
             # likelihoods for each walker, iteration
-            f.create_dataset(
-                'likelihood',
-                data=self.sampler.lnprobability[:, ::thin].astype(np.float32),
-                compression=True, shuffle=True)
+            f.create_dataset('likelihood', data=self.sampler.lnprobability[:, ::thin].astype(np.float32), compression=True, shuffle=True)
             # acceptance fraction
             f['acceptfrac'] = self.sampler.acceptance_fraction.astype(np.float32)
             # last position in chain
