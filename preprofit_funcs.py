@@ -175,7 +175,7 @@ class Press_nonparam_plaw(Pressure):
         index = np.digitize(r_kpc, self.rbins)
         r_low = self.rbins[np.maximum(0, index-1)]
         r_upp = self.rbins[np.minimum(self.rbins.size-1, index)]
-        pbins = [self.pars[x].val for x in list(self.pars)[1:]]
+        pbins = [self.pars[x].val for x in list(self.pars)[1:]]*u.Unit(self.pars['P_0'].unit)
         p_low = pbins[np.maximum(0, index-1)]
         p_upp = pbins[np.minimum(index, self.rbins.size-1)]
         alpha = np.empty(index.shape)*u.Unit('')
