@@ -96,6 +96,7 @@ class Press_gNFW(Pressure):
         c = logarithmic slope at r/r_p << 1
         r_p = characteristic radius (kpc)
         '''
+        self.pars = Pressure.defPars(self)
         self.pars.update({
             'P_0': Param(0.4, minval=0., maxval=2., unit='keV cm-3'),
             'a': Param(1.33, minval=0.1, maxval=20., unit=''),
@@ -121,6 +122,7 @@ class Press_cubspline(Pressure):
         ------------------------
         P_i = normalizing constants (kev cm-3)
         '''
+        self.pars = Pressure.defPars(self)
         self.pars.update({
             'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
             'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
@@ -153,6 +155,7 @@ class Press_nonparam_plaw(Pressure):
         ------------------------
         P_i = normalizing constants (kev cm-3)
         '''
+        self.pars = Pressure.defPars(self)
         for i in range(self.rbins.size):
             self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
         return self.pars
