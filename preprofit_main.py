@@ -14,12 +14,19 @@ import emcee
 
 # Cluster cosmology
 z = 0.888
-cosmology.kpc_per_arcsec = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1')
-kpc_as = cosmology.kpc_per_arcsec # number of kpc per arcsec
+kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
-# Pressure parameters
+### Pressure model
+## Non parametric
+# Power law interpolation
 press = pfuncs.Press_nonparam_plaw(alpha_prior=True, max_alphaout=-2.)
 press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
+# Cubic spline
+#press = pfuncs.Press_cubspline()
+#press.knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+## Parametric
+# Generalized Navarro Frenk and White
+#press = pfuncs.Press_gNFW()
 
 # Parameters that we want to fit
 name_pars = list(press.pars)
@@ -32,18 +39,18 @@ name_pars = list(press.pars)
 
 # name for outputs
 name = 'preprofit'
-plotdir = './plots/' # directory for the plots
+plotdir = './' # directory for the plots
 savedir = './' # directory for saved files
 
 # Uncertainty level
 ci = 95
 
 # MCMC parameters
-nburn = 200 # number of burn-in iterations
-nlength = 500 # number of chain iterations (after burn-in)
+nburn = 2000 # number of burn-in iterations
+nlength = 5000 # number of chain iterations (after burn-in)
 nwalkers = 30 # number of random walkers
 nthreads = 8 # number of processes/threads
-nthin = 5 # thinning
+nthin = 50 # thinning
 seed = None # random seed
 
 
@@ -57,8 +64,7 @@ t_const = 12*u.keV # constant value of temperature of the cluster (keV), serves 
 
 # File names (FITS and ASCII formats are accepted)
 files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir 
-# The first two columns must be [radius (arcsec), beam]
+beam_filename = '%s/Beam150GHz.fits' %files_dir # the first two columns must be [radius (arcsec), beam]
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
@@ -84,6 +90,7 @@ integ_sig = .36/1e3 # from Planck
 # -------------------------------------------------------------------------------------------------------------------------------
 
 def main():
+
     # Parameter definition
     press.fit_pars =  [x for x in press.pars if not press.pars[x].frozen]
     ndim = len(press.fit_pars)
