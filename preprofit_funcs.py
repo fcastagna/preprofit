@@ -55,10 +55,10 @@ class Pressure:
         ------------------------
         pedestal = baseline level (mJy/beam)
         '''
-        pars = {
+        self.pars = {
             'pedestal': Param(0., minval=-1., maxval=1., unit='mJy beam-1')
              }
-        return pars
+        return self.pars
 
     def update_vals(self, fit_pars, pars_val):
         '''
@@ -83,6 +83,9 @@ class Pressure:
 
 class Press_gNFW(Pressure):
 
+    def __init__(self):
+        Pressure.__init__(self)
+
     def defPars(self):
         '''
         Default parameter values
@@ -93,15 +96,14 @@ class Press_gNFW(Pressure):
         c = logarithmic slope at r/r_p << 1
         r_p = characteristic radius (kpc)
         '''
-        pars = Pressure.defPars(self)
-        pars.update({
+        self.pars.update({
             'P_0': Param(0.4, minval=0., maxval=2., unit='keV cm-3'),
             'a': Param(1.33, minval=0.1, maxval=20., unit=''),
             'b': Param(4.13, minval=0.1, maxval=15., unit=''),
             'c': Param(0.014, minval=0., maxval=3., unit=''),
             'r_p': Param(300., minval=100., maxval=3000., unit='kpc')
         })
-        return pars
+        return self.pars
 
     def functional_form(self, r_kpc):
         ped, P_0, a, b, c, r_p = map(lambda x: self.pars[x].val*u.Unit(self.pars[x].unit), self.pars)
@@ -119,14 +121,13 @@ class Press_cubspline(Pressure):
         ------------------------
         P_i = normalizing constants (kev cm-3)
         '''
-        pars = Pressure.defPars(self)
-        pars.update({
+        self.pars.update({
             'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
             'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
             'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
             'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')	    
              })
-        return pars
+        return self.pars
 
     def update_knots(self, knots):
         self.knots = knots
@@ -139,11 +140,12 @@ class Press_cubspline(Pressure):
         
 class Press_nonparam_plaw(Pressure):
 
-    def __init__(self, rbins=[40, 120, 240, 480]*u.kpc, alpha_prior=True, max_alphaout=-2.):
-        Pressure.__init__(self)
+    def __init__(self, rbins=[40, 120, 240, 480]*u.kpc, pbins=[1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV cm-3'), alpha_prior=True, max_alphaout=-2.):
         self.rbins = rbins
+        self.pbins = pbins
         self.alpha_prior = alpha_prior
         self.max_alphaout = max_alphaout
+        Pressure.__init__(self)
         
     def defPars(self):
         '''
@@ -151,18 +153,14 @@ class Press_nonparam_plaw(Pressure):
         ------------------------
         P_i = normalizing constants (kev cm-3)
         '''
-        pars = Pressure.defPars(self)
-        pars.update({
-            'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
-            'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
-            'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
-            'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')
-             })
-        return pars
+        for i in range(self.rbins.size):
+            self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
+        return self.pars
 
     def prior(self):
         if self.alpha_prior == True:
-            alpha_out = np.log(self.pars['P_3'].val/self.pars['P_2'].val)/np.log(self.rbins[3]/self.rbins[2])
+            i = len(self.rbins)
+            alpha_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
             if alpha_out > self.max_alphaout:
                 return -np.inf
         return 0.
