@@ -361,10 +361,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     if not np.isfinite(parprior):
         return -np.inf
     # pressure profile
-    try:
-        pp = press.press_fun(r_kpc=sz.r_pp)
-    except:
-        pp = press.press_fun(r_kpc=sz.r_pp, knots=press.knots)        
+    pp = press.press_fun(r_kpc=sz.r_pp)
     if output == 'pp':
         return pp
     # abel transform
