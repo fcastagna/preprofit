@@ -18,7 +18,7 @@ cosmology.kpc_per_arcsec = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1')
 kpc_as = cosmology.kpc_per_arcsec # number of kpc per arcsec
 
 # Pressure parameters
-press = pfuncs.Press_nonparam_plaw()
+press = pfuncs.Press_nonparam_plaw(alpha_prior=True, max_alphaout=-2.)
 press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
 
 # Parameters that we want to fit
