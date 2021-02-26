@@ -78,6 +78,9 @@ class Pressure:
         '''
         return self.functional_form(r_kpc)
 
+    def prior(self, pars):
+        return 0.
+
 class Press_gNFW(Pressure):
 
     def defPars(self):
@@ -136,9 +139,11 @@ class Press_cubspline(Pressure):
         
 class Press_nonparam_plaw(Pressure):
 
-    def __init__(self):
+    def __init__(self, rbins=[40, 120, 240, 480]*u.kpc, alpha_prior=True, max_alphaout=-2.):
         Pressure.__init__(self)
-        self.rbins = [40, 120, 240, 480]*u.kpc
+        self.rbins = rbins
+        self.alpha_prior = alpha_prior
+        self.max_alphaout = max_alphaout
         
     def defPars(self):
         '''
@@ -151,21 +156,30 @@ class Press_nonparam_plaw(Pressure):
             'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
             'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
             'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
-            'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')	    
+            'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')
              })
         return pars
+
+    def prior(self, pars):
+        if self.alpha_prior == True:
+            alpha_out = np.log(pars['P_3'].val/pars['P_2'].val)/np.log(self.rbins[3]/self.rbins[2])
+            if alpha_out > self.max_alphaout:
+                return -np.inf
+        return 0.
 
     def update_bins(self, rbins):
         self.rbins = rbins
 
     def functional_form(self, r_kpc):
-        pbins = list(map(lambda x: self.pars[x].val, list(self.pars)))[1:]*u.Unit(self.pars['P_0'].unit)
+        pbins = np.array([self.pars[x].val for x in list(self.pars)])[np.where([x[:2] == 'P_' for x in list(self.pars)])[0]]*u.Unit(self.pars['P_0'].unit)
         index = np.digitize(r_kpc, self.rbins)
         r_low = self.rbins[np.maximum(0, index-1)]
         r_upp = self.rbins[np.minimum(pbins.size-1, index)]
         p_low = pbins[np.maximum(0, index-1)]
         p_upp = pbins[np.minimum(index, pbins.size-1)]
-        alpha = np.log(p_upp/p_low)/np.log(r_upp/r_low)
+        alpha = np.empty(index.shape)*u.Unit('')
+        centr = index % pbins.size != 0
+        alpha[centr] = (np.log(p_upp/p_low)[centr]/np.log(r_upp/r_low)[centr])
         alpha[index==0] = alpha[index==1][0]
         alpha[index==pbins.size] = alpha[index==pbins.size-1][0]
         return p_low*(r_kpc/r_low)**alpha
@@ -324,12 +338,11 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-def log_lik(pars_val, pars, press, sz, output='ll'):
+def log_lik(pars_val, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
     pars_val = array of free parameters
-    pars = set of pressure parameters
     press = pressure object of the class Pressure
     sz = class of SZ data
     output = desired output
@@ -344,7 +357,7 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     # update pars
     press.update_vals(press.fit_pars, pars_val)
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
-    parprior = sum((pars[p].prior() for p in pars))
+    parprior = sum((press.pars[p].prior() for p in press.pars), press.prior(press.pars))
     if not np.isfinite(parprior):
         return -np.inf
     # pressure profile
@@ -367,7 +380,7 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     FT_map_in = fft2(conv_2d)
     map_out = np.real(ifft2(FT_map_in*sz.filtering))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam+pars['pedestal'].val)*u.Unit('mJy beam-1')
+    map_prof = (map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
