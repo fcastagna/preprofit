@@ -55,10 +55,10 @@ class Pressure:
         ------------------------
         pedestal = baseline level (mJy/beam)
         '''
-        pars = {
+        self.pars = {
             'pedestal': Param(0., minval=-1., maxval=1., unit='mJy beam-1')
              }
-        return pars
+        return self.pars
 
     def update_vals(self, fit_pars, pars_val):
         '''
@@ -78,7 +78,13 @@ class Pressure:
         '''
         return self.functional_form(r_kpc)
 
+    def prior(self):
+        return 0.
+
 class Press_gNFW(Pressure):
+
+    def __init__(self):
+        Pressure.__init__(self)
 
     def defPars(self):
         '''
@@ -90,15 +96,14 @@ class Press_gNFW(Pressure):
         c = logarithmic slope at r/r_p << 1
         r_p = characteristic radius (kpc)
         '''
-        pars = Pressure.defPars(self)
-        pars.update({
+        self.pars.update({
             'P_0': Param(0.4, minval=0., maxval=2., unit='keV cm-3'),
             'a': Param(1.33, minval=0.1, maxval=20., unit=''),
             'b': Param(4.13, minval=0.1, maxval=15., unit=''),
             'c': Param(0.014, minval=0., maxval=3., unit=''),
             'r_p': Param(300., minval=100., maxval=3000., unit='kpc')
         })
-        return pars
+        return self.pars
 
     def functional_form(self, r_kpc):
         ped, P_0, a, b, c, r_p = map(lambda x: self.pars[x].val*u.Unit(self.pars[x].unit), self.pars)
@@ -116,14 +121,13 @@ class Press_cubspline(Pressure):
         ------------------------
         P_i = normalizing constants (kev cm-3)
         '''
-        pars = Pressure.defPars(self)
-        pars.update({
+        self.pars.update({
             'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
             'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
             'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
             'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')	    
              })
-        return pars
+        return self.pars
 
     def update_knots(self, knots):
         self.knots = knots
@@ -136,9 +140,12 @@ class Press_cubspline(Pressure):
         
 class Press_nonparam_plaw(Pressure):
 
-    def __init__(self):
+    def __init__(self, rbins=[40, 120, 240, 480]*u.kpc, pbins=[1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV cm-3'), alpha_prior=True, max_alphaout=-2.):
+        self.rbins = rbins
+        self.pbins = pbins
+        self.alpha_prior = alpha_prior
+        self.max_alphaout = max_alphaout
         Pressure.__init__(self)
-        self.rbins = [40, 120, 240, 480]*u.kpc
         
     def defPars(self):
         '''
@@ -146,28 +153,32 @@ class Press_nonparam_plaw(Pressure):
         ------------------------
         P_i = normalizing constants (kev cm-3)
         '''
-        pars = Pressure.defPars(self)
-        pars.update({
-            'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
-            'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
-            'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
-            'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')	    
-             })
-        return pars
+        for i in range(self.rbins.size):
+            self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
+        return self.pars
+
+    def prior(self):
+        if self.alpha_prior == True:
+            i = len(self.rbins)
+            alpha_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
+            if alpha_out > self.max_alphaout:
+                return -np.inf
+        return 0.
 
     def update_bins(self, rbins):
         self.rbins = rbins
 
     def functional_form(self, r_kpc):
-        pbins = list(map(lambda x: self.pars[x].val, list(self.pars)))[1:]*u.Unit(self.pars['P_0'].unit)
         index = np.digitize(r_kpc, self.rbins)
         r_low = self.rbins[np.maximum(0, index-1)]
-        r_upp = self.rbins[np.minimum(pbins.size-1, index)]
-        p_low = pbins[np.maximum(0, index-1)]
-        p_upp = pbins[np.minimum(index, pbins.size-1)]
-        alpha = np.log(p_upp/p_low)/np.log(r_upp/r_low)
+        r_upp = self.rbins[np.minimum(self.pbins.size-1, index)]
+        p_low = self.pbins[np.maximum(0, index-1)]
+        p_upp = self.pbins[np.minimum(index, self.pbins.size-1)]
+        alpha = np.empty(index.shape)*u.Unit('')
+        centr = index % self.pbins.size != 0
+        alpha[centr] = (np.log(p_upp/p_low)[centr]/np.log(r_upp/r_low)[centr])
         alpha[index==0] = alpha[index==1][0]
-        alpha[index==pbins.size] = alpha[index==pbins.size-1][0]
+        alpha[index==self.pbins.size] = alpha[index==self.pbins.size-1][0]
         return p_low*(r_kpc/r_low)**alpha
 
 def read_xy_err(filename, ncol, units):
@@ -324,12 +335,11 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-def log_lik(pars_val, pars, press, sz, output='ll'):
+def log_lik(pars_val, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
     pars_val = array of free parameters
-    pars = set of pressure parameters
     press = pressure object of the class Pressure
     sz = class of SZ data
     output = desired output
@@ -344,7 +354,7 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     # update pars
     press.update_vals(press.fit_pars, pars_val)
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
-    parprior = sum((pars[p].prior() for p in pars))
+    parprior = sum((press.pars[p].prior() for p in press.pars), press.prior())
     if not np.isfinite(parprior):
         return -np.inf
     # pressure profile
@@ -367,7 +377,7 @@ def log_lik(pars_val, pars, press, sz, output='ll'):
     FT_map_in = fft2(conv_2d)
     map_out = np.real(ifft2(FT_map_in*sz.filtering))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam+pars['pedestal'].val)*u.Unit('mJy beam-1')
+    map_prof = (map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
