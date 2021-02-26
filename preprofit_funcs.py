@@ -78,7 +78,7 @@ class Pressure:
         '''
         return self.functional_form(r_kpc)
 
-    def prior(self, pars):
+    def prior(self):
         return 0.
 
 class Press_gNFW(Pressure):
@@ -160,9 +160,9 @@ class Press_nonparam_plaw(Pressure):
              })
         return pars
 
-    def prior(self, pars):
+    def prior(self):
         if self.alpha_prior == True:
-            alpha_out = np.log(pars['P_3'].val/pars['P_2'].val)/np.log(self.rbins[3]/self.rbins[2])
+            alpha_out = np.log(self.pars['P_3'].val/self.pars['P_2'].val)/np.log(self.rbins[3]/self.rbins[2])
             if alpha_out > self.max_alphaout:
                 return -np.inf
         return 0.
@@ -357,7 +357,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # update pars
     press.update_vals(press.fit_pars, pars_val)
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
-    parprior = sum((press.pars[p].prior() for p in press.pars), press.prior(press.pars))
+    parprior = sum((press.pars[p].prior() for p in press.pars), press.prior())
     if not np.isfinite(parprior):
         return -np.inf
     # pressure profile
