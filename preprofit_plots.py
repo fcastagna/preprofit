@@ -122,7 +122,7 @@ def best_fit_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
     rand = np.random.choice(w.size, num, replace=False)
     profs_sz = []
     for j in rand:
-        out_prof = log_lik(cube_chain[w[j],it[j],:], press.pars, press, sz, output='bright')
+        out_prof = log_lik(cube_chain[w[j],it[j],:], press, sz, output='bright')
         profs_sz.append(out_prof)
     perc_sz = get_equal_tailed(profs_sz, ci)
     return perc_sz
