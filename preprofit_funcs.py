@@ -169,17 +169,16 @@ class Press_nonparam_plaw(Pressure):
         self.rbins = rbins
 
     def functional_form(self, r_kpc):
-        pbins = np.array([self.pars[x].val for x in list(self.pars)])[np.where([x[:2] == 'P_' for x in list(self.pars)])[0]]*u.Unit(self.pars['P_0'].unit)
         index = np.digitize(r_kpc, self.rbins)
         r_low = self.rbins[np.maximum(0, index-1)]
-        r_upp = self.rbins[np.minimum(pbins.size-1, index)]
-        p_low = pbins[np.maximum(0, index-1)]
-        p_upp = pbins[np.minimum(index, pbins.size-1)]
+        r_upp = self.rbins[np.minimum(self.pbins.size-1, index)]
+        p_low = self.pbins[np.maximum(0, index-1)]
+        p_upp = self.pbins[np.minimum(index, self.pbins.size-1)]
         alpha = np.empty(index.shape)*u.Unit('')
-        centr = index % pbins.size != 0
+        centr = index % self.pbins.size != 0
         alpha[centr] = (np.log(p_upp/p_low)[centr]/np.log(r_upp/r_low)[centr])
         alpha[index==0] = alpha[index==1][0]
-        alpha[index==pbins.size] = alpha[index==pbins.size-1][0]
+        alpha[index==self.pbins.size] = alpha[index==self.pbins.size-1][0]
         return p_low*(r_kpc/r_low)**alpha
 
 def read_xy_err(filename, ncol, units):
