@@ -1,10 +1,16 @@
-import preprofit_funcs as pfuncs
-import preprofit_plots as pplots
+import p_funcs as pfuncs
+import p_plots as pplots
+#from p_funcs import Press_gNFW, Press_cubspline, Press_nonparam_plaw, read_xy_err, mybeam, centdistmat, read_tf, filt_image, SZ_data, log_lik, prelim_fit, MCMC
+#from p_plots import traceplot, triangle, best_fit_prof, fitwithmod, press_prof, plot_press
 import numpy as np
 try:
     from astropy.cosmology import Planck18_arXiv_v2 as cosmology
 except:
     from astropy.cosmology import Planck15 as cosmology
+#import astropy.cosmology as cosdir
+#from astropy.cosmology import *
+#cosmology = eval(dir(cosdir)[np.where([x[:6] == 'Planck' for x in dir(cosdir)])[0][-1]])
+#from astropy.cosmology import Planck18_arXiv_v2 as cosmology
 from astropy import units as u
 from scipy.interpolate import interp1d
 import emcee
@@ -17,40 +23,32 @@ z = 0.888
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
 ### Pressure model
-## Non parametric
-# Power law interpolation
-press = pfuncs.Press_nonparam_plaw(alpha_prior=True, max_alphaout=-2.)
-press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
-# Cubic spline
-#press = pfuncs.Press_cubspline()
-#press.knots = [5, 15, 30, 60]*u.arcsec*kpc_as
 ## Parametric
 # Generalized Navarro Frenk and White
-#press = pfuncs.Press_gNFW()
-
-# Parameters that we want to fit
-name_pars = list(press.pars)
-# To see the default parameter space extent, use: print(press.pars)
-# For each parameter, use the following to change the bounds of the prior distribution:
-#press.pars['P_0'].minval = 0.1
-#press.pars['P_0'].maxval = 10.
-# To exclude a parameter from the fit:
-#press.pars['P_0'].frozen = True
+press = pfuncs.Press_gNFW(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
+press.pars['c'].frozen = True
+## Non parametric
+# Cubic spline
+#press = pfuncs.Press_cubspline(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
+#press.knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+# Power law interpolation
+#press = pfuncs.Press_nonparam_plaw(slope_prior=True, max_slopeout=-2.)
+#press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
 
 # name for outputs
 name = 'preprofit'
-plotdir = './' # directory for the plots
+plotdir = './plots/' # directory for the plots
 savedir = './' # directory for saved files
 
 # Uncertainty level
 ci = 95
 
 # MCMC parameters
-nburn = 2000 # number of burn-in iterations
-nlength = 5000 # number of chain iterations (after burn-in)
+nburn = 200 # number of burn-in iterations
+nlength = 500 # number of chain iterations (after burn-in)
 nwalkers = 30 # number of random walkers
 nthreads = 8 # number of processes/threads
-nthin = 50 # thinning
+nthin = 5 # thinning
 seed = None # random seed
 
 
@@ -64,7 +62,8 @@ t_const = 12*u.keV # constant value of temperature of the cluster (keV), serves 
 
 # File names (FITS and ASCII formats are accepted)
 files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir # the first two columns must be [radius (arcsec), beam]
+beam_filename = '%s/Beam150GHz.fits' %files_dir 
+# The first two columns must be [radius (arcsec), beam]
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
@@ -90,7 +89,6 @@ integ_sig = .36/1e3 # from Planck
 # -------------------------------------------------------------------------------------------------------------------------------
 
 def main():
-
     # Parameter definition
     press.fit_pars =  [x for x in press.pars if not press.pars[x].frozen]
     ndim = len(press.fit_pars)
