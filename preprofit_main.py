@@ -1,5 +1,5 @@
-import p_funcs as pfuncs
-import p_plots as pplots
+import preprofit_funcs as pfuncs
+import preprofit_plots as pplots
 import numpy as np
 try:
     from astropy.cosmology import Planck18_arXiv_v2 as cosmology
@@ -65,7 +65,7 @@ t_const = 12*u.keV # constant value of temperature of the cluster (keV), serves 
 
 # File names (FITS and ASCII formats are accepted)
 files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir # The first two columns must be [radius (arcsec), beam]
+beam_filename = '%s/Beam150GHz.fits' %files_dir # the first two columns must be [radius (arcsec), beam]
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
