@@ -83,8 +83,11 @@ class Pressure:
 
 class Press_gNFW(Pressure):
 
-    def __init__(self):
+    def __init__(self, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         Pressure.__init__(self)
+        self.slope_prior = slope_prior
+        self.r_out = r_out
+        self.max_slopeout = max_slopeout
 
     def defPars(self):
         '''
@@ -106,15 +109,28 @@ class Press_gNFW(Pressure):
         })
         return self.pars
 
-    def functional_form(self, r_kpc):
+    def functional_form(self, r_kpc, logder=False):
         ped, P_0, a, b, c, r_p = map(lambda x: self.pars[x].val*u.Unit(self.pars[x].unit), self.pars)
-        return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
+        if logder == False:
+            return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
+        else:
+            return (b-c)/(1+(r_kpc/r_p)**a)-b
+
+    def prior(self):
+        if self.slope_prior == True:
+            slope_out = self.functional_form(self.r_out, logder=True)
+            if slope_out > self.max_slopeout:
+                return -np.inf
+        return 0.
 
 class Press_cubspline(Pressure):
 
-    def __init__(self):
+    def __init__(self, knots=[40, 120, 240, 480]*u.kpc, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         Pressure.__init__(self)
-        self.knots = [40, 120, 240, 480]*u.kpc 
+        self.knots = knots
+        self.slope_prior = slope_prior
+        self.r_out = r_out
+        self.max_slopeout = max_slopeout
         
     def defPars(self):
         '''
@@ -134,19 +150,29 @@ class Press_cubspline(Pressure):
     def update_knots(self, knots):
         self.knots = knots
 
-    def functional_form(self, r_kpc):
+    def functional_form(self, r_kpc, logder=False):
         ped, P_0, P_1, P_2, P_3 = map(lambda x: self.pars[x].val, self.pars)
         x = self.knots.to('kpc')
-        f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')        
-        return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
-        
+        f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')
+        if logder == False:
+            return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
+        else:
+            return f._spline.derivative()(np.log10(r_kpc.value)).flatten()*u.Unit('')
+
+    def prior(self):
+        if self.slope_prior == True:
+            slope_out = self.functional_form(self.r_out, logder=True)
+            if slope_out > self.max_slopeout:
+                return -np.inf
+        return 0.
+
 class Press_nonparam_plaw(Pressure):
 
-    def __init__(self, rbins=[40, 120, 240, 480]*u.kpc, pbins=[1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV cm-3'), alpha_prior=True, max_alphaout=-2.):
+    def __init__(self, rbins=[40, 120, 240, 480]*u.kpc, pbins=[1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV cm-3'), slope_prior=True, max_slopeout=-2.):
         self.rbins = rbins
         self.pbins = pbins
-        self.alpha_prior = alpha_prior
-        self.max_alphaout = max_alphaout
+        self.slope_prior = slope_prior
+        self.max_slopeout = max_slopeout
         Pressure.__init__(self)
         
     def defPars(self):
@@ -161,10 +187,10 @@ class Press_nonparam_plaw(Pressure):
         return self.pars
 
     def prior(self):
-        if self.alpha_prior == True:
+        if self.slope_prior == True:
             i = len(self.rbins)
-            alpha_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
-            if alpha_out > self.max_alphaout:
+            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
+            if slope_out > self.max_slopeout:
                 return -np.inf
         return 0.
 
@@ -517,7 +543,15 @@ class MCMC:
                 bestprob = initprob = self.sampler.lnprobfn(starting_guess)
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
-            try:
+# =============================================================================
+#             if 'storechain' in self.sampler.sample.__code__.co_varnames:
+#                 myargs = {'storechain': False}
+#             else:
+#                 myargs = {'progress': True}
+#                 nthin = nburn//2
+#             for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, **myargs)):
+# =============================================================================
+            try:#if 'storechain' in self.sampler.sample.__code__.co_varnames:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
                     if i%10 == 0:
                         print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
@@ -532,7 +566,7 @@ class MCMC:
                             self.pars[name].val = bestfit[i] 
                         self.sampler.reset()
                         return False
-            except:
+            except:#else:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nburn//2, progress=True)):
                     self.pos0 = result.coords
                     lnprob = result.log_prob
