@@ -186,14 +186,6 @@ class Press_nonparam_plaw(Pressure):
             self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
         return self.pars
 
-    def prior(self):
-        if self.slope_prior == True:
-            i = len(self.rbins)
-            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
-            if slope_out > self.max_slopeout:
-                return -np.inf
-        return 0.
-
     def update_bins(self, rbins):
         self.rbins = rbins
 
@@ -210,6 +202,14 @@ class Press_nonparam_plaw(Pressure):
         alpha[index==0] = alpha[index==1][0]
         alpha[index==self.rbins.size] = alpha[index==self.rbins.size-1][0]
         return p_low*(r_kpc/r_low)**alpha
+
+    def prior(self):
+        if self.slope_prior == True:
+            i = len(self.rbins)
+            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
+            if slope_out > self.max_slopeout:
+                return -np.inf
+        return 0.
 
 def read_xy_err(filename, ncol, units):
     '''
