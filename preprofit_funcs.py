@@ -543,15 +543,7 @@ class MCMC:
                 bestprob = initprob = self.sampler.lnprobfn(starting_guess)
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
-# =============================================================================
-#             if 'storechain' in self.sampler.sample.__code__.co_varnames:
-#                 myargs = {'storechain': False}
-#             else:
-#                 myargs = {'progress': True}
-#                 nthin = nburn//2
-#             for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, **myargs)):
-# =============================================================================
-            try:#if 'storechain' in self.sampler.sample.__code__.co_varnames:
+            try:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
                     if i%10 == 0:
                         print(' Burn %i / %i (%.1f%%)' %(i, nburn, i*100/nburn))
@@ -566,7 +558,7 @@ class MCMC:
                             self.pars[name].val = bestfit[i] 
                         self.sampler.reset()
                         return False
-            except:#else:
+            except:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nburn//2, progress=True)):
                     self.pos0 = result.coords
                     lnprob = result.log_prob
