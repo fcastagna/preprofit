@@ -17,16 +17,16 @@ z = 0.888
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
 ### Pressure model
-## Non parametric
-# Power law interpolation
-press = pfuncs.Press_nonparam_plaw(alpha_prior=True, max_alphaout=-2.)
-press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
-# Cubic spline
-#press = pfuncs.Press_cubspline()
-#press.knots = [5, 15, 30, 60]*u.arcsec*kpc_as
 ## Parametric
 # Generalized Navarro Frenk and White
-#press = pfuncs.Press_gNFW()
+press = pfuncs.Press_gNFW(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
+## Non parametric
+# Cubic spline
+#press = pfuncs.Press_cubspline(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
+#press.knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+# Power law interpolation
+#press = pfuncs.Press_nonparam_plaw(slope_prior=True, max_slopeout=-2.)
+#press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
 
 # Parameters that we want to fit
 name_pars = list(press.pars)
@@ -36,6 +36,7 @@ name_pars = list(press.pars)
 #press.pars['P_0'].maxval = 10.
 # To exclude a parameter from the fit:
 #press.pars['P_0'].frozen = True
+press.pars['c'].frozen = True
 
 # name for outputs
 name = 'preprofit'
