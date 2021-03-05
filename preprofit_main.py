@@ -5,10 +5,6 @@ try:
     from astropy.cosmology import Planck18_arXiv_v2 as cosmology
 except:
     from astropy.cosmology import Planck15 as cosmology
-#import astropy.cosmology as cosdir
-#from astropy.cosmology import *
-#cosmology = eval(dir(cosdir)[np.where([x[:6] == 'Planck' for x in dir(cosdir)])[0][-1]])
-#from astropy.cosmology import Planck18_arXiv_v2 as cosmology
 from astropy import units as u
 from scipy.interpolate import interp1d
 import emcee
