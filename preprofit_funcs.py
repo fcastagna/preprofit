@@ -16,6 +16,7 @@ from scipy.fftpack import fft2, ifft2
 from scipy.optimize import minimize
 import time
 import h5py
+from itertools import chain
 
 class Param:
     '''
@@ -186,6 +187,14 @@ class Press_nonparam_plaw(Pressure):
             self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
         return self.pars
 
+    def prior(self):
+        if self.slope_prior == True:
+            i = len(self.rbins)
+            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
+            if slope_out > self.max_slopeout:
+                return -np.inf
+        return 0.
+
     def update_bins(self, rbins):
         self.rbins = rbins
 
@@ -201,15 +210,15 @@ class Press_nonparam_plaw(Pressure):
         alpha[centr] = (np.log(p_upp/p_low)[centr]/np.log(r_upp/r_low)[centr])
         alpha[index==0] = alpha[index==1][0]
         alpha[index==self.rbins.size] = alpha[index==self.rbins.size-1][0]
+# =============================================================================
+#         if logder == False:
+#             return p_low*(r_kpc/r_low)**alpha
+#         else:
+#             alpha = np.log(pbins[:-1]/pbins[1:])/np.log(self.rbins[:-1]/self.rbins[1:])
+#             arr_alpha = alpha[np.minimum(np.maximum(index-1, 0), 2)]
+#             return 
+# =============================================================================
         return p_low*(r_kpc/r_low)**alpha
-
-    def prior(self):
-        if self.slope_prior == True:
-            i = len(self.rbins)
-            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
-            if slope_out > self.max_slopeout:
-                return -np.inf
-        return 0.
 
 def read_xy_err(filename, ncol, units):
     '''
@@ -386,7 +395,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
     parprior = sum((press.pars[p].prior() for p in press.pars), press.prior())
     if not np.isfinite(parprior):
-        return -np.inf
+        return [-np.inf, None]
     # pressure profile
     pp = press.press_fun(r_kpc=sz.r_pp)
     if output == 'pp':
@@ -419,7 +428,7 @@ def log_lik(pars_val, press, sz, output='ll'):
         if output == 'integ':
             return cint.value
     if output == 'll':
-        return log_lik.value
+        return log_lik.value, map_prof.value
     elif output == 'chisq':
         return chisq.value
     else:
@@ -439,18 +448,18 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     ctr = [0]
     def minfunc(prs):
         try:
-            like = sampler.log_prob_fn(prs)
+            like = sampler.log_prob_fn(prs)[0]
         except:
-            like = sampler.lnprobfn(prs)    
+            like = sampler.lnprobfn(prs)[0]
         if ctr[0] % 1000 == 0 and not silent:
             print('%10i %10.1f' % (ctr[0], like))
         ctr[0] += 1
         return -like
     thawedpars = [pars[name].val for name in fit_pars]
     try:
-        lastlike = sampler.log_prob_fn(thawedpars)
+        lastlike = sampler.log_prob_fn(thawedpars)[0]
     except:
-        lastlike = sampler.lnprobfn(thawedpars)
+        lastlike = sampler.lnprobfn(thawedpars)[0]
     fpars = thawedpars
     for i in range(maxiter):
         fitpars = minimize(minfunc, fpars, method='Nelder-Mead')
@@ -514,7 +523,7 @@ class MCMC:
                 _ += 1
                 np.random.seed(self.seed*_)
             p = thawedpars*(1+np.random.normal(0, self.initspread, size=len(self.fit_pars)))
-            if np.isfinite(lfun(p)):
+            if np.isfinite(lfun(p)[0]):
                 p0.append(p)
         return p0
 
@@ -538,9 +547,9 @@ class MCMC:
             bestfit = None
             starting_guess = [self.pars[name].val for name in self.fit_pars]
             try:
-                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)
+                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[0]
             except:
-                bestprob = initprob = self.sampler.lnprobfn(starting_guess)
+                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[0]
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
             try:
@@ -617,11 +626,13 @@ class MCMC:
                 f.attrs[h] = self.header[h]
             # write list of parameters which are thawed
             f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
-            # output chain
+            # output chain + surface brightness
             try:
                 f.create_dataset('chain', data=self.sampler.backend.get_chain()[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
+                f.create_dataset('bright', data=list(chain(*self.sampler.backend.get_blobs()['bright'][::thin, :])), compression=True, shuffle=True)
             except:
                 f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
+                f.create_dataset('bright', data=list(chain(*self.sampler.blobs['bright'][::thin, :])), compression=True, shuffle=True)
             # likelihoods for each walker, iteration
             f.create_dataset('likelihood', data=self.sampler.lnprobability[:, ::thin].astype(np.float32), compression=True, shuffle=True)
             # acceptance fraction
