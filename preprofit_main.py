@@ -42,7 +42,7 @@ press.pars['c'].frozen = True
 
 # name for outputs
 name = 'preprofit'
-plotdir = './plots/' # directory for the plots
+plotdir = './' # directory for the plots
 savedir = './' # directory for saved files
 
 # Uncertainty level
@@ -67,7 +67,7 @@ t_const = 12*u.keV # constant value of temperature of the cluster (keV), serves 
 
 # File names (FITS and ASCII formats are accepted)
 files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir # The first two columns must be [radius (arcsec), beam]
+beam_filename = '%s/Beam150GHz.fits' %files_dir # the first two columns must be [radius (arcsec), beam]
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
@@ -93,6 +93,7 @@ integ_sig = .36/1e3 # from Planck
 # -------------------------------------------------------------------------------------------------------------------------------
 
 def main():
+
     # Parameter definition
     press.fit_pars =  [x for x in press.pars if not press.pars[x].frozen]
     ndim = len(press.fit_pars)
