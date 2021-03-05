@@ -30,6 +30,16 @@ press.pars['c'].frozen = True
 #press = pfuncs.Press_nonparam_plaw(slope_prior=True, max_slopeout=-2.)
 #press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
 
+# Parameters that we want to fit
+name_pars = list(press.pars)
+# To see the default parameter space extent, use: print(press.pars)
+# For each parameter, use the following to change the bounds of the prior distribution:
+#press.pars['P_0'].minval = 0.1
+#press.pars['P_0'].maxval = 10.
+# To exclude a parameter from the fit:
+#press.pars['P_0'].frozen = True
+press.pars['c'].frozen = True
+
 # name for outputs
 name = 'preprofit'
 plotdir = './plots/' # directory for the plots
