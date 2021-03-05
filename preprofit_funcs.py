@@ -611,14 +611,12 @@ class MCMC:
             print('Computation time: '+str(int(h))+'h '+str(int(rem//60))+'m')
         print('Acceptance fraction: %s' %np.mean(self.sampler.acceptance_fraction))
 
-    def save(self, outfilename, thin=1):
+    def save(self, outfilename):
         '''
         Save chain to HDF5 file. Adapted from MBProj2
         ---------------------------------------------
         outfilename = output hdf5 filename
-        thin = save every N samples from chain
         '''
-        self.header['thin'] = thin
         print('Saving chain to', outfilename)
         with h5py.File(outfilename, 'w') as f:
             # write header entries
@@ -627,14 +625,11 @@ class MCMC:
             # write list of parameters which are thawed
             f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
             # output chain + surface brightness
-            try:
-                f.create_dataset('chain', data=self.sampler.backend.get_chain()[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
-                f.create_dataset('bright', data=list(chain(*self.sampler.backend.get_blobs()['bright'][::thin, :])), compression=True, shuffle=True)
-            except:
-                f.create_dataset('chain', data=self.sampler.chain[:, ::thin, :].astype(np.float32), compression=True, shuffle=True)
-                f.create_dataset('bright', data=list(chain(*self.sampler.blobs['bright'][::thin, :])), compression=True, shuffle=True)
+            f.create_dataset('chain', data=self.sampler.chain.astype(np.float32), compression=True, shuffle=True)
+            cube_blobs = np.array([list(chain.from_iterable(x)) for x in zip(*self.sampler.blobs)])
+            f.create_dataset('bright', data=cube_blobs, compression=True, shuffle=True)
             # likelihoods for each walker, iteration
-            f.create_dataset('likelihood', data=self.sampler.lnprobability[:, ::thin].astype(np.float32), compression=True, shuffle=True)
+            f.create_dataset('likelihood', data=self.sampler.lnprobability.astype(np.float32), compression=True, shuffle=True)
             # acceptance fraction
             f['acceptfrac'] = self.sampler.acceptance_fraction.astype(np.float32)
             # last position in chain
