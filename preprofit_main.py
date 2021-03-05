@@ -133,7 +133,10 @@ def main():
     sz = pfuncs.SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
 
     # Bayesian fit
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)])
+    try:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads)#, blobs_dtype=[('bright', list)])
+    except:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)])
     # Preliminary fit to increase likelihood
     pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # construct MCMC object and do burn in
