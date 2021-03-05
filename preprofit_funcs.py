@@ -187,14 +187,6 @@ class Press_nonparam_plaw(Pressure):
             self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
         return self.pars
 
-    def prior(self):
-        if self.slope_prior == True:
-            i = len(self.rbins)
-            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
-            if slope_out > self.max_slopeout:
-                return -np.inf
-        return 0.
-
     def update_bins(self, rbins):
         self.rbins = rbins
 
@@ -210,15 +202,15 @@ class Press_nonparam_plaw(Pressure):
         alpha[centr] = (np.log(p_upp/p_low)[centr]/np.log(r_upp/r_low)[centr])
         alpha[index==0] = alpha[index==1][0]
         alpha[index==self.rbins.size] = alpha[index==self.rbins.size-1][0]
-# =============================================================================
-#         if logder == False:
-#             return p_low*(r_kpc/r_low)**alpha
-#         else:
-#             alpha = np.log(pbins[:-1]/pbins[1:])/np.log(self.rbins[:-1]/self.rbins[1:])
-#             arr_alpha = alpha[np.minimum(np.maximum(index-1, 0), 2)]
-#             return 
-# =============================================================================
         return p_low*(r_kpc/r_low)**alpha
+
+    def prior(self):
+        if self.slope_prior == True:
+            i = len(self.rbins)
+            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
+            if slope_out > self.max_slopeout:
+                return -np.inf
+        return 0.
 
 def read_xy_err(filename, ncol, units):
     '''
@@ -395,7 +387,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
     parprior = sum((press.pars[p].prior() for p in press.pars), press.prior())
     if not np.isfinite(parprior):
-        return [-np.inf, None]
+        return -np.inf, None
     # pressure profile
     pp = press.press_fun(r_kpc=sz.r_pp)
     if output == 'pp':
