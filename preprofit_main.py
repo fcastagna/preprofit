@@ -7,6 +7,7 @@ except:
     from astropy.cosmology import Planck15 as cosmology
 from astropy import units as u
 from scipy.interpolate import interp1d
+from scipy.fftpack import fft2
 import emcee
 from itertools import chain
 
@@ -130,7 +131,7 @@ def main():
     convert.unit = conv_units
     
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
+    sz = pfuncs.SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, fft2(beam_2d)*filtering, calc_integ, integ_mu, integ_sig)
 
     # Bayesian fit
     try:
