@@ -11,8 +11,7 @@ from astropy import constants as const
 from abel.direct import direct_transform
 from scipy import optimize
 from scipy.integrate import simps
-from scipy.signal import fftconvolve
-from scipy.fftpack import fft2, ifft2
+from scipy.fftpack import fft2, ifft2, ifftshift
 from scipy.optimize import minimize
 import time
 import h5py
