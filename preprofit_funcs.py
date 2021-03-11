@@ -264,8 +264,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
     maxr = (maxr_data+3*fwhm_beam)//step*step
     rad = np.arange(0., (maxr+step).value, step.value)*step.unit
     rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
-    rad_cut = rad[np.where(abs(rad) <= 3*fwhm_beam)]
-    beam_mat = centdistmat(rad_cut)
+    beam_mat = centdistmat(rad)
     if approx:
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
@@ -399,11 +398,8 @@ def log_lik(pars_val, press, sz, output='ll'):
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
     # Compton parameter 2D image
     y_2d = f(sz.d_mat)*u.Unit('')
-    # Convolution with the beam
-    conv_2d = fftconvolve(y_2d, sz.beam_2d, 'same')*sz.step**2
-    # Convolution with the transfer function
-    FT_map_in = fft2(conv_2d)
-    map_out = np.real(ifft2(FT_map_in*sz.filtering))
+    # Convolution with the beam and the transfer function at the same time
+    map_out = np.real(ifftshift(ifft2(fft2(y_2d)*sz.step**2*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = (map_out[conv_2d.shape[0]//2, conv_2d.shape[0]//2:]*sz.compt_mJy_beam+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
     if output == 'bright':
