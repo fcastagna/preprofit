@@ -147,10 +147,7 @@ def main():
     mcmc.save(chainfilename)
     cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
     flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
-    try:
-        cube_surbr = np.array([list(chain.from_iterable(x)) for x in zip(*mcmc.sampler.blobs)])
-    except:
-        cube_surbr = np.array(mcmc.sampler.blobs).reshape(nwalkers, cube_chain.shape[0], sep+1)
+    cube_surbr = np.array([list(chain.from_iterable(x)) for x in zip(*mcmc.sampler.blobs)]).reshape(nwalkers, cube_chain.shape[1], sep+1)
     flat_surbr = cube_surbr.reshape(-1, cube_surbr.shape[2], order='F')
 
     # Posterior distribution parameters
