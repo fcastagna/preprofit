@@ -16,6 +16,7 @@ from scipy.fftpack import fft2, ifft2
 from scipy.optimize import minimize
 import time
 import h5py
+from itertools import chain
 
 class Param:
     '''
@@ -386,7 +387,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
     parprior = sum((press.pars[p].prior() for p in press.pars), press.prior())
     if not np.isfinite(parprior):
-        return -np.inf
+        return -np.inf, None
     # pressure profile
     pp = press.press_fun(r_kpc=sz.r_pp)
     if output == 'pp':
@@ -419,7 +420,7 @@ def log_lik(pars_val, press, sz, output='ll'):
         if output == 'integ':
             return cint.value
     if output == 'll':
-        return log_lik.value
+        return log_lik.value, map_prof.value
     elif output == 'chisq':
         return chisq.value
     else:
@@ -439,18 +440,18 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     ctr = [0]
     def minfunc(prs):
         try:
-            like = sampler.log_prob_fn(prs)
+            like = sampler.log_prob_fn(prs)[0]
         except:
-            like = sampler.lnprobfn(prs)    
+            like = sampler.lnprobfn(prs)[0]
         if ctr[0] % 1000 == 0 and not silent:
             print('%10i %10.1f' % (ctr[0], like))
         ctr[0] += 1
         return -like
     thawedpars = [pars[name].val for name in fit_pars]
     try:
-        lastlike = sampler.log_prob_fn(thawedpars)
+        lastlike = sampler.log_prob_fn(thawedpars)[0]
     except:
-        lastlike = sampler.lnprobfn(thawedpars)
+        lastlike = sampler.lnprobfn(thawedpars)[0]
     fpars = thawedpars
     for i in range(maxiter):
         fitpars = minimize(minfunc, fpars, method='Nelder-Mead')
@@ -514,7 +515,7 @@ class MCMC:
                 _ += 1
                 np.random.seed(self.seed*_)
             p = thawedpars*(1+np.random.normal(0, self.initspread, size=len(self.fit_pars)))
-            if np.isfinite(lfun(p)):
+            if np.isfinite(lfun(p)[0]):
                 p0.append(p)
         return p0
 
@@ -538,9 +539,9 @@ class MCMC:
             bestfit = None
             starting_guess = [self.pars[name].val for name in self.fit_pars]
             try:
-                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)
+                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[0]
             except:
-                bestprob = initprob = self.sampler.lnprobfn(starting_guess)
+                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[0]
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
             try:
@@ -615,7 +616,7 @@ class MCMC:
                 f.attrs[h] = self.header[h]
             # write list of parameters which are thawed
             f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
-            # output chain
+            # output chain + surface brightness
             f.create_dataset('chain', data=self.sampler.chain.astype(np.float32), compression=True, shuffle=True)
             cube_blobs = np.array([list(chain.from_iterable(x)) for x in zip(*self.sampler.blobs)])
             f.create_dataset('bright', data=cube_blobs, compression=True, shuffle=True)

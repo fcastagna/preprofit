@@ -98,35 +98,6 @@ def get_equal_tailed(data, ci=95):
     low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
     return np.array([low, med, upp])
 
-def best_fit_prof(cube_chain, log_lik, press, sz, num='all', seed=None, ci=95):
-    '''
-    Compute the surface brightness profile (median and uncertainty interval) for the best fitting parameters
-    --------------------------------------------------------------------------------------------------------
-    cube_chain = 3d array of sampled values (nw x niter x nparam)
-    log_lik = log-likelihood function
-    press = pressure object of the class Pressure
-    sz = class of SZ data
-    num = number of set of parameters to include (default is 'all', i.e. nw x niter parameters)
-    seed = random seed (default is None)
-    ci = uncertainty level of the interval
-    ------------------------------------------------
-    RETURN: median and uncertainty interval profiles
-    '''
-    nw = cube_chain.shape[0]
-    if num == 'all':
-        num = nw*cube_chain.shape[1]
-    w, it = np.meshgrid(np.arange(nw), np.arange(cube_chain.shape[1]))
-    w = w.flatten()
-    it = it.flatten()
-    np.random.seed(seed)
-    rand = np.random.choice(w.size, num, replace=False)
-    profs_sz = []
-    for j in rand:
-        out_prof = log_lik(cube_chain[w[j],it[j],:], press, sz, output='bright')
-        profs_sz.append(out_prof)
-    perc_sz = get_equal_tailed(profs_sz, ci)
-    return perc_sz
-
 def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     '''
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties

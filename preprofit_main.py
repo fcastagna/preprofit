@@ -8,6 +8,7 @@ except:
 from astropy import units as u
 from scipy.interpolate import interp1d
 import emcee
+from itertools import chain
 
 
 ### Global variables
@@ -20,6 +21,7 @@ kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc p
 ## Parametric
 # Generalized Navarro Frenk and White
 press = pfuncs.Press_gNFW(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
+press.pars['c'].frozen = True
 ## Non parametric
 # Cubic spline
 #press = pfuncs.Press_cubspline(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
@@ -131,7 +133,10 @@ def main():
     sz = pfuncs.SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
 
     # Bayesian fit
-    sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads)
+    try:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads)#, blobs_dtype=[('bright', list)])
+    except:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)])
     # Preliminary fit to increase likelihood
     pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # construct MCMC object and do burn in
@@ -142,6 +147,8 @@ def main():
     mcmc.save(chainfilename)
     cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
     flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
+    cube_surbr = np.array([list(chain.from_iterable(x)) for x in zip(*mcmc.sampler.blobs)]).reshape(nwalkers, cube_chain.shape[1], sep+1)
+    flat_surbr = cube_surbr.reshape(-1, cube_surbr.shape[2], order='F')
 
     # Posterior distribution parameters
     param_med = np.median(flat_chain, axis=0)
@@ -158,7 +165,7 @@ def main():
     pplots.triangle(flat_chain, press.fit_pars, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
     # Best fitting profile on SZ surface brightness
-    perc_sz = pplots.best_fit_prof(cube_chain, pfuncs.log_lik, press, sz, ci=ci)
+    perc_sz = pplots.pplots.get_equal_tailed(flat_surbr, ci=ci)
     pplots.fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
