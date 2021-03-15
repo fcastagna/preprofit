@@ -118,8 +118,9 @@ def main():
 
     # Transfer function
     wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
-    filtering = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
-
+    filt_tf = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
+    filtering = fft2(beam_2d)*filt_tf
+    
     # Compton parameter to mJy/beam conversion
     t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
     convert = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
@@ -131,7 +132,7 @@ def main():
     convert.unit = conv_units
     
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, fft2(beam_2d)*filtering, calc_integ, integ_mu, integ_sig)
+    sz = pfuncs.SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
 
     # Bayesian fit
     try:
