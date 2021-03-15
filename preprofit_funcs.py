@@ -270,7 +270,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
     else:
         beam_2d = f(beam_mat)
     if normalize:
-        beam_2d /= beam_2d.sum()*step.value**2
+        beam_2d /= beam_2d.sum()
     return beam_2d*u.beam, fwhm_beam
 
 def centdistmat(r, offset=0.):
@@ -398,7 +398,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Compton parameter 2D image
     y_2d = f(sz.d_mat)*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(ifftshift(ifft2(fft2(y_2d)*sz.step**2*sz.filtering)))
+    map_out = np.real(ifftshift(ifft2(fft2(y_2d)*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = (map_out[map_out.shape[0]//2, map_out.shape[0]//2:]*sz.compt_mJy_beam+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
     if output == 'bright':
