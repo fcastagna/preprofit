@@ -265,7 +265,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_be
     rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
     beam_mat = centdistmat(rad)
     if approx:
-        sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
+        sigma_beam = fwhm_beam.to('arcsec')/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
     else:
         beam_2d = f(beam_mat)
