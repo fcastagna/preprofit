@@ -136,9 +136,9 @@ def main():
 
     # Bayesian fit
     try:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads)#, blobs_dtype=[('bright', list)])
-    except:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)])
+    except:
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads)
     # Preliminary fit to increase likelihood
     pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # construct MCMC object and do burn in
