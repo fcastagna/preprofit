@@ -119,7 +119,7 @@ def main():
     # Transfer function
     wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
     filt_tf = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
-    filtering = np.real(fft2(beam_2d)*filt_tf)
+    filtering = fft2(beam_2d)*filt_tf
     
     # Compton parameter to mJy/beam conversion
     t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
