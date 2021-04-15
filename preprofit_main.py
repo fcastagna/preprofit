@@ -7,6 +7,7 @@ except:
     from astropy.cosmology import Planck15 as cosmology
 from astropy import units as u
 from scipy.interpolate import interp1d
+from scipy.fftpack import fft2
 import emcee
 from itertools import chain
 
@@ -60,7 +61,7 @@ seed = None # random seed
 ### Local variables
 
 # Sampling step
-mystep = 2.*u.arcsec # constant step in arcsec (values higher than (1/3)*FWHM of the beam are not recommended)
+mystep = 2.*u.arcsec # constant step in arcsec (values higher than (1/7)*FWHM of the beam are not recommended)
 
 R_b = 5000*u.kpc # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
 t_const = 12*u.keV # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
@@ -117,8 +118,9 @@ def main():
 
     # Transfer function
     wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
-    filtering = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
-
+    filt_tf = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
+    filtering = fft2(beam_2d)*filt_tf
+    
     # Compton parameter to mJy/beam conversion
     t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
     convert = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
