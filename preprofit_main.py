@@ -61,7 +61,7 @@ seed = None # random seed
 ### Local variables
 
 # Sampling step
-mystep = 2.*u.arcsec # constant step in arcsec (values higher than (1/3)*FWHM of the beam are not recommended)
+mystep = 2.*u.arcsec # constant step in arcsec (values higher than (1/7)*FWHM of the beam are not recommended)
 
 R_b = 5000*u.kpc # Radial cluster extent (kpc), serves as upper bound for Compton y parameter integration
 t_const = 12*u.keV # constant value of temperature of the cluster (keV), serves for Compton y to mJy/beam conversion
