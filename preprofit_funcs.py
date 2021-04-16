@@ -225,7 +225,7 @@ def read_xy_err(filename, ncol, units):
                 data = data[0]
         except:
             pass
-    elif filename[-4:] in ('txt', 'dat'):
+    elif filename[-4:] in ('.txt', '.dat'):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
