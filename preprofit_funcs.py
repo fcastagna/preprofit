@@ -218,9 +218,14 @@ def read_xy_err(filename, ncol, units):
     ncol = number of columns to read
     units = units in astropy.units format
     '''
-    if filename[filename.find('.', -5)+1:] == 'fits':
-        data = fits.open(filename)[''].data[0]
-    elif filename[filename.find('.', -5)+1:] in ('txt', 'dat'):
+    if filename[-5:] == '.fits':
+        data = fits.getdata(filename)
+        try:
+            if len(data) != len(data.columns):
+                data = data[0]
+        except:
+            pass
+    elif filename[-4:] in ('txt', 'dat'):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
