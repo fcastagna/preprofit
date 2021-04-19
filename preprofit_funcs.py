@@ -231,12 +231,15 @@ def read_xy_err(filename, ncol, units):
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
     return list(map(lambda x, y: x*y, data[:ncol], units))
 
-def read_beam(filename):
+def read_beam(filename, ncol=2, units=[u.arcsec, u.beam]):
     '''
     Read the beam data from the specified file up to the first negative or nan value
     --------------------------------------------------------------------------------
+    filename = name of the file including the beam data
+    ncol = number of columns to read
+    units = units in astropy.units format
     '''
-    radius, beam_prof = read_xy_err(filename, ncol=2, units=[u.arcsec, u.beam])
+    radius, beam_prof = read_xy_err(filename, ncol=ncol, units=units)
     if np.isnan(beam_prof).sum() > 0.:
         first_nan = np.where(np.isnan(beam_prof))[0][0]
         radius = radius[:first_nan]
@@ -247,21 +250,21 @@ def read_beam(filename):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(step, maxr_data, approx=False, filename=None, normalize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, approx=False, beamdata=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
     step = binning step
     maxr_data = highest radius in the data
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
-    filename = name of the file including the beam data
+    beamdata = beam data read from file
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
     '''
     if not approx:
-        r_irreg, b = read_beam(filename)
+        r_irreg, b = beamdata
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
         inv_f = lambda x: f(x)-f(0.)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
