@@ -68,12 +68,13 @@ t_const = 12*u.keV # constant value of temperature of the cluster (keV), serves 
 
 # File names (FITS and ASCII formats are accepted)
 files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir # the first two columns must be [radius (arcsec), beam]
+beam_filename = '%s/Beam150GHz.fits' %files_dir
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> Jy/beam
 
 # Units
+beam_units = [u.arcsec, u.beam]
 flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')]
 tf_units = [1/u.arcsec, u.Unit('')]
 conv_units = [u.keV, u.Jy/u.beam]
@@ -104,7 +105,7 @@ def main():
     maxr_data = flux_data[0][-1] # highest radius in the data
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, normalize=True, fwhm_beam=fwhm_beam)
 
     # Radius definition
     mymaxr = (maxr_data+3*fwhm)//mystep*mystep # max radius needed
