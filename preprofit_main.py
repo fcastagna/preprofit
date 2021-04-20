@@ -85,10 +85,8 @@ tf_approx = False
 fwhm_beam = None # fwhm of the normal distribution for the beam approximation
 loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
 
-# Beam and transfer function in a single file?
+# Beam file already includes transfer function?
 beam_and_tf = False
-beamtf_filename = None
-beamtf_units = None
 
 # Integrated Compton parameter option
 calc_integ = False # apply or do not apply?
