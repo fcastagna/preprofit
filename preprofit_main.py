@@ -85,6 +85,11 @@ tf_approx = False
 fwhm_beam = None # fwhm of the normal distribution for the beam approximation
 loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
 
+# Beam and transfer function in a single file?
+beam_and_tf = False
+beamtf_filename = None
+beamtf_units = None
+
 # Integrated Compton parameter option
 calc_integ = False # apply or do not apply?
 integ_mu = .94/1e3 # from Planck 
@@ -117,10 +122,14 @@ def main():
     # Matrix of distances in kpc centered on 0 with step=mystep
     d_mat = pfuncs.centdistmat(radius*kpc_as)
 
-    # Transfer function
-    wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
-    filt_tf = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
-    filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
+    # The following depends on whether the beam image already includes the transfer function
+    if beam_and_tf:
+        filtering = beam_2d        
+    else:
+        # Transfer function
+        wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
+        filt_tf = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
+        filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
     
     # Compton parameter to mJy/beam conversion
     t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
