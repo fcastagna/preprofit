@@ -282,7 +282,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
     '''
     if not approx:
-        r_irreg, b = read_beam(beam_filename, ncol=2, units=units)
+        r_irreg, b = read_beam(filename, ncol=2, units=units)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
         inv_f = lambda x: f(x)-f(0.)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
