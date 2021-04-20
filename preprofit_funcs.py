@@ -211,13 +211,18 @@ class Press_nonparam_plaw(Pressure):
                 return -np.inf
         return 0.
 
-def read_xy_err(filename, ncol, units):
+def read_data(filename, ncol=1, units=u.Unit('')):
     '''
-    Read the data from FITS or ASCII file
-    -------------------------------------
+    Universally read data from FITS or ASCII file
+    ---------------------------------------------
     ncol = number of columns to read
     units = units in astropy.units format
     '''
+    if len([units]) != ncol:
+        try:
+            units = np.concatenate((units, np.repeat(u.Unit(''), ncol-len([units]))), axis=None)
+        except:
+            raise RuntimeError('The number of elements in units must equal ncol')
     if filename[-5:] == '.fits':
         data = fits.getdata(filename)
         try:
@@ -229,9 +234,21 @@ def read_xy_err(filename, ncol, units):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
-    return list(map(lambda x, y: x*y, data[:ncol], units))
+    data = np.array(data, dtype=object)
+    data.reshape(np.sort(data.shape))
+    dim = np.squeeze(data).shape
+    if len(dim) == 1:
+        if ncol == 1:
+            return data*units
+        else:
+            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
+    else:# len(dim) == 2:
+        if dim[0] == dim[1]:
+            return data*units
+        else:
+            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
 
-def read_beam(filename, ncol=2, units=[u.arcsec, u.beam]):
+def read_beam(filename, ncol, units):
     '''
     Read the beam data from the specified file up to the first negative or nan value
     --------------------------------------------------------------------------------
@@ -239,7 +256,7 @@ def read_beam(filename, ncol=2, units=[u.arcsec, u.beam]):
     ncol = number of columns to read
     units = units in astropy.units format
     '''
-    radius, beam_prof = read_xy_err(filename, ncol=ncol, units=units)
+    radius, beam_prof = read_data(filename, ncol=ncol, units=units)
     if np.isnan(beam_prof).sum() > 0.:
         first_nan = np.where(np.isnan(beam_prof))[0][0]
         radius = radius[:first_nan]
@@ -250,21 +267,22 @@ def read_beam(filename, ncol=2, units=[u.arcsec, u.beam]):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(step, maxr_data, approx=False, beamdata=None, normalize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
     step = binning step
     maxr_data = highest radius in the data
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
-    beamdata = beam data read from file
+    filename = name of the file including the beam data
+    units = units in astropy.units format
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
     '''
     if not approx:
-        r_irreg, b = beamdata
+        r_irreg, b = read_beam(beam_filename, ncol=2, units=units)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
         inv_f = lambda x: f(x)-f(0.)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
@@ -302,7 +320,7 @@ def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., s
     ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     '''
-    wn, tf = read_xy_err(filename, ncol=2, units=tf_units) # wave number, transmission
+    wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
     if approx:
         tf = c*norm.cdf(wn, loc, scale)
     return wn, tf
