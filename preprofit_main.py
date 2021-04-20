@@ -105,8 +105,7 @@ def main():
     maxr_data = flux_data[0][-1] # highest radius in the data
 
     # PSF computation and creation of the 2D image
-    beamdata = pfuncs.read_beam(beam_filename, ncol=2, units=beam_units)
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, beamdata=beamdata, normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, normalize=True, fwhm_beam=fwhm_beam)
 
     # Radius definition
     mymaxr = (maxr_data+3*fwhm)//mystep*mystep # max radius needed
