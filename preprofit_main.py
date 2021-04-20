@@ -101,7 +101,7 @@ def main():
     ndim = len(press.fit_pars)
 
     # Flux density data
-    flux_data = pfuncs.read_xy_err(flux_filename, ncol=3, units=flux_units) # radius, flux density, statistical error
+    flux_data = pfuncs.read_data(flux_filename, ncol=3, units=flux_units) # radius, flux density, statistical error
     maxr_data = flux_data[0][-1] # highest radius in the data
 
     # PSF computation and creation of the 2D image
