@@ -648,3 +648,30 @@ class MCMC:
             # last position in chain
             f['lastpos'] = self.sampler.chain[:, -1, :].astype(np.float32)
         print('Done')
+
+def print_summary(press, pmed, pstd, sz):
+    '''
+    Prints as output a statistical summary of the MCMC chain
+    --------------------------------------------------------
+    press = pressure object of the class Pressure
+    pmed = array of means of parameters sampled in the chain
+    pstd = array of standard deviations of parameters sampled in the chain
+    sz = class of SZ data
+    '''
+    wid1 = len(max(press.fit_pars, key=len))
+    wid2 = max(list(map(lambda x: len(format(x, '.3f')), pmed)))
+    wid3 = max(list(map(lambda x: len(format(x, '.3f')), pstd)))
+    units = [press.pars[n].unit for n in press.fit_pars]
+    wid4 = len(max(units, key=len))
+    print(('{:>%i}' % (wid1+2)).format('|')+
+          ('{:>%i} Median |' % max(wid2-6,0)).format('')+
+          ('{:>%i} Sd |' % max(wid3-2,0)).format('')+
+          ('{:>%i} Unit' % max(wid4-4,0)).format('')+
+          '\n'+'-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0)))
+    for i in range(len(press.fit_pars)):
+        print(('{:>%i}' % (wid1+2)).format('%s |' %press.fit_pars[i])+
+              ('{:>%i}' % max(wid2+3, 9)).format(' %s |' %format(pmed[i], '.3f'))+
+              ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.3f'))+
+              ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
+    print('-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0))+
+          '\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(pmed, press, sz, output='chisq')), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
