@@ -12,6 +12,7 @@ from abel.direct import direct_transform
 from scipy import optimize
 from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, ifftshift
+from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
@@ -426,7 +427,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifftshift(ifft2(fft2(y_2d)*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (map_out[map_out.shape[0]//2, map_out.shape[0]//2:]*sz.compt_mJy_beam+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
+    map_prof = (mean(map_out, labels=np.rint(sz.d_mat/sz.kpc_as/sz.step).astype(int), index=np.arange(sz.sep+1))*sz.compt_mJy_beam+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
