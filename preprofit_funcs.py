@@ -651,8 +651,8 @@ class MCMC:
 
 def print_summary(press, pmed, pstd, sz):
     '''
-    Prints as output a statistical summary of the MCMC chain
-    --------------------------------------------------------
+    Prints as output a statistical summary of the posterior distribution
+    --------------------------------------------------------------------
     press = pressure object of the class Pressure
     pmed = array of means of parameters sampled in the chain
     pstd = array of standard deviations of parameters sampled in the chain
