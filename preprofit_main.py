@@ -163,11 +163,7 @@ def main():
     # Posterior distribution parameters
     param_med = np.median(flat_chain, axis=0)
     param_std = np.std(flat_chain, axis=0)
-    print('{:>6}'.format('|')+'%11s' % 'Median |'+'%11s' % 'Sd |'+'%13s' % 'Unit\n'+'-'*40)
-    for i in range(ndim):
-        print('{:>6}'.format('%s |' %press.fit_pars[i])+'%9s |' %format(param_med[i], '.3f')+
-              '%9s |' %format(param_std[i], '.3f')+'%12s' % [press.pars[n].unit for n in press.fit_pars][i])
-    print('-'*40+'\nChi2 = %s with %s df' % ('{:.4f}'.format(pfuncs.log_lik(param_med, press, sz, output='chisq')), flux_data[1][~np.isnan(flux_data[1])].size-ndim))
+    pfuncs.print_summary(press, param_med, param_std, sz)
 
     ### Plots
     # Bayesian diagnostics
