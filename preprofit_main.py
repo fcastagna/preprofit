@@ -87,6 +87,9 @@ tf_approx = False
 fwhm_beam = None # fwhm of the normal distribution for the beam approximation
 loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
 
+# Transfer function provenance (not properly the instrument, but the team who derived it)
+tf_source_team = 'NIKA' # alternatively, 'MUSTANG' or 'SPT'
+
 # Beam file already includes transfer function?
 beam_and_tf = False
 
@@ -129,7 +132,7 @@ def main():
     else:
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
-        filt_tf = pfuncs.filt_image(wn_as, tf, d_mat.shape[0], mystep) # transfer function matrix
+        filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, d_mat.shape[0], mystep) # transfer function matrix
         filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
     
     # Compton parameter to mJy/beam conversion
