@@ -18,17 +18,19 @@ from itertools import chain
 z = 0.888
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
-### Pressure model
-## Parametric
+### Pressure modelization
+slope_prior = True # prior on the outer slope?
+r_out = 1e3*u.kpc # outer radius
+max_slopeout = -2. # outer slope constrain
+## Parametric model
 # Generalized Navarro Frenk and White
-press = pfuncs.Press_gNFW(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
-press.pars['c'].frozen = True
+press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 ## Non parametric
 # Cubic spline
-#press = pfuncs.Press_cubspline(slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.)
+#press = pfuncs.Press_cubspline(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 #press.knots = [5, 15, 30, 60]*u.arcsec*kpc_as
 # Power law interpolation
-#press = pfuncs.Press_nonparam_plaw(slope_prior=True, max_slopeout=-2.)
+#press = pfuncs.Press_nonparam_plaw(slope_prior=slope_prior, max_slopeout=max_slopeout)
 #press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
 
 # Parameters that we want to fit
