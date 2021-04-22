@@ -136,10 +136,6 @@ def main():
         filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
     
     # Compton parameter to mJy/beam conversion
-    t_keV, compt_Jy_beam = np.loadtxt(convert_filename, skiprows=1, unpack=True)
-    convert = interp1d(t_keV, compt_Jy_beam*1e3, 'linear', fill_value='extrapolate')
-    compt_mJy_beam = convert(t_const) # we assume a constant value of temperature
-
     conv_data = np.loadtxt(convert_filename, skiprows=1, unpack=True) # Temp-dependent conversion Compton to Jy
     t_keV, conv_mJy_beam = map(lambda x, y, z: (x*y).to(z), conv_data, conv_units, ['keV', 'mJy beam-1'])
     convert = interp1d(t_keV, conv_mJy_beam, 'linear', fill_value='extrapolate')
