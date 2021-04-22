@@ -368,7 +368,7 @@ class SZ_data:
     -----------------------------------------------
     step = binning step
     kpc_as = kpc in arcsec
-    compt_mJy_beam = conversion factor Compton to mJy
+    conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
     flux_data = radius (arcsec), flux density, statistical error
     beam_2d = 2D image of the beam
     radius = array of radii in arcsec
@@ -380,10 +380,10 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.kpc_as = kpc_as
-        self.compt_mJy_beam = compt_mJy_beam
+        self.conv_temp_sb = conv_temp_sb
         self.flux_data = flux_data
         self.beam_2d = beam_2d
         self.radius = radius
@@ -431,7 +431,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifftshift(ifft2(fft2(y_2d)*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (mean(map_out, labels=np.rint(sz.d_mat/sz.kpc_as/sz.step).astype(int), index=np.arange(sz.sep+1))*sz.compt_mJy_beam+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
+    map_prof = (mean(map_out, labels=np.rint(sz.d_mat/sz.kpc_as/sz.step).astype(int), index=np.arange(sz.sep+1))*sz.conv_temp_sb+press.pars['pedestal'].val)*u.Unit('mJy beam-1')
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
