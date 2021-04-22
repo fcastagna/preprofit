@@ -136,13 +136,12 @@ def main():
         filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
     
     # Compton parameter to mJy/beam conversion
-    conv_data = np.loadtxt(convert_filename, skiprows=1, unpack=True) # Temp-dependent conversion Compton to Jy
-    t_keV, conv_mJy_beam = map(lambda x, y, z: (x*y).to(z), conv_data, conv_units, ['keV', 'mJy beam-1'])
-    convert = interp1d(t_keV, conv_mJy_beam, 'linear', fill_value='extrapolate')
-    convert.unit = conv_units
+    temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units) # Temp-dependent conversion Compton to surface brightness data unit
+    conv_fun = interp1d(temp_data, conv_data, 'linear', fill_value='extrapolate')
+    conv_temp_sb = conv_fun(t_const)*conv_data.unit
     
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(mystep, kpc_as, compt_mJy_beam, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
+    sz = pfuncs.SZ_data(mystep, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
 
     # Bayesian fit
     try:
