@@ -111,7 +111,7 @@ def main():
     # Flux density data
     flux_data = pfuncs.read_data(flux_filename, ncol=3, units=flux_units) # radius, flux density, statistical error
     maxr_data = flux_data[0][-1] # highest radius in the data
-    press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
+    press.pars['pedestal'].unit = str(flux_data[1].unit) # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, normalize=True, fwhm_beam=fwhm_beam)
