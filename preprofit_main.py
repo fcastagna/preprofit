@@ -135,8 +135,8 @@ def main():
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, d_mat.shape[0], mystep) # transfer function matrix
         filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
     
-    # Compton parameter to mJy/beam conversion
-    temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units) # Temp-dependent conversion Compton to surface brightness data unit
+    # Temperature-dependent conversion factor from Compton to surface brightness data unit
+    temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units)
     conv_fun = interp1d(temp_data, conv_data, 'linear', fill_value='extrapolate')
     conv_temp_sb = conv_fun(t_const)*conv_data.unit
     
