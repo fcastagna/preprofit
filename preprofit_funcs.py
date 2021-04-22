@@ -340,21 +340,25 @@ def dist(naxis):
     result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
-def filt_image(wn_as, tf, side, step):
+def filt_image(wn_as, tf, tf_source_team, side, step):
     '''
     Create the 2D filtering image from the transfer function data
     -------------------------------------------------------------
     wn_as = vector of wave numbers in arcsec
     tf = transmission data
+    tf_source_team = transfer function provenance ('NIKA', 'MUSTANG', or 'SPT')
     side = one side length for the output image
     step = binning step
     -------------------------------
     RETURN: the (side x side) image
     '''
+    if not tf_source_team in ['NIKA', 'MUSTANG', 'SPT']:
+        raise RuntimeError('Accepted values for tf_source_team are: NIKA, MUSTANG, SPT')
     f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
     kmax = 1/step
     karr = (dist(side)/side)*u.Unit('')
-    karr /= karr.max()
+    if tf_source_team == 'NIKA':
+        karr /= karr.max()
     karr *= kmax
     return f(karr)
 
