@@ -138,7 +138,7 @@ def main():
     # Temperature-dependent conversion factor from Compton to surface brightness data unit
     temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units)
     conv_fun = interp1d(temp_data, conv_data, 'linear', fill_value='extrapolate')
-    conv_temp_sb = conv_fun(t_const)
+    conv_temp_sb = conv_fun(t_const)*conv_units[1]
     
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(mystep, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
