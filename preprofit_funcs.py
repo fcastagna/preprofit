@@ -283,10 +283,13 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     RETURN: the 2D image of the beam and his Full Width at Half Maximum
     '''
     if not approx:
-        r_irreg, b = read_beam(filename, ncol=2, units=units)
-        f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
-        inv_f = lambda x: f(x)-f(0.)/2
-        fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
+        try:
+            r_irreg, b = read_beam(filename, ncol=2, units=units)
+            f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
+            inv_f = lambda x: f(x)-f(0.)/2
+            fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
+        except:
+            b = read_data(filename, ncol=1, units=units)
     maxr = (maxr_data+3*fwhm_beam)//step*step
     rad = np.arange(0., (maxr+step).value, step.value)*step.unit
     rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
@@ -295,7 +298,10 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
         sigma_beam = fwhm_beam.to('arcsec')/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
     else:
-        beam_2d = f(beam_mat)
+        try:
+            beam_2d = f(beam_mat)
+        except:
+            beam_2d = b.copy()
     if normalize:
         beam_2d /= beam_2d.sum()
     return beam_2d*u.beam, fwhm_beam
