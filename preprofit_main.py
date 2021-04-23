@@ -87,7 +87,7 @@ tf_approx = False
 fwhm_beam = None # fwhm of the normal distribution for the beam approximation
 loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
 
-# Transfer function provenance (not properly the instrument, but the team who derived it)
+# Transfer function provenance (not the instrument, but the team who derived it)
 tf_source_team = 'NIKA' # alternatively, 'MUSTANG' or 'SPT'
 
 # Beam file already includes transfer function?
