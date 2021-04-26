@@ -125,7 +125,7 @@ def main():
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep) # transfer function matrix
-        filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
+        filtering = np.abs(fft2(beam_2d))*filt_tf # filtering matrix including both PSF and transfer function
 
     # Radius definition
     radius = np.arange(0., (mymaxr+mystep).value, mystep.value)*mystep.unit # array of radii
