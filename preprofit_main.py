@@ -116,8 +116,18 @@ def main():
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, normalize=True, fwhm_beam=fwhm_beam)
 
+    # The following depends on whether the beam image already includes the transfer function
+    if beam_and_tf:
+        mymaxr = beam_2d.shape[0]//2*mystep
+        filtering = beam_2d.copy()
+    else:
+        mymaxr = (maxr_data+3*fwhm)//mystep*mystep # max radius needed
+        # Transfer function
+        wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
+        filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep) # transfer function matrix
+        filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
+
     # Radius definition
-    mymaxr = (maxr_data+3*fwhm)//mystep*mystep # max radius needed
     radius = np.arange(0., (mymaxr+mystep).value, mystep.value)*mystep.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
@@ -125,18 +135,9 @@ def main():
 
     # Matrix of distances in kpc centered on 0 with step=mystep
     d_mat = pfuncs.centdistmat(radius*kpc_as)
-
-    # The following depends on whether the beam image already includes the transfer function
-    if beam_and_tf:
-        filtering = beam_2d.copy()
-    else:
-        # Transfer function
-        wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
-        filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, d_mat.shape[0], mystep) # transfer function matrix
-        filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
     
+    # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
-        # Temperature-dependent conversion factor from Compton to surface brightness data unit
         temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units)
         conv_fun = interp1d(temp_data, conv_data, 'linear', fill_value='extrapolate')
         conv_temp_sb = conv_fun(t_const)*conv_units[1]
