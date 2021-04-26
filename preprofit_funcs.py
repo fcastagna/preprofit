@@ -11,7 +11,7 @@ from astropy import constants as const
 from abel.direct import direct_transform
 from scipy import optimize
 from scipy.integrate import simps
-from scipy.fftpack import fft2, ifft2, ifftshift
+from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
 from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
@@ -302,6 +302,17 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             beam_2d = f(beam_mat)
         except:
             beam_2d = b.copy()
+            # If matrix dimensions are even, turn them odd
+            if beam_2d.shape[0]%2 == 0:
+                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape)
+                if posmax == (0, 0):
+                    beam_2d = ifftshift(fftshift(beam_2d)[1:,1:])
+                elif posmax == (beam_mat[0]/2, beam_mat[0]/2):
+                    beam_2d = beam_2d[1:,1:]
+                elif posmax == (beam_mat[0]/2-1, beam_mat[0]/2-1):
+                    beam_2d = beam_2d[:-1,:-1]
+                else:
+                    raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
     if normalize:
         beam_2d /= beam_2d.sum()
     return beam_2d*u.beam, fwhm_beam
