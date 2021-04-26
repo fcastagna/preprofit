@@ -446,7 +446,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Compton parameter 2D image
     y_2d = f(sz.d_mat)*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(ifftshift(ifft2(fft2(y_2d)*sz.filtering)))
+    map_out = np.real(ifftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = (mean(map_out, labels=np.rint(sz.d_mat/sz.kpc_as/sz.step).astype(int), index=np.arange(sz.sep+1))*
                 sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*u.Unit(press.pars['pedestal'].unit)
