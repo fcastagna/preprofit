@@ -147,6 +147,10 @@ def main():
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(mystep, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ, integ_mu, integ_sig)
 
+    # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
+    start_prof = pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz, output='bright')
+    pplots.plot_guess(start_prof, sz, plotdir=plotdir)
+    
     # Bayesian fit
     try:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)])
