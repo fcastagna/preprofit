@@ -7,6 +7,25 @@ plt.style.use('classic')
 font = {'size': 20}
 plt.rc('font', **font)
 
+def plot_guess(out_prof, sz,  plotdir='./'):
+    '''
+    Modeled profile resulting from starting parameters VS observed data
+    -------------------------------------------------------------------
+    out_prof = modeled profile
+    sz = class of SZ data
+    plotdir = directory where to place the plot
+    '''
+    plt.clf()
+    pdf = PdfPages(plotdir+'starting_guess.pdf')
+    plt.plot(sz.radius[sz.sep:], out_prof, color='r', label='Best-fit')
+    plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
+    plt.legend()
+    plt.xlabel('Radius ('+str(sz.flux_data[0].unit)+')')
+    plt.ylabel('Surface brightness ('+str(sz.flux_data[1].unit)+')')
+    plt.xlim(0., (sz.flux_data[0][-1]+np.diff(sz.flux_data[0])[-1]).value)
+    pdf.savefig()
+    pdf.close()
+
 def traceplot(cube_chain, param_names, plotw=20, seed=None, ppp=4, labsize=18., ticksize=10., plotdir='./'):
     '''
     Traceplot of the MCMC
