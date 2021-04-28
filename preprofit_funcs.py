@@ -296,10 +296,10 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     beam_mat = centdistmat(rad)
     if approx:
         sigma_beam = fwhm_beam.to('arcsec')/(2*np.sqrt(2*np.log(2)))
-        beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)
+        beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)*u.beam
     else:
         try:
-            beam_2d = f(beam_mat)
+            beam_2d = f(beam_mat)*u.beam
         except:
             beam_2d = b.copy()
             # If matrix dimensions are even, turn them odd
@@ -315,7 +315,8 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
                     raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
     if normalize:
         beam_2d /= beam_2d.sum()
-    return beam_2d*u.beam, fwhm_beam
+        beam_2d *= u.beam
+    return beam_2d, fwhm_beam
 
 def centdistmat(r, offset=0.):
     '''
