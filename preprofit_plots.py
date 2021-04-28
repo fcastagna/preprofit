@@ -15,7 +15,7 @@ def plot_guess(out_prof, sz,  plotdir='./'):
     sz = class of SZ data
     plotdir = directory where to place the plot
     '''
-    if out_prof[1] == None: raise RuntimeError('The starting paramaters you adopted are not in agreeement with prior constraints. Please fix them and retry')
+    if out_prof[1] == None: raise RuntimeError('The starting paramaters you adopted are not in agreement with prior constraints. Please fix them and retry')
     plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
     plt.plot(sz.radius[sz.sep:], out_prof, color='r', label='Best-fit')
