@@ -76,7 +76,7 @@ tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer fun
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir # observed data
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
 
-# Units (here the user has to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
+# Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 beam_units = [u.arcsec, u.beam] # beam units
 tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
