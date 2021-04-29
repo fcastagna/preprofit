@@ -745,3 +745,17 @@ def print_summary(press, pmed, pstd, sz):
               ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
     print('-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0))+
           '\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(pmed, press, sz, output='chisq')), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
+
+def save_summary(filename, press, pmed, pstd):
+    '''
+    Saves log file with a statistical summary of the posterior distribution
+    -----------------------------------------------------------------------
+    filename = name for log file
+    press = pressure object of the class Pressure
+    pmed = array of means of parameters sampled in the chain
+    pstd = array of standard deviations of parameters sampled in the chain
+    '''
+    units = [press.pars[n].unit for n in press.fit_pars]
+    np.savetxt('%s.log' % filename, [param_med, param_std], fmt='%.8e', delimiter='\t', 
+               header='This file summarizes MCMC results\nPosterior distribution medians + uncertainties (%s%% CI)\n' %ci +
+               '\t'.join(map(lambda a, b: a+' ('+str(b)+')', press.fit_pars, units)))
