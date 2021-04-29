@@ -1,10 +1,7 @@
 import preprofit_funcs as pfuncs
 import preprofit_plots as pplots
 import numpy as np
-try:
-    from astropy.cosmology import Planck18_arXiv_v2 as cosmology
-except:
-    from astropy.cosmology import Planck15 as cosmology
+from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
@@ -15,7 +12,10 @@ from itertools import chain
 ### Global variables
 
 # Cluster cosmology
-z = 0.888
+H0 = 70 # Hubble constant at z=0
+Om0 = 0.3 # Omega matter (density of non-relativistic matter)
+z = 0.888 # redshift
+cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
 ### Pressure modelization
