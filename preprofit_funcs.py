@@ -729,8 +729,8 @@ def print_summary(press, pmed, pstd, sz):
     sz = class of SZ data
     '''
     wid1 = len(max(press.fit_pars, key=len))
-    wid2 = max(list(map(lambda x: len(format(x, '.3f')), pmed)))
-    wid3 = max(list(map(lambda x: len(format(x, '.3f')), pstd)))
+    wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
+    wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
     units = [press.pars[n].unit for n in press.fit_pars]
     wid4 = len(max(map(str, units), key=len))
     print(('{:>%i}' % (wid1+2)).format('|')+
@@ -740,8 +740,8 @@ def print_summary(press, pmed, pstd, sz):
           '\n'+'-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0)))
     for i in range(len(press.fit_pars)):
         print(('{:>%i}' % (wid1+2)).format('%s |' %press.fit_pars[i])+
-              ('{:>%i}' % max(wid2+3, 9)).format(' %s |' %format(pmed[i], '.3f'))+
-              ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.3f'))+
+              ('{:>%i}' % max(wid2+3, 9)).format(' %s |' %format(pmed[i], '.2e'))+
+              ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e'))+
               ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
     print('-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0))+
           '\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(pmed, press, sz, output='chisq')), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
