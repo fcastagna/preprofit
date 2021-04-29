@@ -114,9 +114,9 @@ class Press_gNFW(Pressure):
         self.pars = Pressure.defPars(self)
         self.pars.update({
             'P_0': Param(0.4, minval=0., maxval=2., unit=u.Unit('keV cm-3')),
-            'a': Param(1.33, minval=0.1, maxval=20.)),
-            'b': Param(4.13, minval=0.1, maxval=15.)),
-            'c': Param(0.014, minval=0., maxval=3.)),
+            'a': Param(1.33, minval=0.1, maxval=20.),
+            'b': Param(4.13, minval=0.1, maxval=15.),
+            'c': Param(0.014, minval=0., maxval=3.),
             'r_p': Param(300., minval=100., maxval=3000., unit=u.kpc)
         })
         return self.pars
