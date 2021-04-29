@@ -758,4 +758,4 @@ def save_summary(filename, press, pmed, pstd, ci):
     '''
     units = [press.pars[n].unit for n in press.fit_pars]
     np.savetxt('%s.log' % filename, [pmed, pstd], fmt='%.8e', delimiter='\t', header='This file summarizes MCMC results\n'+
-               'Posterior distribution medians + uncertainties (%s%% CI)\n' %ci + '\t'.join(map(lambda a, b: a+' ('+str(b)+')', press.fit_pars, units)))
+               'Posterior distribution medians + uncertainties (%s%% CI)\n' %ci + ' -- '.join(map(lambda a, b: a+' ('+str(b)+')', press.fit_pars, units)))
