@@ -111,7 +111,7 @@ class Press_gNFW(Pressure):
         return self.pars
 
     def functional_form(self, r_kpc, logder=False):
-        ped, P_0, a, b, c, r_p = map(lambda x: self.pars[x].val*u.Unit(self.pars[x].unit), self.pars)
+        ped, P_0, a, b, c, r_p = [self.pars[x].val*u.Unit(self.pars[x].unit) for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
             return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
         else:
@@ -152,7 +152,7 @@ class Press_cubspline(Pressure):
         self.knots = knots
 
     def functional_form(self, r_kpc, logder=False):
-        ped, P_0, P_1, P_2, P_3 = map(lambda x: self.pars[x].val, self.pars)
+        ped, P_0, P_1, P_2, P_3 = [self.pars[x].val for x in ['pedestal', 'P_0', 'P_1', 'P_2', 'P_3']]
         x = self.knots.to('kpc')
         f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')
         if logder == False:
