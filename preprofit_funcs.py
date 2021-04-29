@@ -126,9 +126,10 @@ class Press_gNFW(Pressure):
 
 class Press_cubspline(Pressure):
 
-    def __init__(self, knots=[40, 120, 240, 480]*u.kpc, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        Pressure.__init__(self)
+    def __init__(self, knots=[40, 120, 240, 480]*u.kpc, pr_knots=[1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3'), slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         self.knots = knots
+        self.pr_knots = pr_knots
+        Pressure.__init__(self)
         self.slope_prior = slope_prior
         self.r_out = r_out
         self.max_slopeout = max_slopeout
@@ -140,21 +141,17 @@ class Press_cubspline(Pressure):
         P_i = normalizing constants (kev cm-3)
         '''
         self.pars = Pressure.defPars(self)
-        self.pars.update({
-            'P_0': Param(1e-1, minval=0., maxval=1., unit='keV cm-3'),
-            'P_1': Param(2e-2, minval=0., maxval=1., unit='keV cm-3'),
-            'P_2': Param(5e-3, minval=0., maxval=1., unit='keV cm-3'),
-            'P_3': Param(1e-3, minval=0., maxval=1., unit='keV cm-3')	    
-             })
+        for i in range(self.knots.size):
+            self.pars.update({'P_'+str(i): Param(self.pr_knots[i].value, minval=0., maxval=1., unit=self.pr_knots.unit)})
         return self.pars
 
     def update_knots(self, knots):
         self.knots = knots
 
     def functional_form(self, r_kpc, logder=False):
-        ped, P_0, P_1, P_2, P_3 = [self.pars[x].val for x in ['pedestal', 'P_0', 'P_1', 'P_2', 'P_3']]
+        p_params = [self.pars[x].val for x in ['P_'+str(x) for x in range(self.knots.size)]]
         x = self.knots.to('kpc')
-        f = interp1d(np.log10(x.value), np.log10((P_0, P_1, P_2, P_3)), kind='cubic', fill_value='extrapolate')
+        f = interp1d(np.log10(x.value), np.log10(p_params), kind='cubic', fill_value='extrapolate')
         if logder == False:
             return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
         else:
