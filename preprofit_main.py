@@ -177,6 +177,7 @@ def main():
     param_med = np.median(flat_chain, axis=0)
     param_std = np.std(flat_chain, axis=0)
     pfuncs.print_summary(press, param_med, param_std, sz)
+    pfuncs.save_summary(name, press, param_med, param_std, ci=ci)
 
     ### Plots
     # Bayesian diagnostics
