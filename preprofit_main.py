@@ -27,11 +27,13 @@ max_slopeout = -2. # outer slope constrain
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 ## Non parametric
 # Cubic spline
-#press = pfuncs.Press_cubspline(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-#press.knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+#knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+#press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
+#press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 # Power law interpolation
-#press = pfuncs.Press_nonparam_plaw(slope_prior=slope_prior, max_slopeout=max_slopeout)
-#press.bins = [5, 15, 30, 60]*u.arcsec*kpc_as
+#rbins = [5, 15, 30, 60]*u.arcsec*kpc_as
+#pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
+#press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 # Parameters that we want to fit
 name_pars = list(press.pars)
