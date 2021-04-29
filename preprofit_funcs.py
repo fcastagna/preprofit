@@ -25,10 +25,11 @@ class Param:
     val = value of the parameter
     minval, maxval = minimum and maximum allowed values
     frozen = whether the parameter is allowed to vary (True/False)
+    unit = parameter unit in astropy.units format
     '''
     def __init__(self, val, minval=-1e99, maxval=1e99, frozen=False, unit=u.Unit('')):
         self.val = float(val)
-        self.minval = minval       
+        self.minval = minval
         self.maxval = maxval
         self.frozen = frozen
         self.unit = unit
@@ -38,6 +39,10 @@ class Param:
             self.val, self.minval, self.maxval, self.unit, self.frozen)
 
     def prior(self):
+        '''
+        Checks accordance with parameter's prior distribution
+        -----------------------------------------------------
+        '''
         if self.val < self.minval or self.val > self.maxval:
             return -np.inf
         return 0.
@@ -83,7 +88,13 @@ class Pressure:
         return 0.
 
 class Press_gNFW(Pressure):
-
+    '''
+    Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
+    -----------------------------------------------------------------------------------------------
+    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    r_out = outer radius (serves for outer slope determination)
+    max_slopeout = maximum allowed value for the outer slope
+    '''
     def __init__(self, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         Pressure.__init__(self)
         self.slope_prior = slope_prior
@@ -111,6 +122,12 @@ class Press_gNFW(Pressure):
         return self.pars
 
     def functional_form(self, r_kpc, logder=False):
+        '''
+        Functional form expression for pressure calculation
+        ---------------------------------------------------
+        r_kpc = radius (kpc)
+        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
+        '''
         ped, P_0, a, b, c, r_p = [self.pars[x].val*self.pars[x].unit for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
             return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
@@ -118,6 +135,10 @@ class Press_gNFW(Pressure):
             return (b-c)/(1+(r_kpc/r_p)**a)-b
 
     def prior(self):
+        '''
+        Checks accordance with prior constrains
+        ---------------------------------------
+        '''
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, logder=True)
             if slope_out > self.max_slopeout:
@@ -125,8 +146,16 @@ class Press_gNFW(Pressure):
         return 0.
 
 class Press_cubspline(Pressure):
-
-    def __init__(self, knots=[40, 120, 240, 480]*u.kpc, pr_knots=[1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3'), slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+    '''
+    Class to parametrize the pressure profile with a cubic spline model
+    -------------------------------------------------------------------
+    knots = spline knots
+    pr_knots = pressure values corresponding to spline knots
+    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    r_out = outer radius (serves for outer slope determination)
+    max_slopeout = maximum allowed value for the outer slope
+    '''
+    def __init__(self, knots, pr_knots, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         self.knots = knots
         self.pr_knots = pr_knots
         Pressure.__init__(self)
@@ -138,17 +167,20 @@ class Press_cubspline(Pressure):
         '''
         Default parameter values
         ------------------------
-        P_i = normalizing constants (kev cm-3)
+        P_i = pressure values corresponding to spline knots (kev cm-3)
         '''
         self.pars = Pressure.defPars(self)
         for i in range(self.knots.size):
             self.pars.update({'P_'+str(i): Param(self.pr_knots[i].value, minval=0., maxval=1., unit=self.pr_knots.unit)})
         return self.pars
 
-    def update_knots(self, knots):
-        self.knots = knots
-
     def functional_form(self, r_kpc, logder=False):
+        '''
+        Functional form expression for pressure calculation
+        ---------------------------------------------------
+        r_kpc = radius (kpc)
+        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
+        '''
         p_params = [self.pars[x].val for x in ['P_'+str(x) for x in range(self.knots.size)]]
         x = self.knots.to('kpc')
         f = interp1d(np.log10(x.value), np.log10(p_params), kind='cubic', fill_value='extrapolate')
@@ -158,6 +190,10 @@ class Press_cubspline(Pressure):
             return f._spline.derivative()(np.log10(r_kpc.value)).flatten()*u.Unit('')
 
     def prior(self):
+        '''
+        Checks accordance with prior constrains
+        ---------------------------------------
+        '''
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, logder=True)
             if slope_out > self.max_slopeout:
@@ -165,8 +201,15 @@ class Press_cubspline(Pressure):
         return 0.
 
 class Press_nonparam_plaw(Pressure):
-
-    def __init__(self, rbins=[40, 120, 240, 480]*u.kpc, pbins=[1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV cm-3'), slope_prior=True, max_slopeout=-2.):
+    '''
+    Class to parametrize the pressure profile with a non parametric power-law model
+    -------------------------------------------------------------------------------
+    rbins = radial bins
+    pbins = pressure values corresponding to radial bins
+    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    max_slopeout = maximum allowed value for the outer slope
+    '''
+    def __init__(self, rbins, pbins, slope_prior=True, max_slopeout=-2.):
         self.rbins = rbins
         self.pbins = pbins
         self.slope_prior = slope_prior
@@ -177,17 +220,19 @@ class Press_nonparam_plaw(Pressure):
         '''
         Default parameter values
         ------------------------
-        P_i = normalizing constants (kev cm-3)
+        P_i = pressure values corresponding to radial bins (kev cm-3)
         '''
         self.pars = Pressure.defPars(self)
         for i in range(self.rbins.size):
             self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
         return self.pars
 
-    def update_bins(self, rbins):
-        self.rbins = rbins
-
     def functional_form(self, r_kpc):
+        '''
+        Functional form expression for pressure calculation
+        ---------------------------------------------------
+        r_kpc = radius (kpc)
+        '''
         index = np.digitize(r_kpc, self.rbins)
         r_low = self.rbins[np.maximum(0, index-1)]
         r_upp = self.rbins[np.minimum(self.rbins.size-1, index)]
@@ -202,6 +247,10 @@ class Press_nonparam_plaw(Pressure):
         return p_low*(r_kpc/r_low)**alpha
 
     def prior(self):
+        '''
+        Checks accordance with prior constrains
+        ---------------------------------------
+        '''
         if self.slope_prior == True:
             i = len(self.rbins)
             slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
