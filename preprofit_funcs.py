@@ -26,7 +26,7 @@ class Param:
     minval, maxval = minimum and maximum allowed values
     frozen = whether the parameter is allowed to vary (True/False)
     '''
-    def __init__(self, val, minval=-1e99, maxval=1e99, frozen=False, unit='.'):
+    def __init__(self, val, minval=-1e99, maxval=1e99, frozen=False, unit=u.Unit('')):
         self.val = float(val)
         self.minval = minval       
         self.maxval = maxval
@@ -57,7 +57,7 @@ class Pressure:
         pedestal = baseline level (mJy/beam)
         '''
         self.pars = {
-            'pedestal': Param(0., minval=-1., maxval=1., unit='mJy beam-1')
+            'pedestal': Param(0., minval=-1., maxval=1., unit=u.Unit('mJy beam-1'))
              }
         return self.pars
 
@@ -102,16 +102,16 @@ class Press_gNFW(Pressure):
         '''
         self.pars = Pressure.defPars(self)
         self.pars.update({
-            'P_0': Param(0.4, minval=0., maxval=2., unit='keV cm-3'),
-            'a': Param(1.33, minval=0.1, maxval=20., unit=''),
-            'b': Param(4.13, minval=0.1, maxval=15., unit=''),
-            'c': Param(0.014, minval=0., maxval=3., unit=''),
-            'r_p': Param(300., minval=100., maxval=3000., unit='kpc')
+            'P_0': Param(0.4, minval=0., maxval=2., unit=u.Unit('keV cm-3')),
+            'a': Param(1.33, minval=0.1, maxval=20.)),
+            'b': Param(4.13, minval=0.1, maxval=15.)),
+            'c': Param(0.014, minval=0., maxval=3.)),
+            'r_p': Param(300., minval=100., maxval=3000., unit=u.kpc)
         })
         return self.pars
 
     def functional_form(self, r_kpc, logder=False):
-        ped, P_0, a, b, c, r_p = [self.pars[x].val*u.Unit(self.pars[x].unit) for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
+        ped, P_0, a, b, c, r_p = [self.pars[x].val*self.pars[x].unit for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
             return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
         else:
@@ -153,7 +153,7 @@ class Press_cubspline(Pressure):
         x = self.knots.to('kpc')
         f = interp1d(np.log10(x.value), np.log10(p_params), kind='cubic', fill_value='extrapolate')
         if logder == False:
-            return 10**f(np.log10(r_kpc.value))*u.Unit(self.pars['P_0'].unit)
+            return 10**f(np.log10(r_kpc.value))*self.pars['P_0'].unit
         else:
             return f._spline.derivative()(np.log10(r_kpc.value)).flatten()*u.Unit('')
 
@@ -191,7 +191,7 @@ class Press_nonparam_plaw(Pressure):
         index = np.digitize(r_kpc, self.rbins)
         r_low = self.rbins[np.maximum(0, index-1)]
         r_upp = self.rbins[np.minimum(self.rbins.size-1, index)]
-        pbins = [self.pars[x].val for x in list(self.pars)[1:]]*u.Unit(self.pars['P_0'].unit)
+        pbins = [self.pars[x].val for x in list(self.pars)[1:]]*self.pars['P_0'].unit
         p_low = pbins[np.maximum(0, index-1)]
         p_upp = pbins[np.minimum(index, self.rbins.size-1)]
         alpha = np.empty(index.shape)*u.Unit('')
@@ -447,7 +447,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = (mean(map_out, labels=np.rint(sz.d_mat/sz.kpc_as/sz.step).astype(int), index=np.arange(sz.sep+1))*
-                sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*u.Unit(press.pars['pedestal'].unit)
+                sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*press.pars['pedestal'].unit
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
@@ -683,7 +683,7 @@ def print_summary(press, pmed, pstd, sz):
     wid2 = max(list(map(lambda x: len(format(x, '.3f')), pmed)))
     wid3 = max(list(map(lambda x: len(format(x, '.3f')), pstd)))
     units = [press.pars[n].unit for n in press.fit_pars]
-    wid4 = len(max(units, key=len))
+    wid4 = len(max(map(str, units), key=len))
     print(('{:>%i}' % (wid1+2)).format('|')+
           ('{:>%i} Median |' % max(wid2-6,0)).format('')+
           ('{:>%i} Sd |' % max(wid3-2,0)).format('')+
