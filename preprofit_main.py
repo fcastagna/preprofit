@@ -191,6 +191,10 @@ def main():
     # Radial pressure profile
     p_prof = pplots.press_prof(cube_chain, press, r_pp, ci=ci)
     pplots.plot_press(r_pp, p_prof, ci=ci, plotdir=plotdir)
-
+    
+    # Outer slope posterior distribution
+    slopes = pfuncs.get_outer_slope(flat_chain, press, r_out)
+    pplots.hist_slopes(slopes, ci=ci, plotdir=plotdir)
+    
 if __name__ == '__main__':
     main()
