@@ -7,6 +7,7 @@ from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
 import emcee
 from itertools import chain
+import h5py
 
 
 ### Global variables
@@ -170,10 +171,10 @@ def main():
     mcmc.save(chainfilename)
 
     # Extract chain of parameters
-    cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
+    cube_chain = np.array(h5py.File(chainfilename, 'r')['chain']) # (nwalkers x niter x nparams)
     flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
     # Extract surface brightness profiles
-    cube_surbr = np.array([list(chain.from_iterable(x)) for x in zip(*mcmc.sampler.blobs)]).reshape(nwalkers, cube_chain.shape[1], sep+1)
+    cube_surbr = np.array(h5py.File(chainfilename, 'r')['bright'])
     flat_surbr = cube_surbr.reshape(-1, cube_surbr.shape[2], order='F')
 
     # Posterior distribution parameters
