@@ -194,3 +194,24 @@ def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./')
     plt.xlim(xmin, xmax)
     pdf.savefig(bbox_inches='tight')
     pdf.close()
+
+def hist_slopes(slopes, ci=95, plotdir='./'):
+    '''
+    Plot the histogram of the outer slopes posterior distribution
+    -------------------------------------------------------------
+    slopes = array of slopes
+    ci = uncertainty level of the interval
+    plotdir = directory where to place the plot
+    '''
+    low, med, upp = get_equal_tailed(slopes, ci=ci)
+    pdf = PdfPages(plotdir+'outer_slopes.pdf')
+    plt.clf()
+    plt.title('Outer slope - Posterior distribution')
+    plt.hist(slopes, density=True, histtype='step', color='black')
+    plt.axvline(med, color='black', linestyle='--', label='Median')
+    plt.axvline(low, color='black', linestyle='-.', label='%i%% CI' % ci)
+    plt.axvline(upp, color='black', linestyle='-.', label='_nolegend_')
+    plt.xlabel('Outer slope')
+    plt.ylabel('Density')
+    pdf.savefig(bbox_inches='tight')
+    pdf.close()
