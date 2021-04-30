@@ -162,14 +162,17 @@ def main():
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads)
     # Preliminary fit to increase likelihood
     pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
-    # construct MCMC object and do burn in
+    # Construct MCMC object and do burn in
     mcmc = pfuncs.MCMC(sampler, press.pars, press.fit_pars, seed=seed, initspread=0.1)
     chainfilename = '%s%s_chain.hdf5' % (savedir, name)
-    # run mcmc proper and save the chain
+    # Run mcmc proper and save the chain
     mcmc.mcmc_run(nburn, nlength, nthin)
     mcmc.save(chainfilename)
+
+    # Extract chain of parameters
     cube_chain = mcmc.sampler.chain # (nwalkers x niter x nparams)
     flat_chain = cube_chain.reshape(-1, cube_chain.shape[2], order='F') # ((nwalkers x niter) x nparams)
+    # Extract surface brightness profiles
     cube_surbr = np.array([list(chain.from_iterable(x)) for x in zip(*mcmc.sampler.blobs)]).reshape(nwalkers, cube_chain.shape[1], sep+1)
     flat_surbr = cube_surbr.reshape(-1, cube_surbr.shape[2], order='F')
 
