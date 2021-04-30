@@ -759,3 +759,21 @@ def save_summary(filename, press, pmed, pstd, ci):
     units = [press.pars[n].unit for n in press.fit_pars]
     np.savetxt('%s.log' % filename, [pmed, pstd], fmt='%.8e', delimiter='\t', header='This file summarizes MCMC results\n'+
                'Posterior distribution medians + uncertainties (%s%% CI)\n' %ci + ' -- '.join(map(lambda a, b: a+' ('+str(b)+')', press.fit_pars, units)))
+
+def get_outer_slope(flatchain, press, r_out):
+    '''
+    Get outer slope values from flatchain
+    -------------------------------------
+    flatchain = chain of parameters (2D format)
+    press = pressure object of the class Pressure
+    r_out = outer radius
+    '''
+    slopes = np.zeros(flatchain.shape[0])
+    for j in range(slopes.size):
+        press.update_vals(press.fit_pars, flatchain[j])
+        try:
+            slopes[j] = press.functional_form(r_out, logder=True)
+        except:
+            i = len(press.rbins)
+            slopes[j] = np.log(press.pars['P_'+str(i-1)].val/press.pars['P_'+str(i-2)].val)/np.log(press.rbins[i-1]/press.rbins[i-2])
+    return slopes
