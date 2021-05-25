@@ -435,7 +435,7 @@ class abel_data:
         self.I_isqrt = np.zeros(R.shape)
         self.I_isqrt[mask] = 1./np.sqrt((Y**2 - R**2)[mask])
         self.mask2 = ((II > JJ-2) & (II < JJ+1)) # create a mask that just shows the first two points of the integral    
-        self.isqrt = 1./I_sqrt[II+1 == JJ]
+        self.isqrt = 1./self.I_isqrt[II+1 == JJ]
         if r[0] < r[1]*1e-8:  # special case for r[0] = 0
             ratio = np.append(np.cosh(1), r[2:]/r[1:-1])
         else:
