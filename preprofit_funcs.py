@@ -8,7 +8,6 @@ from scipy.stats import norm
 from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy import constants as const
-from abel.direct import direct_transform
 from scipy import optimize
 from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
@@ -426,6 +425,64 @@ def filt_image(wn_as, tf, tf_source_team, side, step):
     karr *= kmax
     return f(karr)
 
+class abel_data:
+    def __init__(self, fr, r):
+        self.f = fr*2*r
+        self.dx = abs(r[1]-r[0])
+        R, Y = np.meshgrid(r, r, indexing='ij')
+        II, JJ = np.meshgrid(np.arange(len(r)), np.arange(len(r)), indexing='ij')
+        mask = (II < JJ)
+        self.I_isqrt = np.zeros(R.shape)
+        self.I_isqrt[mask] = 1./np.sqrt((Y**2 - R**2)[mask])
+        self.mask2 = ((II > JJ-2) & (II < JJ+1)) # create a mask that just shows the first two points of the integral    
+        self.isqrt = 1./I_sqrt[II+1 == JJ]
+        if r[0] < r[1]*1e-8:  # special case for r[0] = 0
+            ratio = np.append(np.cosh(1), r[2:]/r[1:-1])
+        else:
+            ratio = r[1:]/r[:-1]
+        self.acr = np.arccosh(ratio)
+        self.corr = np.c_[np.diag(I_isqrt), np.diag(I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
+        
+#def get_abel_data(fr, r):
+#    '''
+#    Collects data required for Abel transform calculation. Adapted from PyAbel
+#    --------------------------------------------------------------------------
+#    fr = input array to which Abel transform will be applied
+#    r = array of radii
+#    '''
+#    f = fr*2*r
+#    dx = abs(r[1]-r[0])
+#    R, Y = np.meshgrid(r, r, indexing='ij')
+#    II, JJ = np.meshgrid(np.arange(len(r)), np.arange(len(r)), indexing='ij')
+#    mask = (II < JJ)
+#    I_isqrt = np.zeros(R.shape)
+#    I_isqrt[mask] = 1./np.sqrt((Y**2 - R**2)[mask])
+#    mask2 = ((II > JJ-2) & (II < JJ+1)) # create a mask that just shows the first two points of the integral    
+#    isqrt = 1./I_sqrt[II+1 == JJ]
+#    if r[0] < r[1]*1e-8:  # special case for r[0] = 0
+#        ratio = np.append(np.cosh(1), r[2:]/r[1:-1])
+#    else:
+#        ratio = r[1:]/r[:-1]
+#    acr = np.arccosh(ratio)
+#    corr = np.c_[np.diag(I_isqrt), np.diag(I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
+    
+def calc_abel(fr, r, abel_data):
+    '''
+    Calculation of the integral used in Abel transform. Adapted from PyAbel
+    -----------------------------------------------------------------------
+    fr = input array to which Abel transform will be applied
+    r = array of radii
+    abel_data = collection of data required for Abel transform calculation
+    '''
+    f = fr*2*r    
+    P = f*abel_data.I_isqrt  # set up the integral
+    out = np.trapz(P, axis=1, dx=abel_data.dx)  # take the integral
+    abel_data.corr[:,1] = np.append(P[mask2][1::2], 0)
+    out = out-0.5*np.trapz(abel_data.corr[:,:2], dx=abel_data.dx, axis=1)*abel_data.corr[:,-1] # correct for the extra triangle at the start of the integral
+    f_r = (f[1:]-f[:-1])/np.diff(r)
+    out[:-1] += isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
+    return out    
+    
 class SZ_data:
     '''
     Class for the SZ data required for the analysis
@@ -440,11 +497,12 @@ class SZ_data:
     r_pp = radius in kpc used to compute the pressure profile
     d_mat = matrix of distances in kpc centered on 0 with given step
     filtering = transfer function matrix
+    abel_data = collection of data required for Abel transform calculation
     calc_integ = whether to include integrated Compton parameter in the likelihood (boolean, default is False)
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.kpc_as = kpc_as
         self.conv_temp_sb = conv_temp_sb
@@ -455,6 +513,7 @@ class SZ_data:
         self.r_pp = r_pp
         self.d_mat = d_mat
         self.filtering = filtering
+        self.abel_data = abel_data
         self.calc_integ = calc_integ
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
@@ -486,7 +545,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     if output == 'pp':
         return pp
     # abel transform
-    ab = direct_transform(pp.value, r=sz.r_pp.value, direction='forward', backend='Python')*pp.unit*sz.r_pp.unit
+    ab = calc_abel(pp.value, r=sz.r_pp, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
