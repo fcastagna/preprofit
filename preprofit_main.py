@@ -150,7 +150,7 @@ def main():
         conv_temp_sb = 1*u.Unit('')
 
     # Collection of data required for Abel transform calculation
-    abel_data = pfuncs.abel_data(fr=press.press_fun(sz.r_pp).value, r=r_pp.value)
+    abel_data = pfuncs.abel_data(fr=press.press_fun(r_pp).value, r=r_pp.value)
     
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(mystep, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ, integ_mu, integ_sig)
