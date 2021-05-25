@@ -441,7 +441,7 @@ class abel_data:
         else:
             ratio = r[1:]/r[:-1]
         self.acr = np.arccosh(ratio)
-        self.corr = np.c_[np.diag(I_isqrt), np.diag(I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
+        self.corr = np.c_[np.diag(self.I_isqrt), np.diag(self.I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
         
 #def get_abel_data(fr, r):
 #    '''
@@ -477,11 +477,11 @@ def calc_abel(fr, r, abel_data):
     f = fr*2*r    
     P = f*abel_data.I_isqrt  # set up the integral
     out = np.trapz(P, axis=1, dx=abel_data.dx)  # take the integral
-    abel_data.corr[:,1] = np.append(P[mask2][1::2], 0)
+    abel_data.corr[:,1] = np.append(P[abel_data.mask2][1::2], 0)
     out = out-0.5*np.trapz(abel_data.corr[:,:2], dx=abel_data.dx, axis=1)*abel_data.corr[:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[1:]-f[:-1])/np.diff(r)
-    out[:-1] += isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
-    return out    
+    out[:-1] += abel_data.isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
+    return out
     
 class SZ_data:
     '''
