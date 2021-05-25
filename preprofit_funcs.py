@@ -426,6 +426,12 @@ def filt_image(wn_as, tf, tf_source_team, side, step):
     return f(karr)
 
 class abel_data:
+    '''
+    Class of collection of data required for Abel transform calculation. Adapted from PyAbel
+    ----------------------------------------------------------------------------------------
+    fr = input array to which Abel transform will be applied
+    r = array of radii
+    '''
     def __init__(self, fr, r):
         self.f = fr*2*r
         self.dx = abs(r[1]-r[0])
