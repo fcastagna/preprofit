@@ -442,29 +442,6 @@ class abel_data:
             ratio = r[1:]/r[:-1]
         self.acr = np.arccosh(ratio)
         self.corr = np.c_[np.diag(self.I_isqrt), np.diag(self.I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
-        
-#def get_abel_data(fr, r):
-#    '''
-#    Collects data required for Abel transform calculation. Adapted from PyAbel
-#    --------------------------------------------------------------------------
-#    fr = input array to which Abel transform will be applied
-#    r = array of radii
-#    '''
-#    f = fr*2*r
-#    dx = abs(r[1]-r[0])
-#    R, Y = np.meshgrid(r, r, indexing='ij')
-#    II, JJ = np.meshgrid(np.arange(len(r)), np.arange(len(r)), indexing='ij')
-#    mask = (II < JJ)
-#    I_isqrt = np.zeros(R.shape)
-#    I_isqrt[mask] = 1./np.sqrt((Y**2 - R**2)[mask])
-#    mask2 = ((II > JJ-2) & (II < JJ+1)) # create a mask that just shows the first two points of the integral    
-#    isqrt = 1./I_sqrt[II+1 == JJ]
-#    if r[0] < r[1]*1e-8:  # special case for r[0] = 0
-#        ratio = np.append(np.cosh(1), r[2:]/r[1:-1])
-#    else:
-#        ratio = r[1:]/r[:-1]
-#    acr = np.arccosh(ratio)
-#    corr = np.c_[np.diag(I_isqrt), np.diag(I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
     
 def calc_abel(fr, r, abel_data):
     '''
@@ -545,7 +522,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     if output == 'pp':
         return pp
     # abel transform
-    ab = calc_abel(pp.value, r=sz.r_pp, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
+    ab = calc_abel(pp.value, r=sz.r_pp.value, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
