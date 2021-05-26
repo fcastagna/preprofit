@@ -514,7 +514,7 @@ class SZ_data:
         self.radius = radius
         self.sep = sep
         self.r_pp = r_pp
-        self.dist = distances(radius, kpc_as, sep)
+        self.dist = distances(radius, kpc_as, sep, step)
         self.filtering = filtering
         self.abel_data = abel_data
         self.calc_integ = calc_integ
