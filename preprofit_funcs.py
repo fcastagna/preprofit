@@ -469,11 +469,12 @@ def calc_abel(fr, r, abel_data):
 class distances:
     '''
     '''
-    def __init__(self, radius, kpc_as, sep):
+    def __init__(self, radius, kpc_as, sep, step):
         self.d_mat = centdistmat(radius*kpc_as)
         self.indices = np.tril_indices(sep+1)
         self.d_arr = self.d_mat[sep:,sep:][self.indices]
         self.im2d = np.zeros((self.d_mat.shape))
+        self.labels = np.rint(self.d_mat/kpc_as/step).astype(int)
     
 def interp_mat(mat, indices, func, sep):
     '''
@@ -557,8 +558,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (mean(map_out, labels=np.rint(sz.d_mat/sz.kpc_as/sz.step).astype(int), index=np.arange(sz.sep+1))*
-                sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*press.pars['pedestal'].unit
+    map_prof = (mean(map_out, labels=sz.dist.labels, index=np.arange(sz.sep+1))*sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*press.pars['pedestal'].unit
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
