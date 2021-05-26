@@ -471,15 +471,15 @@ class distances:
     '''
     def __init__(self, radius, kpc_as, sep):
         self.d_mat = centdistmat(radius*kpc_as)
-        self.indexes = np.tril_indices(sep+1)
-        self.d_arr = self.d_mat[sep:,sep:][self.indexes]
+        self.indices = np.tril_indices(sep+1)
+        self.d_arr = self.d_mat[sep:,sep:][self.indices]
         self.im2d = np.zeros((self.d_mat.shape))
     
-def interp_mat(mat, indexes, func, sep):
+def interp_mat(mat, indices, func, sep):
     '''
     '''
-    mat[sep:,sep:][indexes] = func
-    mat[sep:,sep:][indexes[::-1]] = func
+    mat[sep:,sep:][indices] = func
+    mat[sep:,sep:][indices[::-1]] = func
     mat[sep:,:sep+1] = np.fliplr(mat[sep:,sep:])
     mat[:sep+1,sep:] = np.transpose(mat[sep:,:sep+1])
     mat[:sep+1,:sep+1] = np.fliplr(mat[:sep+1,sep:])
@@ -553,7 +553,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
     # Compton parameter 2D image
     f_arr = f(sz.dist.d_arr)
-    y_2d = interp_mat(sz.dist.im2d, sz.dist.indexes, f_arr, sep)*u.Unit('')
+    y_2d = interp_mat(sz.dist.im2d, sz.dist.indices, f_arr, sz.sep)*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
