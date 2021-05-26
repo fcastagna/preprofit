@@ -478,6 +478,12 @@ class distances:
     
 def interp_mat(mat, indices, func, sep):
     '''
+    Quick interpolation on a radially symmetric matrix
+    --------------------------------------------------
+    mat = empty matrix to fill in with interpolated values
+    indices = indices of unique values in the matrix of distances
+    func = interpolation function
+    sep = index of radius 0
     '''
     mat[sep:,sep:][indices] = func
     mat[sep:,sep:][indices[::-1]] = func
