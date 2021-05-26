@@ -472,6 +472,7 @@ class distances:
     def __init__(self, radius, kpc_as, sep):
         self.d_mat = centdistmat(radius*kpc_as)
         self.indexes = np.tril_indices(sep+1)
+        self.d_arr = self.d_mat[sep:,sep:][self.indexes]
         self.im2d = np.zeros((self.d_mat.shape))
     
 def interp_mat(mat, indexes, func, sep):
@@ -551,7 +552,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
     # Compton parameter 2D image
-    f_arr = f(sz.d_arr)
+    f_arr = f(sz.dist.d_arr)
     y_2d = interp_mat(sz.dist.im2d, sz.dist.indexes, f_arr, sep)*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
