@@ -466,6 +466,24 @@ def calc_abel(fr, r, abel_data):
     out[:-1] += abel_data.isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
     return out
     
+class distances:
+    '''
+    '''
+    def __init__(self, radius, kpc_as, sep):
+        self.d_mat = centdistmat(radius*kpc_as)
+        self.indexes = np.tril_indices(sep+1)
+        self.im2d = np.zeros((self.d_mat.shape))
+    
+def interp_mat(mat, indexes, func, sep):
+    '''
+    '''
+    mat[sep:,sep:][indexes] = func
+    mat[sep:,sep:][indexes[::-1]] = func
+    mat[sep:,:sep+1] = np.fliplr(mat[sep:,sep:])
+    mat[:sep+1,sep:] = np.transpose(mat[sep:,:sep+1])
+    mat[:sep+1,:sep+1] = np.fliplr(mat[:sep+1,sep:])
+    return mat
+               
 class SZ_data:
     '''
     Class for the SZ data required for the analysis
@@ -494,7 +512,7 @@ class SZ_data:
         self.radius = radius
         self.sep = sep
         self.r_pp = r_pp
-        self.d_mat = d_mat
+        self.dist = distances(radius, kpc_as, sep)
         self.filtering = filtering
         self.abel_data = abel_data
         self.calc_integ = calc_integ
@@ -533,7 +551,8 @@ def log_lik(pars_val, press, sz, output='ll'):
     y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
     # Compton parameter 2D image
-    y_2d = f(sz.d_mat)*u.Unit('')
+    f_arr = f(sz.d_arr)
+    y_2d = interp_mat(sz.dist.im2d, sz.dist.indexes, f_arr, sep)*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
