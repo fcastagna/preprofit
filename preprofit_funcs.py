@@ -429,11 +429,9 @@ class abel_data:
     '''
     Class of collection of data required for Abel transform calculation. Adapted from PyAbel
     ----------------------------------------------------------------------------------------
-    fr = input array to which Abel transform will be applied
     r = array of radii
     '''
-    def __init__(self, fr, r):
-        self.f = fr*2*r
+    def __init__(self, r):
         self.dx = abs(r[1]-r[0])
         R, Y = np.meshgrid(r, r, indexing='ij')
         II, JJ = np.meshgrid(np.arange(len(r)), np.arange(len(r)), indexing='ij')
