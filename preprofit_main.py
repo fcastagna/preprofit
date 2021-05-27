@@ -6,7 +6,6 @@ from astropy import units as u
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
 import emcee
-from itertools import chain
 import h5py
 
 
@@ -150,10 +149,11 @@ def main():
         conv_temp_sb = 1*u.Unit('')
 
     # Collection of data required for Abel transform calculation
-    abel_data = pfuncs.abel_data(fr=press.press_fun(r_pp).value, r=r_pp.value)
+    abel_data = pfuncs.abel_data(r_pp.value)
     
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(mystep, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ, integ_mu, integ_sig)
+    sz = pfuncs.SZ_data(step=mystep, kpc_as=kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, d_mat=d_mat, filtering=filtering, 
+                        abel_data=abel_data, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
     start_prof = pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz, output='bright')

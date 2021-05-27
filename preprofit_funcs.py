@@ -1,7 +1,3 @@
-"""
-Authors: Castagna Fabio, Andreon Stefano, Pranjal RS.
-"""
-
 import numpy as np
 from astropy.io import fits
 from scipy.stats import norm
@@ -325,7 +321,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
-    RETURN: the 2D image of the beam and his Full Width at Half Maximum
+    RETURN: the 2D image of the beam and the Full Width at Half Maximum
     '''
     if not approx:
         try:
@@ -429,11 +425,9 @@ class abel_data:
     '''
     Class of collection of data required for Abel transform calculation. Adapted from PyAbel
     ----------------------------------------------------------------------------------------
-    fr = input array to which Abel transform will be applied
     r = array of radii
     '''
-    def __init__(self, fr, r):
-        self.f = fr*2*r
+    def __init__(self, r):
         self.dx = abs(r[1]-r[0])
         R, Y = np.meshgrid(r, r, indexing='ij')
         II, JJ = np.meshgrid(np.arange(len(r)), np.arange(len(r)), indexing='ij')
@@ -466,6 +460,38 @@ def calc_abel(fr, r, abel_data):
     out[:-1] += abel_data.isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
     return out
     
+class distances:
+    '''
+    Class of data involving distances required in likelihood computation
+    --------------------------------------------------------------------
+    radius = array of radii in arcsec
+    kpc_as = kpc in arcsec
+    sep = index of radius 0
+    step = binning step
+    '''
+    def __init__(self, radius, kpc_as, sep, step):
+        self.d_mat = centdistmat(radius*kpc_as) # matrix of distances (radially symmetric)
+        self.im2d = np.zeros((self.d_mat.shape)) # empty matrix for the output
+        self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
+        self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
+        self.labels = np.rint(self.d_mat/kpc_as/step).astype(int) # labels indicating different annuli within the matrix of distances
+    
+def interp_mat(mat, indices, func, sep):
+    '''
+    Quick interpolation on a radially symmetric matrix
+    --------------------------------------------------
+    mat = empty matrix to fill in with interpolated values
+    indices = indices of unique values in the matrix of distances
+    func = interpolation function
+    sep = index of radius 0
+    '''
+    mat[sep:,sep:][indices] = func
+    mat[sep:,sep:][indices[::-1]] = func
+    mat[sep:,:sep+1] = np.fliplr(mat[sep:,sep:])
+    mat[:sep+1,sep:] = np.transpose(mat[sep:,:sep+1])
+    mat[:sep+1,:sep+1] = np.fliplr(mat[:sep+1,sep:])
+    return mat
+               
 class SZ_data:
     '''
     Class for the SZ data required for the analysis
@@ -474,7 +500,6 @@ class SZ_data:
     kpc_as = kpc in arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
     flux_data = radius (arcsec), flux density, statistical error
-    beam_2d = 2D image of the beam
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
@@ -485,16 +510,15 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.kpc_as = kpc_as
         self.conv_temp_sb = conv_temp_sb
         self.flux_data = flux_data
-        self.beam_2d = beam_2d
         self.radius = radius
         self.sep = sep
         self.r_pp = r_pp
-        self.d_mat = d_mat
+        self.dist = distances(radius, kpc_as, sep, step)
         self.filtering = filtering
         self.abel_data = abel_data
         self.calc_integ = calc_integ
@@ -533,12 +557,12 @@ def log_lik(pars_val, press, sz, output='ll'):
     y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
     # Compton parameter 2D image
-    y_2d = f(sz.d_mat)*u.Unit('')
+    f_arr = f(sz.dist.d_arr)
+    y_2d = interp_mat(sz.dist.im2d, sz.dist.indices, f_arr, sz.sep)*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (mean(map_out, labels=np.rint(sz.d_mat/sz.kpc_as/sz.step).astype(int), index=np.arange(sz.sep+1))*
-                sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*press.pars['pedestal'].unit
+    map_prof = (mean(map_out, labels=sz.dist.labels, index=np.arange(sz.sep+1))*sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*press.pars['pedestal'].unit
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
