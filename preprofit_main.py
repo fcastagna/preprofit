@@ -6,7 +6,6 @@ from astropy import units as u
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
 import emcee
-from itertools import chain
 import h5py
 
 
