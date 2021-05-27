@@ -325,7 +325,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
-    RETURN: the 2D image of the beam and his Full Width at Half Maximum
+    RETURN: the 2D image of the beam and the Full Width at Half Maximum
     '''
     if not approx:
         try:
@@ -466,13 +466,19 @@ def calc_abel(fr, r, abel_data):
     
 class distances:
     '''
+    Class of data involving distances required in likelihood computation
+    --------------------------------------------------------------------
+    radius = array of radii in arcsec
+    kpc_as = kpc in arcsec
+    sep = index of radius 0
+    step = binning step
     '''
     def __init__(self, radius, kpc_as, sep, step):
-        self.d_mat = centdistmat(radius*kpc_as)
-        self.indices = np.tril_indices(sep+1)
-        self.d_arr = self.d_mat[sep:,sep:][self.indices]
-        self.im2d = np.zeros((self.d_mat.shape))
-        self.labels = np.rint(self.d_mat/kpc_as/step).astype(int)
+        self.d_mat = centdistmat(radius*kpc_as) # matrix of distances (radially symmetric)
+        self.im2d = np.zeros((self.d_mat.shape)) # empty matrix for the output
+        self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
+        self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
+        self.labels = np.rint(self.d_mat/kpc_as/step).astype(int) # labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
     '''
