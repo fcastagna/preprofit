@@ -498,7 +498,6 @@ class SZ_data:
     kpc_as = kpc in arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
     flux_data = radius (arcsec), flux density, statistical error
-    beam_2d = 2D image of the beam
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
@@ -509,12 +508,11 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, beam_2d, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.kpc_as = kpc_as
         self.conv_temp_sb = conv_temp_sb
         self.flux_data = flux_data
-        self.beam_2d = beam_2d
         self.radius = radius
         self.sep = sep
         self.r_pp = r_pp
