@@ -671,7 +671,7 @@ class MCMC:
             if self.seed is not None:
                 _ += 1
                 np.random.seed(self.seed*_)
-            p = thawedpars*(1+np.random.normal(0, self.initspread, size=len(self.fit_pars)))
+            p = thawedpars+np.random.normal(0, self.initspread, size=len(self.fit_pars))
             if np.isfinite(lfun(p)[0]):
                 p0.append(p)
         return p0
