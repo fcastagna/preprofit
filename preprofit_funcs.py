@@ -338,7 +338,20 @@ def read_beam(filename, ncol, units):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], normalize=True, fwhm_beam=None):
+def get_central(mat, side):
+    '''
+    Get the central square of a matrix with given side
+    --------------------------------------------------
+    mat = 2D matrix
+    side = side of the output matrix
+    '''
+    if side is None or side > mat.shape[0]:
+        raise Exception('Side value is None or exceeds the original matrix side. The original matrix is returned')
+        return mat
+    centre = mat.shape[0]//2
+    return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
+
+def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
@@ -347,6 +360,8 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
     units = units in astropy.units format
+    crop_image = whether to crop or not the original 2D image
+    cropped_side = side of the cropped image (in pixels)
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
@@ -374,15 +389,20 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             beam_2d = b.copy()
             # If matrix dimensions are even, turn them odd
             if beam_2d.shape[0]%2 == 0:
-                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape)
+                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape) # get index of maximum value
                 if posmax == (0, 0):
                     beam_2d = ifftshift(fftshift(beam_2d)[1:,1:])
-                elif posmax == (beam_mat[0]/2, beam_mat[0]/2):
+                elif posmax == (beam_2d.shape[0]/2, beam_2d.shape[0]/2):
                     beam_2d = beam_2d[1:,1:]
-                elif posmax == (beam_mat[0]/2-1, beam_mat[0]/2-1):
+                elif posmax == (beam_2d.shape[0]/2-1, beam_2d.shape[0]/2-1):
                     beam_2d = beam_2d[:-1,:-1]
                 else:
                     raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
+    if crop_image:
+        if beam_2d[0,0] > beam_2d[beam_2d.shape[0]//2, beam_2d.shape[0]//2]: # peak at the corner
+            beam_2d = ifftshift(get_central(fftshift(beam_2d), cropped_side))
+        else: # peak at the center
+            beam_2d = get_central(beam_2d, cropped_side)        
     if normalize:
         beam_2d /= beam_2d.sum()
         beam_2d *= u.beam
