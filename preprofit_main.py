@@ -46,10 +46,9 @@ tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
 conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
-# name for outputs
-name = 'preprofit'
-plotdir = './' # directory for the plots
-savedir = './' # directory for saved files
+# Input parameters
+R_b = 5000*u.kpc # Radial cluster extent, serves as upper bound for Compton y parameter integration
+t_const = 12*u.keV # constant value of temperature of the cluster, serves for Compton y to surface brightness conversion. If conversion is not required, preprofit ignores it
 
 # MCMC parameters
 nburn = 2000 # number of burn-in iterations
@@ -61,6 +60,11 @@ seed = None # random seed
 
 # Uncertainty level
 ci = 95
+
+# name for outputs
+name = 'preprofit'
+plotdir = './' # directory for the plots
+savedir = './' # directory for saved files
 
 ## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
@@ -94,10 +98,8 @@ name_pars = list(press.pars)
 #press.pars['P_0'].frozen = True
 press.pars['c'].frozen = True
 
-# Other parameters
+# Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
-R_b = 5000*u.kpc # Radial cluster extent, serves as upper bound for Compton y parameter integration
-t_const = 12*u.keV # constant value of temperature of the cluster, serves for Compton y to surface brightness conversion. If conversion is not required, preprofit ignores it
 
 # -------------------------------------------------------------------------------------------------------------------------------
 # Code
