@@ -131,7 +131,8 @@ def main():
     press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=False, cropped_side=None, normalize=True, 
+                                  fwhm_beam=fwhm_beam)
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
