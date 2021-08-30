@@ -39,6 +39,9 @@ tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer fun
 flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir # observed data
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
 
+# Temperature used for the conversion factor above
+t_const = 12*u.keV # If conversion is not required, preprofit ignores it
+
 # Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 beam_units = [u.arcsec, u.beam] # beam units
@@ -46,9 +49,8 @@ tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
 conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
-# Input parameters
-R_b = 5000*u.kpc # Radial cluster extent, serves as upper bound for Compton y parameter integration
-t_const = 12*u.keV # constant value of temperature of the cluster, serves for Compton y to surface brightness conversion. If conversion is not required, preprofit ignores it
+# Radial cluster extent
+R_b = 5000*u.kpc # Serves as upper bound for Compton y parameter integration
 
 # MCMC parameters
 nburn = 2000 # number of burn-in iterations
