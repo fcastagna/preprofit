@@ -62,12 +62,7 @@ seed = None # random seed
 # Uncertainty level
 ci = 95
 
-# Sampling step
-mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
-R_b = 5000*u.kpc # Radial cluster extent, serves as upper bound for Compton y parameter integration
-t_const = 12*u.keV # constant value of temperature of the cluster, serves for Compton y to surface brightness conversion. If conversion is not required, preprofit ignores it
-
-## Integrated Compton parameter option
+## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
 integ_mu = .94/1e3 # from Planck 
 integ_sig = .36/1e3 # from Planck
@@ -99,6 +94,10 @@ name_pars = list(press.pars)
 #press.pars['P_0'].frozen = True
 press.pars['c'].frozen = True
 
+# Other parameters
+mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
+R_b = 5000*u.kpc # Radial cluster extent, serves as upper bound for Compton y parameter integration
+t_const = 12*u.keV # constant value of temperature of the cluster, serves for Compton y to surface brightness conversion. If conversion is not required, preprofit ignores it
 
 # -------------------------------------------------------------------------------------------------------------------------------
 # Code
