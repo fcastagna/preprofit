@@ -99,7 +99,7 @@ press.pars['c'].frozen = True
 #press.pars['P_0'].maxval = 10.
 
 # To adopt a Gaussian prior:
-#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, unit=u.kpc)
+#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
 
 # Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
