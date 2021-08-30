@@ -63,7 +63,10 @@ class ParamGaussian(Param):
         Checks accordance with parameter's prior distribution
         -----------------------------------------------------
         '''
-        Param.prior(self)
+        if self.maxval is not None and self.val > self.maxval:
+            return -np.inf
+        if self.minval is not None and self.val < self.minval:
+            return -np.inf
         if self.prior_sigma == 0:
             return 0.
         return np.log(norm.pdf(self.val, self.prior_mu, self.prior_sigma))
