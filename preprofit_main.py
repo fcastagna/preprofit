@@ -83,18 +83,23 @@ press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
-# Parameters setup
+## Parameters setup
 name_pars = list(press.pars) # all parameters
+# To see the default parameter space extent, use: print(press.pars)
+
 # To exclude a parameter from the fit:
 #press.pars['P_0'].frozen = True
 press.pars['c'].frozen = True
-# To see the default parameter space extent, use: print(press.pars)
-# For each parameter, use the following to change the bounds of the prior distribution:
+
+# For each parameter, use the following to change the values of the prior distribution, either altogether...
+#press.pars['P_0'] = pfuncs.Param(val=1.5, minval=0.1, maxval=10., frozen=False, unit=u.Unit('mJy beam-1'))
+# ... or separately
 #press.pars['P_0'].val = 1.5
 #press.pars['P_0'].minval = 0.1
 #press.pars['P_0'].maxval = 10.
+
 # To adopt a Gaussian prior:
-#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50)
+#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, unit=u.kpc)
 
 # Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
