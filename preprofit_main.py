@@ -92,7 +92,7 @@ name_pars = list(press.pars) # all parameters
 press.pars['c'].frozen = True
 
 # For each parameter, use the following to change the values of the prior distribution, either altogether...
-#press.pars['P_0'] = pfuncs.Param(val=1.5, minval=0.1, maxval=10., frozen=False, unit=u.Unit('mJy beam-1'))
+#press.pars['P_0'] = pfuncs.Param(val=1.5, minval=0.1, maxval=10., frozen=False, unit=u.Unit('keV cm-3'))
 # ... or separately
 #press.pars['P_0'].val = 1.5
 #press.pars['P_0'].minval = 0.1
