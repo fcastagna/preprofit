@@ -13,7 +13,7 @@ import h5py
 
 ## Cluster cosmology
 H0 = 70 # Hubble constant at z=0
-Om0 = 0.3 # Omega matter (density of non-relativistic matter)
+Om0 = 0.3 # Omega matter
 z = 0.888 # redshift
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
@@ -83,15 +83,18 @@ press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
-# Parameters that we want to fit
-name_pars = list(press.pars)
-# To see the default parameter space extent, use: print(press.pars)
-# For each parameter, use the following to change the bounds of the prior distribution:
-#press.pars['P_0'].minval = 0.1
-#press.pars['P_0'].maxval = 10.
+# Parameters setup
+name_pars = list(press.pars) # all parameters
 # To exclude a parameter from the fit:
 #press.pars['P_0'].frozen = True
 press.pars['c'].frozen = True
+# To see the default parameter space extent, use: print(press.pars)
+# For each parameter, use the following to change the bounds of the prior distribution:
+#press.pars['P_0'].val = 1.5
+#press.pars['P_0'].minval = 0.1
+#press.pars['P_0'].maxval = 10.
+# To adopt a Gaussian prior:
+#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50)
 
 # Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
