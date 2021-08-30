@@ -63,7 +63,7 @@ class ParamGaussian(Param):
         Checks accordance with parameter's prior distribution
         -----------------------------------------------------
         '''
-        Param.prior()
+        Param.prior(self)
         if self.prior_sigma == 0:
             return 0.
         return np.log(norm.pdf(self.val, self.prior_mu, self.prior_sigma))
