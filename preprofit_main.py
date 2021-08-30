@@ -52,17 +52,6 @@ conv_units = [u.keV, u.Jy/u.beam] # conversion units
 # Radial cluster extent
 R_b = 5000*u.kpc # Serves as upper bound for Compton y parameter integration
 
-# MCMC parameters
-nburn = 2000 # number of burn-in iterations
-nlength = 5000 # number of chain iterations (after burn-in)
-nwalkers = 30 # number of random walkers
-nthreads = 8 # number of processes/threads
-nthin = 50 # thinning
-seed = None # random seed
-
-# Uncertainty level
-ci = 95
-
 # name for outputs
 name = 'preprofit'
 plotdir = './' # directory for the plots
@@ -102,6 +91,17 @@ press.pars['c'].frozen = True
 
 # Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
+
+# MCMC parameters
+nburn = 2000 # number of burn-in iterations
+nlength = 5000 # number of chain iterations (after burn-in)
+nwalkers = 30 # number of random walkers
+nthreads = 8 # number of processes/threads
+nthin = 50 # thinning
+seed = None # random seed
+
+# Uncertainty level
+ci = 68
 
 # -------------------------------------------------------------------------------------------------------------------------------
 # Code
