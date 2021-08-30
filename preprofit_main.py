@@ -62,19 +62,23 @@ calc_integ = False # apply or do not apply?
 integ_mu = .94/1e3 # from Planck 
 integ_sig = .36/1e3 # from Planck
 
-### Pressure modelization
-slope_prior = True # prior on the slope at large radii?
+## Prior on the pressure slope at large radii?
+slope_prior = True # apply or do not apply?
 r_out = 1e3*u.kpc # large radius for the slope prior
 max_slopeout = -2. # maximum value for the slope at r_out
-## Parametric model
-# Generalized Navarro Frenk and White
+
+### Pressure modelization
+# 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (cubic spline / power law interpolation)
+
+## Generalized Navarro Frenk and White
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-## Non parametric
-# Cubic spline
+
+## Cubic spline
 #knots = [5, 15, 30, 60]*u.arcsec*kpc_as
 #press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-# Power law interpolation
+
+## Power law interpolation
 #rbins = [5, 15, 30, 60]*u.arcsec*kpc_as
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
