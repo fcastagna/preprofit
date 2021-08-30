@@ -49,8 +49,8 @@ tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
 conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
-# Radial cluster extent
-R_b = 5000*u.kpc # Serves as upper bound for Compton y parameter integration
+# Maximum radius for line-of-sight Abel integration
+R_b = 5000*u.kpc
 
 # name for outputs
 name = 'preprofit'
