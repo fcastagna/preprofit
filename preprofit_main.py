@@ -63,9 +63,9 @@ integ_mu = .94/1e3 # from Planck
 integ_sig = .36/1e3 # from Planck
 
 ### Pressure modelization
-slope_prior = True # prior on the outer slope?
-r_out = 1e3*u.kpc # outer radius
-max_slopeout = -2. # outer slope constrain
+slope_prior = True # prior on the slope at large radii?
+r_out = 1e3*u.kpc # large radius for the slope prior
+max_slopeout = -2. # maximum value for the slope at r_out
 ## Parametric model
 # Generalized Navarro Frenk and White
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
