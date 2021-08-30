@@ -42,6 +42,32 @@ class Param:
             return -np.inf
         return 0.
 
+class ParamGaussian(Param):
+    '''
+    Class for Gaussian parameters
+    -----------------------------
+    prior_mu = prior center
+    prior_sigma = prior width
+    '''
+    def __init__(self, val, prior_mu, prior_sigma, frozen=False, minval=None, maxval=None):
+        Param.__init__(self, val, frozen=frozen, minval=minval, maxval=maxval)
+        self.prior_mu = prior_mu
+        self.prior_sigma = prior_sigma
+
+    def __repr__(self):
+        return '<ParamGaussian: val=%.3g, prior_mu=%.3g, prior_sigma=%.3g, frozen=%s, minval=%.3g, maxval=%.3g>' % (
+            self.val, self.prior_mu, self.prior_sigma, self.frozen, self.minval, self.maxval)
+
+    def prior(self):
+        '''
+        Checks accordance with parameter's prior distribution
+        -----------------------------------------------------
+        '''
+        Param.prior()
+        if self.prior_sigma == 0:
+            return 0.
+        return np.log(norm.pdf(self.val, self.prior_mu, self.prior_sigma))
+
 class Pressure:
     '''
     Class to parametrize the pressure profile
