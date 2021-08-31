@@ -361,8 +361,8 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
     units = units in astropy.units format
-    crop_image = whether to crop or not the original 2D image
-    cropped_side = side of the cropped image (in pixels)
+    crop_image = whether to crop or not the original 2D image (default is False)
+    cropped_side = side of the cropped image (in pixels, default is None)
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
