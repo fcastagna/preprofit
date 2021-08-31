@@ -22,17 +22,18 @@ kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc p
 # Beam file already includes transfer function?
 beam_and_tf = False
 
-# Beam and transfer function. From raw data or Gaussian approximation?
+# Beam and transfer function. From input data or Gaussian approximation?
 beam_approx = False
 tf_approx = False
 fwhm_beam = None # fwhm of the normal distribution for the beam approximation
-loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
+loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
 
 # Transfer function provenance (not the instrument, but the team who derived it)
 tf_source_team = 'NIKA' # alternatively, 'MUSTANG' or 'SPT'
 
 ## File names (FITS and ASCII formats are accepted)
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
+# NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
 files_dir = './data' # files directory
 beam_filename = '%s/Beam150GHz.fits' %files_dir # beam
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer function
@@ -40,7 +41,7 @@ flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir # observed data
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
 
 # Temperature used for the conversion factor above
-t_const = 12*u.keV # If conversion is not required, preprofit ignores it
+t_const = 12*u.keV # if conversion is not required, preprofit ignores it
 
 # Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
@@ -67,18 +68,18 @@ slope_prior = True # apply or do not apply?
 r_out = 1e3*u.kpc # large radius for the slope prior
 max_slopeout = -2. # maximum value for the slope at r_out
 
-### Pressure modelization
+## Pressure modelization
 # 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (cubic spline / power law interpolation)
 
-## Generalized Navarro Frenk and White
+# Generalized Navarro Frenk and White
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
-## Cubic spline
+# Cubic spline
 #knots = [5, 15, 30, 60]*u.arcsec*kpc_as
 #press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
-## Power law interpolation
+# Power law interpolation
 #rbins = [5, 15, 30, 60]*u.arcsec*kpc_as
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
