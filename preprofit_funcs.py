@@ -341,8 +341,8 @@ def read_beam(filename, ncol, units):
 
 def get_central(mat, side):
     '''
-    Get the central square of a matrix with given side
-    --------------------------------------------------
+    Get the central square of a matrix with given side. If side is even, automatically adopts the subsequent odd number
+    -------------------------------------------------------------------------------------------------------------------
     mat = 2D matrix
     side = side of the output matrix
     '''
