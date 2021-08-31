@@ -50,10 +50,14 @@ tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
 conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
+# Adopt a cropped version of the beam / beam + transfer function image?
+crop_image = False # adopt or do not adopt?
+cropped_side = 501 # side of the cropped image (automatically set to odd value)
+
 # Maximum radius for line-of-sight Abel integration
 R_b = 5000*u.kpc
 
-# name for outputs
+# Name for outputs
 name = 'preprofit'
 plotdir = './' # directory for the plots
 savedir = './' # directory for saved files
@@ -132,8 +136,8 @@ def main():
     press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=False, cropped_side=None, normalize=True, 
-                                  fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, cropped_side=cropped_side, 
+                                  normalize=True, fwhm_beam=fwhm_beam)
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
