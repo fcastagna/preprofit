@@ -4,6 +4,7 @@ from scipy.stats import norm
 from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy import constants as const
+import warnings
 from scipy import optimize
 from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
@@ -346,7 +347,7 @@ def get_central(mat, side):
     side = side of the output matrix
     '''
     if side is None or side > mat.shape[0]:
-        raise Exception('Side value is None or exceeds the original matrix side. The original matrix is returned')
+        warnings.warn("Side value is None or exceeds the original matrix side. The original matrix is returned", stacklevel=2)
         return mat
     centre = mat.shape[0]//2
     return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
