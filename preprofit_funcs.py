@@ -184,10 +184,10 @@ class Press_gNFW(Pressure):
         self.pars['b'].val = 5.4905
         self.pars['c'].val = .3081
         # Compute M500 from definition in terms of density and volume
-        M500 = (4/3*np.pi*cosmology.critical_density(z)*500*r500.to('cm')**3).to('Msun')
+        M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to('cm')**3).to('Msun')
         # Compute P500 according to the definition in Equation (5) from Arnaud's paper
-        hz = cosmology.H(z)/cosmology.H0
-        h70 = cosmology.H0/(70*cosmology.H0.unit)
+        hz = cosmo.H(z)/cosmo.H0
+        h70 = cosmo.H0/(70*cosmo.H0.unit)
         P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
         self.pars['P_0'].val = 8.403*h70**(-3/2)*P500
 
