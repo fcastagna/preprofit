@@ -179,7 +179,7 @@ class Press_gNFW(Pressure):
         z = redshift
         '''
         c500 = 1.177
-        self.pars['r_p'].val = r500/c500
+        self.pars['r_p'].val = r500.value/c500
         self.pars['a'].val = 1.051
         self.pars['b'].val = 5.4905
         self.pars['c'].val = .3081
@@ -189,7 +189,7 @@ class Press_gNFW(Pressure):
         hz = cosmo.H(z)/cosmo.H0
         h70 = cosmo.H0/(70*cosmo.H0.unit)
         P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
-        self.pars['P_0'].val = 8.403*h70**(-3/2)*P500
+        self.pars['P_0'].val = (8.403*h70**(-3/2)*P500).value
 
 class Press_cubspline(Pressure):
     '''
