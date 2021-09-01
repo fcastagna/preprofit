@@ -172,7 +172,7 @@ class Press_gNFW(Pressure):
 
     def apply_universal_profile(self, r500, cosmo, z):
         '''
-        Apply the set of parameters from the universal pressure profile defined in Arnaud et al. 10 with given r500 value
+        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
         -----------------------------------------------------------------------------------------------------------------
         r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
         cosmo = cosmology object
