@@ -170,6 +170,27 @@ class Press_gNFW(Pressure):
                 return -np.inf
         return 0.
 
+    def apply_universal_profile(self, r500, cosmo, z):
+        '''
+        Apply the set of parameters from the universal pressure profile defined in Arnaud et al. 10 with given r500 value
+        -----------------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+        cosmo = cosmology object
+        z = redshift
+        '''
+        c500 = 1.177
+        self.pars['r_p'].val = r500/c500
+        self.pars['a'].val = 1.051
+        self.pars['b'].val = 5.4905
+        self.pars['c'].val = .3081
+        # Compute M500 from definition in terms of density and volume
+        M500 = (4/3*np.pi*cosmology.critical_density(z)*500*r500.to('cm')**3).to('Msun')
+        # Compute P500 according to the definition in Equation (5) from Arnaud's paper
+        hz = cosmology.H(z)/cosmology.H0
+        h70 = cosmology.H0/(70*cosmology.H0.unit)
+        P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
+        self.pars['P_0'].val = 8.403*h70**(-3/2)*P500
+
 class Press_cubspline(Pressure):
     '''
     Class to parametrize the pressure profile with a cubic spline model
