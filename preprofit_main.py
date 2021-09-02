@@ -107,7 +107,7 @@ press.pars['c'].frozen = True
 #press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
 
 # To apply the set of paramters of the universal pressure profile defined in Arnaud et al. 2010 by specifying r500
-press.apply_universal_profile(r500=800*u.kpc, cosmo=cosmology, z=z)
+press.apply_universal_profile(r500=600*u.kpc, cosmo=cosmology, z=z)
 
 # Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
