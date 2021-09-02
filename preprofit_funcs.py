@@ -170,7 +170,7 @@ class Press_gNFW(Pressure):
                 return -np.inf
         return 0.
 
-    def apply_universal_profile(self, r500, cosmo, z):
+    def set_universal_params(self, r500, cosmo, z):
         '''
         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
         -----------------------------------------------------------------------------------------------------------------
@@ -246,7 +246,7 @@ class Press_cubspline(Pressure):
                 return -np.inf
         return 0.
 
-    def apply_universal_profile(self, r500, cosmo, z):
+    def set_universal_params(self, r500, cosmo, z):
         '''
         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
         -----------------------------------------------------------------------------------------------------------------
@@ -256,7 +256,7 @@ class Press_cubspline(Pressure):
         '''
         new_press = Press_gNFW()
         self.pars = new_press.defPars()
-        new_press.apply_universal_profile(r500=r500, cosmo=cosmo, z=z)
+        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
         p_params = new_press.press_fun(self.knots).value
         self.pars = self.defPars()
         for i in range(p_params.size):
@@ -320,7 +320,7 @@ class Press_nonparam_plaw(Pressure):
                 return -np.inf
         return 0.
     
-    def apply_universal_profile(self, r500, cosmo, z):
+    def set_universal_params(self, r500, cosmo, z):
         '''
         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
         -----------------------------------------------------------------------------------------------------------------
@@ -330,7 +330,7 @@ class Press_nonparam_plaw(Pressure):
         '''
         new_press = Press_gNFW()
         self.pars = new_press.defPars()
-        new_press.apply_universal_profile(r500=r500, cosmo=cosmo, z=z)
+        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
         p_params = new_press.press_fun(self.rbins).value
         self.pars = self.defPars()
         for i in range(p_params.size):
