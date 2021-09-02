@@ -257,7 +257,8 @@ class Press_cubspline(Pressure):
         new_press = Press_gNFW(slope_prior=self.slope_prior, r_out=self.r_out, max_slopeout=self.max_slopeout)
         self.pars = new_press.defPars()
         new_press.apply_universal_profile(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.knots)
+        p_params = new_press.press_fun(self.knots).value
+        self.pars = self.defPars()
         for i in range(p_params.size):
             self.pars['P_'+str(i)].val = p_params[i]
         
