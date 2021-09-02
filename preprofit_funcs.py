@@ -319,7 +319,23 @@ class Press_nonparam_plaw(Pressure):
             if slope_out > self.max_slopeout:
                 return -np.inf
         return 0.
-
+    
+    def apply_universal_profile(self, r500, cosmo, z):
+        '''
+        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+        -----------------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+        cosmo = cosmology object
+        z = redshift
+        '''
+        new_press = Press_gNFW(slope_prior=self.slope_prior, r_out=self.r_out, max_slopeout=self.max_slopeout)
+        self.pars = new_press.defPars()
+        new_press.apply_universal_profile(r500=r500, cosmo=cosmo, z=z)
+        p_params = new_press.press_fun(self.knots).value
+        self.pars = self.defPars()
+        for i in range(p_params.size):
+            self.pars['P_'+str(i)].val = p_params[i]
+            
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
