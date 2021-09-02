@@ -254,7 +254,7 @@ class Press_cubspline(Pressure):
         cosmo = cosmology object
         z = redshift
         '''
-        new_press = Press_gNFW(slope_prior=self.slope_prior, r_out=self.r_out, max_slopeout=self.max_slopeout)
+        new_press = Press_gNFW()
         self.pars = new_press.defPars()
         new_press.apply_universal_profile(r500=r500, cosmo=cosmo, z=z)
         p_params = new_press.press_fun(self.knots).value
@@ -328,7 +328,7 @@ class Press_nonparam_plaw(Pressure):
         cosmo = cosmology object
         z = redshift
         '''
-        new_press = Press_gNFW(slope_prior=self.slope_prior, r_out=self.r_out, max_slopeout=self.max_slopeout)
+        new_press = Press_gNFW()
         self.pars = new_press.defPars()
         new_press.apply_universal_profile(r500=r500, cosmo=cosmo, z=z)
         p_params = new_press.press_fun(self.knots).value
