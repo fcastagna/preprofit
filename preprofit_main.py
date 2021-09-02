@@ -50,7 +50,7 @@ tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
 conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
-# Adopt a cropped version of the beam / beam + transfer function image?
+# Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
 crop_image = False # adopt or do not adopt?
 cropped_side = 501 # side of the cropped image (automatically set to odd value)
 
@@ -96,6 +96,11 @@ name_pars = list(press.pars) # all parameters
 #press.pars['P_0'].frozen = True
 press.pars['c'].frozen = True
 
+# As a starting guess, you can set a rough r500 value and apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
+# NOTE: this option is available for both parametric and non parametric pressure models
+press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
+
+# Otherwise, you can customize your set of parameters
 # For each parameter, use the following to change the values of the prior distribution, either altogether...
 #press.pars['P_0'] = pfuncs.Param(val=1.5, minval=0.1, maxval=10., frozen=False, unit=u.Unit('keV cm-3'))
 # ... or separately
@@ -105,9 +110,6 @@ press.pars['c'].frozen = True
 
 # To adopt a Gaussian prior:
 #press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
-
-# To apply the set of paramters of the universal pressure profile defined in Arnaud et al. 2010 by specifying r500
-press.apply_universal_profile(r500=600*u.kpc, cosmo=cosmology, z=z)
 
 # Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
