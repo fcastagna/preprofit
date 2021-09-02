@@ -331,7 +331,7 @@ class Press_nonparam_plaw(Pressure):
         new_press = Press_gNFW()
         self.pars = new_press.defPars()
         new_press.apply_universal_profile(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.knots).value
+        p_params = new_press.press_fun(self.rbins).value
         self.pars = self.defPars()
         for i in range(p_params.size):
             self.pars['P_'+str(i)].val = p_params[i]
