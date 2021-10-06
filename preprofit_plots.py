@@ -15,10 +15,10 @@ def plot_guess(out_prof, sz,  plotdir='./'):
     sz = class of SZ data
     plotdir = directory where to place the plot
     '''
-    if out_prof[1] == None: raise RuntimeError('The starting paramaters you adopted are not in agreement with prior constraints. Please fix them and retry')
+    # if out_prof[1] == None: raise RuntimeError('The starting paramaters you adopted are not in agreement with prior constraints. Please fix them and retry')
     plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
-    plt.plot(sz.radius[sz.sep:], out_prof, color='r', label='Best-fit')
+    plt.plot(sz.radius[sz.sep:], out_prof[0,:], color='r', label='Best-fit')
     plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
     plt.legend()
     plt.xlabel('Radius ('+str(sz.flux_data[0].unit)+')')
@@ -164,7 +164,7 @@ def press_prof(cube_chain, press, r_kpc, num='all', seed=None, ci=95):
     press_prof = []
     for j in rand:
         press.update_vals(press.fit_pars, cube_chain[w[j],it[j],:])
-        press_prof.append(press.press_fun(r_kpc))
+        press_prof.append(press.press_fun(r_kpc, [press.pars[x].val for x in press.fit_pars])[0])
     perc_press = get_equal_tailed(press_prof, ci)
     return perc_press
 
