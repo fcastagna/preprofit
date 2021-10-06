@@ -606,6 +606,7 @@ class SZ_data:
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
+    r_am = radius in arcmin used for the optional integrated Compton parameter calculation
     d_mat = matrix of distances in kpc centered on 0 with given step
     filtering = transfer function matrix
     abel_data = collection of data required for Abel transform calculation
@@ -613,7 +614,7 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.kpc_as = kpc_as
         self.conv_temp_sb = conv_temp_sb
@@ -621,6 +622,7 @@ class SZ_data:
         self.radius = radius
         self.sep = sep
         self.r_pp = r_pp
+        self.r_am = r_am
         self.dist = distances(radius, kpc_as, sep, step)
         self.filtering = filtering
         self.abel_data = abel_data
@@ -672,9 +674,9 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Log-likelihood calculation
     chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2)
     log_lik = -chisq/2
+    # Optional integrated Compton parameter calculation
     if sz.calc_integ:
-        x = np.arange(0., (sz.r_pp[-1]/sz.kpc_as+sz.step).to('arcmin').value, sz.step.to('arcmin').value)*u.arcmin
-        cint = simps(np.concatenate((f(0.), y), axis=None)*x, x)*2*np.pi
+        cint = simps(np.concatenate((f(0.), y), axis=None)*sz.r_am, sz.r_am)*2*np.pi
         new_chi = np.nansum(((cint-sz.integ_mu)/sz.integ_sig)**2)
         log_lik -= new_chi/2
         if output == 'integ':
