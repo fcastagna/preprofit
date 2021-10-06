@@ -49,7 +49,7 @@ class ParamGaussian(Param):
     prior_mu = prior center
     prior_sigma = prior width
     '''
-    def __init__(self, val, prior_mu, prior_sigma, frozen=False, minval=None, maxval=None, unit=u.Unit('')):
+    def __init__(self, val, prior_mu, prior_sigma, frozen=False, minval=-1e99, maxval=1e99, unit=u.Unit('')):
         Param.__init__(self, val, frozen=frozen, minval=minval, maxval=maxval, unit=unit)
         self.prior_mu = prior_mu
         self.prior_sigma = prior_sigma
