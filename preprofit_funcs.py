@@ -4,6 +4,7 @@ from scipy.stats import norm
 from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy import constants as const
+import warnings
 from scipy import optimize
 from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
@@ -41,6 +42,35 @@ class Param:
         if self.val < self.minval or self.val > self.maxval:
             return -np.inf
         return 0.
+
+class ParamGaussian(Param):
+    '''
+    Class for Gaussian parameters
+    -----------------------------
+    prior_mu = prior center
+    prior_sigma = prior width
+    '''
+    def __init__(self, val, prior_mu, prior_sigma, frozen=False, minval=None, maxval=None, unit=u.Unit('')):
+        Param.__init__(self, val, frozen=frozen, minval=minval, maxval=maxval, unit=unit)
+        self.prior_mu = prior_mu
+        self.prior_sigma = prior_sigma
+
+    def __repr__(self):
+        return '<ParamGaussian: val=%.3g, prior_mu=%.3g, prior_sigma=%.3g, frozen=%s, minval=%.3g, maxval=%.3g>' % (
+            self.val, self.prior_mu, self.prior_sigma, self.frozen, self.minval, self.maxval)
+
+    def prior(self):
+        '''
+        Checks accordance with parameter's prior distribution
+        -----------------------------------------------------
+        '''
+        if self.maxval is not None and self.val > self.maxval:
+            return -np.inf
+        if self.minval is not None and self.val < self.minval:
+            return -np.inf
+        if self.prior_sigma == 0:
+            return 0.
+        return np.log(norm.pdf(self.val, self.prior_mu, self.prior_sigma))
 
 class Pressure:
     '''
