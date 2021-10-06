@@ -4,7 +4,6 @@ from scipy.stats import norm
 from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy import constants as const
-import warnings
 from scipy import optimize
 from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
@@ -12,7 +11,7 @@ from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
-from itertools import chain
+from operator import or_
 
 class Param:
     '''
@@ -43,35 +42,6 @@ class Param:
             return -np.inf
         return 0.
 
-class ParamGaussian(Param):
-    '''
-    Class for Gaussian parameters
-    -----------------------------
-    prior_mu = prior center
-    prior_sigma = prior width
-    '''
-    def __init__(self, val, prior_mu, prior_sigma, frozen=False, minval=None, maxval=None, unit=u.Unit('')):
-        Param.__init__(self, val, frozen=frozen, minval=minval, maxval=maxval, unit=unit)
-        self.prior_mu = prior_mu
-        self.prior_sigma = prior_sigma
-
-    def __repr__(self):
-        return '<ParamGaussian: val=%.3g, prior_mu=%.3g, prior_sigma=%.3g, frozen=%s, minval=%.3g, maxval=%.3g>' % (
-            self.val, self.prior_mu, self.prior_sigma, self.frozen, self.minval, self.maxval)
-
-    def prior(self):
-        '''
-        Checks accordance with parameter's prior distribution
-        -----------------------------------------------------
-        '''
-        if self.maxval is not None and self.val > self.maxval:
-            return -np.inf
-        if self.minval is not None and self.val < self.minval:
-            return -np.inf
-        if self.prior_sigma == 0:
-            return 0.
-        return np.log(norm.pdf(self.val, self.prior_mu, self.prior_sigma))
-
 class Pressure:
     '''
     Class to parametrize the pressure profile
@@ -101,13 +71,13 @@ class Pressure:
         for name, i in zip(fit_pars, range(len(fit_pars))):
             self.pars[name].val = pars_val[i] 
 
-    def press_fun(self, r_kpc):
+    def press_fun(self, r_kpc, pars):
         '''
         Compute the gNFW pressure profile
         ---------------------------------
         r_kpc = radius (kpc)
         '''
-        return self.functional_form(r_kpc)
+        return self.functional_form(r_kpc, pars)
 
     def prior(self):
         return 0.
@@ -146,50 +116,39 @@ class Press_gNFW(Pressure):
         })
         return self.pars
 
-    def functional_form(self, r_kpc, logder=False):
+    # def functional_form(self, mypars, r_kpc, logder=False):
+    def functional_form(self, r_kpc, pars, logder=False):
         '''
         Functional form expression for pressure calculation
         ---------------------------------------------------
         r_kpc = radius (kpc)
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
-        ped, P_0, a, b, c, r_p = [self.pars[x].val*self.pars[x].unit for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
+        # ped, P_0, a, b, c, r_p = mypars
+        # if logder == False:
+        #     return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
+        # else:
+        #     return (b-c)/(1+(r_kpc/r_p)**a)-b
+        # ped, P_0, a, b, c, r_p = [self.pars[x].val*self.pars[x].unit for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
-            return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
+            return ((pars*np.array([0,1,0,0,0])).sum(axis=-1)/(np.outer(r_kpc.value, 1/(pars*np.array([0,0,0,0,1])).sum(axis=-1))**0.014*(1+np.outer(r_kpc.value, 1/(pars*np.array([0,0,0,0,1])).sum(axis=-1))**(pars*np.array([0,0,1,0,0])).sum(axis=-1))**(((pars*np.array([0,0,0,1,0])).sum(axis=-1)-.014*u.Unit(''))/(pars*np.array([0,0,1,0,0])).sum(axis=-1)))).T*u.Unit('keV/cm3')
+            # return pars[1]/((r_kpc.value/pars[-1])**pars[-2]*(1+(r_kpc.value/pars[-1])**pars[2])**((pars[3]-.014*u.Unit(''))/pars[2]))*u.Unit('keV/cm3')
+            # return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
         else:
-            return (b-c)/(1+(r_kpc/r_p)**a)-b
+            return (np.array([np.array(pars), -.014], dtype='O').sum()*np.array([0,0,0,1,0])).sum(axis=-1)/(1+(r_kpc.value/(pars*np.array([0,0,0,0,1])).sum(axis=-1))**(pars*np.array([0,0,1,0,0])).sum(axis=-1))-(pars*np.array([0,0,0,1,0])).sum(axis=-1)
+            # return (b-c)/(1+(r_kpc/r_p)**a)-b
 
-    def prior(self):
+    def prior(self, pars):
         '''
         Checks accordance with prior constrains
         ---------------------------------------
         '''
         if self.slope_prior == True:
-            slope_out = self.functional_form(self.r_out, logder=True)
-            if slope_out > self.max_slopeout:
-                return -np.inf
-        return 0.
-
-    def set_universal_params(self, r500, cosmo, z):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        c500 = 1.177
-        self.pars['r_p'].val = r500.value/c500
-        self.pars['a'].val = 1.051
-        self.pars['b'].val = 5.4905
-        self.pars['c'].val = .3081
-        # Compute M500 from definition in terms of density and volume
-        M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to('cm')**3).to('Msun')
-        # Compute P500 according to the definition in Equation (5) from Arnaud's paper
-        hz = cosmo.H(z)/cosmo.H0
-        h70 = cosmo.H0/(70*cosmo.H0.unit)
-        P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
-        self.pars['P_0'].val = (8.403*h70**(-3/2)*P500).value
+            slope_out = self.functional_form(self.r_out, pars, logder=True)
+            return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+        #     if slope_out > self.max_slopeout:
+        #         return -np.inf
+        # return 0.
 
 class Press_cubspline(Pressure):
     '''
@@ -246,22 +205,6 @@ class Press_cubspline(Pressure):
                 return -np.inf
         return 0.
 
-    def set_universal_params(self, r500, cosmo, z):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        new_press = Press_gNFW()
-        self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.knots).value
-        self.pars = self.defPars()
-        for i in range(p_params.size):
-            self.pars['P_'+str(i)].val = p_params[i]
-        
 class Press_nonparam_plaw(Pressure):
     '''
     Class to parametrize the pressure profile with a non parametric power-law model
@@ -319,23 +262,7 @@ class Press_nonparam_plaw(Pressure):
             if slope_out > self.max_slopeout:
                 return -np.inf
         return 0.
-    
-    def set_universal_params(self, r500, cosmo, z):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        new_press = Press_gNFW()
-        self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.rbins).value
-        self.pars = self.defPars()
-        for i in range(p_params.size):
-            self.pars['P_'+str(i)].val = p_params[i]
-            
+
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
@@ -392,20 +319,7 @@ def read_beam(filename, ncol, units):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def get_central(mat, side):
-    '''
-    Get the central square of a matrix with given side. If side is even, automatically adopts the subsequent odd number
-    -------------------------------------------------------------------------------------------------------------------
-    mat = 2D matrix
-    side = side of the output matrix
-    '''
-    if side is None or side > mat.shape[0]:
-        warnings.warn("Side value is None or exceeds the original matrix side. The original matrix is returned", stacklevel=2)
-        return mat
-    centre = mat.shape[0]//2
-    return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
-
-def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
@@ -414,8 +328,6 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
     units = units in astropy.units format
-    crop_image = whether to crop or not the original 2D image (default is False)
-    cropped_side = side of the cropped image (in pixels, default is None)
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
@@ -443,20 +355,15 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             beam_2d = b.copy()
             # If matrix dimensions are even, turn them odd
             if beam_2d.shape[0]%2 == 0:
-                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape) # get index of maximum value
+                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape)
                 if posmax == (0, 0):
                     beam_2d = ifftshift(fftshift(beam_2d)[1:,1:])
-                elif posmax == (beam_2d.shape[0]/2, beam_2d.shape[0]/2):
+                elif posmax == (beam_mat[0]/2, beam_mat[0]/2):
                     beam_2d = beam_2d[1:,1:]
-                elif posmax == (beam_2d.shape[0]/2-1, beam_2d.shape[0]/2-1):
+                elif posmax == (beam_mat[0]/2-1, beam_mat[0]/2-1):
                     beam_2d = beam_2d[:-1,:-1]
                 else:
                     raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
-    if crop_image:
-        if beam_2d[0,0] > beam_2d[beam_2d.shape[0]//2, beam_2d.shape[0]//2]: # peak at the corner
-            beam_2d = ifftshift(get_central(fftshift(beam_2d), cropped_side))
-        else: # peak at the center
-            beam_2d = get_central(beam_2d, cropped_side)        
     if normalize:
         beam_2d /= beam_2d.sum()
         beam_2d *= u.beam
@@ -544,8 +451,8 @@ class abel_data:
         else:
             ratio = r[1:]/r[:-1]
         self.acr = np.arccosh(ratio)
-        self.corr = np.c_[np.diag(self.I_isqrt), np.diag(self.I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
-    
+        # self.corr = np.repeat(np.c_[np.diag(self.I_isqrt), np.diag(self.I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))][np.newaxis,:,:], 30, axis=0)
+            
 def calc_abel(fr, r, abel_data):
     '''
     Calculation of the integral used in Abel transform. Adapted from PyAbel
@@ -554,13 +461,14 @@ def calc_abel(fr, r, abel_data):
     r = array of radii
     abel_data = collection of data required for Abel transform calculation
     '''
-    f = fr*2*r    
-    P = f*abel_data.I_isqrt  # set up the integral
-    out = np.trapz(P, axis=1, dx=abel_data.dx)  # take the integral
-    abel_data.corr[:,1] = np.append(P[abel_data.mask2][1::2], 0)
-    out = out-0.5*np.trapz(abel_data.corr[:,:2], dx=abel_data.dx, axis=1)*abel_data.corr[:,-1] # correct for the extra triangle at the start of the integral
-    f_r = (f[1:]-f[:-1])/np.diff(r)
-    out[:-1] += abel_data.isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
+    f = fr*2*r
+    P = np.array(list(map(lambda x: x*abel_data.I_isqrt, f))) # set up the integral
+    out = np.trapz(P, axis=2, dx=abel_data.dx)  # take the integral
+    # abel_data.corr[:,:,1] = np.array(list(map(lambda x: np.append(x[abel_data.mask2][1::2], 0), P)))
+    corr = np.array(list(map(lambda x: np.c_[np.zeros(r.size), np.append(x[abel_data.mask2][1::2], 0), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))], P))) # build up correction factors
+    out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data.dx, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
+    f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
+    out[:,:-1] += np.array([abel_data.isqrt*f_r, abel_data.acr*(f[:,:-1]-f_r*r[:-1])]).sum(axis=0)
     return out
     
 class distances:
@@ -574,7 +482,7 @@ class distances:
     '''
     def __init__(self, radius, kpc_as, sep, step):
         self.d_mat = centdistmat(radius*kpc_as) # matrix of distances (radially symmetric)
-        self.im2d = np.zeros((self.d_mat.shape)) # empty matrix for the output
+        # self.im2d = np.zeros(self.d_mat.shape)#np.append(1, self.d_mat.shape)) # empty matrix for the output
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
         self.labels = np.rint(self.d_mat/kpc_as/step).astype(int) # labels indicating different annuli within the matrix of distances
@@ -606,7 +514,6 @@ class SZ_data:
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
-    r_am = radius in arcmin used for the optional integrated Compton parameter calculation
     d_mat = matrix of distances in kpc centered on 0 with given step
     filtering = transfer function matrix
     abel_data = collection of data required for Abel transform calculation
@@ -647,42 +554,62 @@ def log_lik(pars_val, press, sz, output='ll'):
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
     # update pars
-    press.update_vals(press.fit_pars, pars_val)
+    parsprior = or_(np.array(pars_val)<=press.min_val, np.array(pars_val)>=press.max_val).sum(axis=-1)
+    parsprior = np.nansum(np.array([np.repeat(0, parsprior.size), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+    pressprior = press.prior(pars_val)
+    parprior = np.sum([parsprior, pressprior], axis=0)
+    mask = np.isinf(np.float64(parprior))
+    if mask.size == 1 and mask.sum() == 1:
+        return np.concatenate((np.atleast_2d(parprior).T, [[None]]), axis=-1)
+    # press.update_vals(press.fit_pars, pars_val)
+    # press = np.array(list(map(lambda x: press.update_vals(press.fit_pars, x), pars_val)))
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
-    parprior = sum((press.pars[p].prior() for p in press.pars), press.prior())
-    if not np.isfinite(parprior):
-        return -np.inf, None
+    # parprior = sum(map(lambda x: press.pars[x].prior(), press.fit_pars))#+press.prior(pars_val)
+    # parprior = np.sum([press.pars[p].prior() for p in press.pars])+press.prior()
+    # parprior = sum((press.pars[p].prior() for p in press.pars), press.prior(pars_val))
+    # if not np.isfinite(parprior):
+        # return -np.inf#, None
     # pressure profile
-    pp = press.press_fun(r_kpc=sz.r_pp)
+    pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[~mask])
     if output == 'pp':
         return pp
     # abel transform
     ab = calc_abel(pp.value, r=sz.r_pp.value, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
-    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
+    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    f_arr = f(sz.dist.d_arr)
-    y_2d = interp_mat(sz.dist.im2d, sz.dist.indices, f_arr, sz.sep)*u.Unit('')
+    y_2d = f(sz.dist.d_mat)
+    # Older version
+    # f_arr = f(sz.dist.d_arr)
+    # sz.dist.im2d = np.zeros(np.append(pp.shape[0], sz.dist.d_mat.shape))
+    # y_2d = np.array(list(map(lambda x, y: interp_mat(x, sz.dist.indices, y, sz.sep), sz.dist.im2d, f_arr)))*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
+    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (mean(map_out, labels=sz.dist.labels, index=np.arange(sz.sep+1))*sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*press.pars['pedestal'].unit
+    map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
+    map_prof = map_prof+np.expand_dims((pars_val*np.array([1,0,0,0,0])).sum(axis=-1)*press.pars['pedestal'].unit, axis=-1)[~mask]
     if output == 'bright':
         return map_prof
-    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
+    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     # Log-likelihood calculation
-    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2)
+    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
     log_lik = -chisq/2
-    # Optional integrated Compton parameter calculation
     if sz.calc_integ:
-        cint = simps(np.concatenate((f(0.), y), axis=None)*sz.r_am, sz.r_am)*2*np.pi
-        new_chi = np.nansum(((cint-sz.integ_mu)/sz.integ_sig)**2)
+        #x = np.arange(0., (sz.r_pp[-1]/sz.kpc_as+sz.step).to('arcmin').value, sz.step.to('arcmin').value)*u.arcmin
+        cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
+        new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
         log_lik -= new_chi/2
         if output == 'integ':
             return cint.value
     if output == 'll':
-        return log_lik.value, map_prof.value
+        if mask.sum() > 0:
+            parprior[~mask] = log_lik.value
+            newmap_prof = np.repeat(np.inf, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
+            newmap_prof[~mask] = map_prof.value
+            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)#, axis=None)#+1)*log_lik.value#, map_prof.value
+        else:
+            return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
     elif output == 'chisq':
         return chisq.value
     else:
@@ -702,18 +629,18 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     ctr = [0]
     def minfunc(prs):
         try:
-            like = sampler.log_prob_fn(prs)[0]
+            like = sampler.log_prob_fn(prs)[0][0]
         except:
-            like = sampler.lnprobfn(prs)[0]
+            like = sampler.lnprobfn(prs)[0][0]
         if ctr[0] % 1000 == 0 and not silent:
             print('%10i %10.1f' % (ctr[0], like))
         ctr[0] += 1
         return -like
     thawedpars = [pars[name].val for name in fit_pars]
     try:
-        lastlike = sampler.log_prob_fn(thawedpars)[0]
+        lastlike = sampler.log_prob_fn(thawedpars)[0][0]
     except:
-        lastlike = sampler.lnprobfn(thawedpars)[0]
+        lastlike = sampler.lnprobfn(thawedpars)[0][0]
     fpars = thawedpars
     for i in range(maxiter):
         fitpars = minimize(minfunc, fpars, method='Nelder-Mead')
@@ -777,7 +704,7 @@ class MCMC:
                 _ += 1
                 np.random.seed(self.seed*_)
             p = thawedpars+np.random.normal(0, self.initspread, size=len(self.fit_pars))
-            if np.isfinite(lfun(p)[0]):
+            if np.isfinite(lfun(p)[0][0]):
                 p0.append(p)
         return p0
 
@@ -801,9 +728,9 @@ class MCMC:
             bestfit = None
             starting_guess = [self.pars[name].val for name in self.fit_pars]
             try:
-                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[0]
+                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[0][0]
             except:
-                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[0]
+                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[0][0]
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
             try:
@@ -880,8 +807,7 @@ class MCMC:
             f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
             # output chain + surface brightness
             f.create_dataset('chain', data=self.sampler.chain.astype(np.float32), compression=True, shuffle=True)
-            cube_blobs = np.array([list(chain.from_iterable(x)) for x in zip(*self.sampler.blobs)])
-            f.create_dataset('bright', data=cube_blobs, compression=True, shuffle=True)
+            f.create_dataset('bright', data=self.sampler.blobs.astype(np.float32), compression=True, shuffle=True)
             # likelihoods for each walker, iteration
             f.create_dataset('likelihood', data=self.sampler.lnprobability.astype(np.float32), compression=True, shuffle=True)
             # acceptance fraction
@@ -915,7 +841,7 @@ def print_summary(press, pmed, pstd, sz):
               ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e'))+
               ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
     print('-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0))+
-          '\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(pmed, press, sz, output='chisq')), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
+          '\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(pmed, press, sz, output='chisq')[0]), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
 
 def save_summary(filename, press, pmed, pstd, ci):
     '''
@@ -943,7 +869,7 @@ def get_outer_slope(flatchain, press, r_out):
     for j in range(slopes.size):
         press.update_vals(press.fit_pars, flatchain[j])
         try:
-            slopes[j] = press.functional_form(r_out, logder=True)
+            slopes[j] = press.functional_form(r_out, [press.pars[x].val for x in press.fit_pars], logder=True)
         except:
             i = len(press.rbins)
             slopes[j] = np.log(press.pars['P_'+str(i-1)].val/press.pars['P_'+str(i-2)].val)/np.log(press.rbins[i-1]/press.rbins[i-2])
