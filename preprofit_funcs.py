@@ -210,9 +210,9 @@ class Press_cubspline(Pressure):
         x = self.knots.to('kpc')
         f = interp1d(np.log10(x.value), np.log10(p_params).T, kind='cubic', fill_value='extrapolate')
         if logder == False:
-            return 10**f(np.log10(r_kpc.value))*self.pars['P_0'].unit
+            return np.atleast_2d(10**f(np.log10(r_kpc.value))).T*self.pars['P_0'].unit
         else:
-            return f._spline.derivative()(np.log10(r_kpc.value)).flatten()*u.Unit('')
+            return np.atleast_2d(f._spline.derivative()(np.log10(r_kpc.value))).T*u.Unit('')
 
     def prior(self, pars):
         '''
