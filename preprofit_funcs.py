@@ -31,8 +31,7 @@ class Param:
         self.unit = unit
 
     def __repr__(self):
-        return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, unit=%s, frozen=%s>' % (
-            self.val, self.minval, self.maxval, self.unit, self.frozen)
+        return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, unit=%s, frozen=%s>' % (self.val, self.minval, self.maxval, self.unit, self.frozen)
 
     def prior(self):
         '''
