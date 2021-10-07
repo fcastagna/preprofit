@@ -55,7 +55,8 @@ class ParamGaussian(Param):
         self.prior_sigma = prior_sigma
 
     def __repr__(self):
-        return '<ParamGaussian: val=%.3g, prior_mu=%.3g, prior_sigma=%.3g, frozen=%s>' % (self.val, self.prior_mu, self.prior_sigma, self.frozen)
+        return '<ParamGaussian: val=%.3g, prior_mu=%.3g, prior_sigma=%.3g, frozen=%s>' % (
+            self.val, self.prior_mu, self.prior_sigma, self.frozen)
 
     def prior(self):
         '''
