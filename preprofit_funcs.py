@@ -144,22 +144,17 @@ class Press_gNFW(Pressure):
         })
         return self.pars
 
-    # def functional_form(self, mypars, r_kpc, logder=False):
     def functional_form(self, r_kpc, pars, logder=False):
         '''
         Functional form expression for pressure calculation
         ---------------------------------------------------
         r_kpc = radius (kpc)
+        pars = set of pressure parameters
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
-        # ped, P_0, a, b, c, r_p = mypars
-        # if logder == False:
-        #     return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
-        # else:
-        #     return (b-c)/(1+(r_kpc/r_p)**a)-b
-        # ped, P_0, a, b, c, r_p = [self.pars[x].val*self.pars[x].unit for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
+        P_0, a, b, c, r_p = [(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
-            return ((pars*np.array([0,1,0,0,0])).sum(axis=-1)/(np.outer(r_kpc.value, 1/(pars*np.array([0,0,0,0,1])).sum(axis=-1))**0.014*(1+np.outer(r_kpc.value, 1/(pars*np.array([0,0,0,0,1])).sum(axis=-1))**(pars*np.array([0,0,1,0,0])).sum(axis=-1))**(((pars*np.array([0,0,0,1,0])).sum(axis=-1)-.014*u.Unit(''))/(pars*np.array([0,0,1,0,0])).sum(axis=-1)))).T*u.Unit('keV/cm3')
+            return (P_0/(np.outer(r_kpc.value, 1/r_p)**c*(1+np.outer(r_kpc.value, 1/r_p)**a)**((b-c)/a))).T*u.Unit('keV/cm3')
             # return pars[1]/((r_kpc.value/pars[-1])**pars[-2]*(1+(r_kpc.value/pars[-1])**pars[2])**((pars[3]-.014*u.Unit(''))/pars[2]))*u.Unit('keV/cm3')
             # return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
         else:
