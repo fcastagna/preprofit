@@ -152,26 +152,21 @@ class Press_gNFW(Pressure):
         pars = set of pressure parameters
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
-        P_0, a, b, c, r_p = [(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_0', 'a', 'b', 'c', 'r_p']]
+        P_0, a, b, c, r_p = [((pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val)*self.pars[x].unit for x in ['P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
-            return (P_0/(np.outer(r_kpc.value, 1/r_p)**c*(1+np.outer(r_kpc.value, 1/r_p)**a)**((b-c)/a))).T*u.Unit('keV/cm3')
-            # return pars[1]/((r_kpc.value/pars[-1])**pars[-2]*(1+(r_kpc.value/pars[-1])**pars[2])**((pars[3]-.014*u.Unit(''))/pars[2]))*u.Unit('keV/cm3')
-            # return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
+            return (P_0/(np.outer(r_kpc, 1/r_p)**c*(1+np.outer(r_kpc, 1/r_p)**a)**((b-c)/a))).T
         else:
-            return (np.array([np.array(pars), -.014], dtype='O').sum()*np.array([0,0,0,1,0])).sum(axis=-1)/(1+(r_kpc.value/(pars*np.array([0,0,0,0,1])).sum(axis=-1))**(pars*np.array([0,0,1,0,0])).sum(axis=-1))-(pars*np.array([0,0,0,1,0])).sum(axis=-1)
-            # return (b-c)/(1+(r_kpc/r_p)**a)-b
+            return (b-c)/(1+(r_kpc/r_p)**a)-b
 
     def prior(self, pars):
         '''
         Checks accordance with prior constrains
         ---------------------------------------
+        pars = set of pressure parameters
         '''
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
-        #     if slope_out > self.max_slopeout:
-        #         return -np.inf
-        # return 0.
 
 class Press_cubspline(Pressure):
     '''
@@ -202,28 +197,30 @@ class Press_cubspline(Pressure):
             self.pars.update({'P_'+str(i): Param(self.pr_knots[i].value, minval=0., maxval=1., unit=self.pr_knots.unit)})
         return self.pars
 
-    def functional_form(self, r_kpc, logder=False):
+    def functional_form(self, r_kpc, pars, logder=False):
         '''
         Functional form expression for pressure calculation
         ---------------------------------------------------
         r_kpc = radius (kpc)
+        pars = set of pressure parameters
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
-        p_params = [self.pars[x].val for x in ['P_'+str(x) for x in range(self.knots.size)]]
+        p_params = [(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_'+str(i) for i in range(self.knots.size)]]
         x = self.knots.to('kpc')
-        f = interp1d(np.log10(x.value), np.log10(p_params), kind='cubic', fill_value='extrapolate')
+        f = interp1d(np.log10(x.value), np.log10(p_params).T, kind='cubic', fill_value='extrapolate')
         if logder == False:
             return 10**f(np.log10(r_kpc.value))*self.pars['P_0'].unit
         else:
             return f._spline.derivative()(np.log10(r_kpc.value)).flatten()*u.Unit('')
 
-    def prior(self):
+    def prior(self, pars):
         '''
         Checks accordance with prior constrains
         ---------------------------------------
+        pars = set of pressure parameters
         '''
         if self.slope_prior == True:
-            slope_out = self.functional_form(self.r_out, logder=True)
+            slope_out = self.functional_form(self.r_out, pars, logder=True)
             if slope_out > self.max_slopeout:
                 return -np.inf
         return 0.
