@@ -113,6 +113,9 @@ def main():
     press.max_val = [press.pars[name].maxval for name in press.fit_pars]
     press.min_val = [press.pars[name].minval for name in press.fit_pars]
     ndim = len(press.fit_pars)
+    press.indexes = {
+    'ind_'+x: np.array(press.fit_pars)==x if x in press.fit_pars else press.pars[x].val for x in name_pars
+    }
 
     # Flux density data
     flux_data = pfuncs.read_data(flux_filename, ncol=3, units=flux_units) # radius, flux density, statistical error
