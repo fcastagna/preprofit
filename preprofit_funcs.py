@@ -152,7 +152,8 @@ class Press_gNFW(Pressure):
         pars = set of pressure parameters
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
-        P_0, a, b, c, r_p = [((pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val)*self.pars[x].unit for x in ['P_0', 'a', 'b', 'c', 'r_p']]
+        P_0, a, b, c, r_p = [((pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
+                              else self.pars[x].val)*self.pars[x].unit for x in ['P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
             return (P_0/(np.outer(r_kpc, 1/r_p)**c*(1+np.outer(r_kpc, 1/r_p)**a)**((b-c)/a))).T
         else:
