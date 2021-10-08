@@ -168,6 +168,7 @@ class Press_gNFW(Pressure):
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+        return 0.
 
 class Press_cubspline(Pressure):
     '''
@@ -223,6 +224,7 @@ class Press_cubspline(Pressure):
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+        return 0.
 
 class Press_nonparam_plaw(Pressure):
     '''
@@ -279,6 +281,7 @@ class Press_nonparam_plaw(Pressure):
             i = len(self.rbins)
             slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+        return 0.
 
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
