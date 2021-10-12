@@ -12,7 +12,6 @@ from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
-from operator import or_
 
 class Param:
     '''
@@ -168,8 +167,8 @@ class Press_gNFW(Pressure):
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
-        return 0.
-
+        return [0.]
+    
 class Press_cubspline(Pressure):
     '''
     Class to parametrize the pressure profile with a cubic spline model
@@ -207,13 +206,25 @@ class Press_cubspline(Pressure):
         pars = set of pressure parameters
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
-        p_params = [(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_'+str(i) for i in range(self.knots.size)]]
+        p_params = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_'+str(i) for i in range(self.knots.size)]])
         x = self.knots.to('kpc')
-        f = interp1d(np.log10(x.value), np.log10(p_params).T, kind='cubic', fill_value='extrapolate')
-        if logder == False:
-            return np.atleast_2d(10**f(np.log10(r_kpc.value))).T*self.pars['P_0'].unit
+        mask = np.any(p_params <= 0, axis=0)
+        if np.all(mask == True):
+            return np.array(np.inf)
         else:
-            return np.atleast_2d(f._spline.derivative()(np.log10(r_kpc.value))).T*u.Unit('')
+            try:
+                f = interp1d(np.log10(x.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
+            except:
+                print('aaaa')
+                if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
+        if logder == False:
+            out = np.nan*np.ones((mask.size, r_kpc.size))
+            out[~mask,:] = 10**f(np.log10(r_kpc.value))
+            return out*self.pars['P_0'].unit
+        else:
+            out = np.inf*np.ones(mask.size)
+            out[~mask] = f._spline.derivative()(np.log10(r_kpc.value))
+            return out*u.Unit('')
 
     def prior(self, pars):
         '''
@@ -224,8 +235,8 @@ class Press_cubspline(Pressure):
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
-        return 0.
-
+        return [0.]
+    
 class Press_nonparam_plaw(Pressure):
     '''
     Class to parametrize the pressure profile with a non parametric power-law model
@@ -282,7 +293,7 @@ class Press_nonparam_plaw(Pressure):
             slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return 0.
-
+    
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
@@ -574,13 +585,17 @@ def log_lik(pars_val, press, sz, output='ll'):
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
     # update pars
-    parsprior = or_(np.array(pars_val)<=press.min_val, np.array(pars_val)>=press.max_val).sum(axis=-1)
+    # parsprior = np.any(np.array([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val]).sum(axis=-1), axis=0)*(-np.inf)
+    parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
     parsprior = np.nansum(np.array([np.repeat(0, parsprior.size), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
     pressprior = press.prior(pars_val)
     parprior = np.sum([parsprior, pressprior], axis=0)
-    mask = np.isinf(np.float64(parprior))
-    if mask.size == 1 and mask.sum() == 1:
-        return np.concatenate((np.atleast_2d(parprior).T, [[None]]), axis=-1)
+    mask = np.isfinite(np.float64(parprior))
+    if mask.sum(axis=-1) == 0:#mask.size == 1 and mask.sum() == 1:
+        if output == 'll':
+            return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
+        else:
+            return None
     # press.update_vals(press.fit_pars, pars_val)
     # press = np.array(list(map(lambda x: press.update_vals(press.fit_pars, x), pars_val)))
     # prior on parameters (-inf if at least one parameter value is out of the parameter space)
@@ -590,7 +605,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # if not np.isfinite(parprior):
         # return -np.inf#, None
     # pressure profile
-    pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[~mask])
+    pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[mask])
     if output == 'pp':
         return pp
     # abel transform
@@ -608,7 +623,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
-    map_prof = map_prof+np.expand_dims((pars_val*press.indexes['ind_pedestal']).sum(axis=-1)*press.pars['pedestal'].unit, axis=-1)[~mask]
+    map_prof = map_prof+np.expand_dims((pars_val*press.indexes['ind_pedestal']).sum(axis=-1)*press.pars['pedestal'].unit, axis=-1)[mask]
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
@@ -623,10 +638,10 @@ def log_lik(pars_val, press, sz, output='ll'):
         if output == 'integ':
             return cint.value
     if output == 'll':
-        if mask.sum() > 0:
-            parprior[~mask] = log_lik.value
+        if np.any(~mask):
+            parprior[mask] = log_lik.value
             newmap_prof = np.repeat(np.inf, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
-            newmap_prof[~mask] = map_prof.value
+            newmap_prof[mask] = map_prof.value
             return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)#, axis=None)#+1)*log_lik.value#, map_prof.value
         else:
             return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
