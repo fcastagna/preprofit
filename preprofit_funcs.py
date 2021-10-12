@@ -496,7 +496,8 @@ def calc_abel(fr, r, abel_data):
     P = np.array(list(map(lambda x: x*abel_data.I_isqrt, f))) # set up the integral
     out = np.trapz(P, axis=2, dx=abel_data.dx)  # take the integral
     # abel_data.corr[:,:,1] = np.array(list(map(lambda x: np.append(x[abel_data.mask2][1::2], 0), P)))
-    corr = np.array(list(map(lambda x: np.c_[np.zeros(r.size), np.append(x[abel_data.mask2][1::2], 0), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))], P))) # build up correction factors
+    corr = np.array(list(map(lambda x: np.c_[np.zeros(r.size), np.append(x[abel_data.mask2][1::2], 0), 
+                                             2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))], P))) # build up correction factors
     out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data.dx, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
     out[:,:-1] += np.array([abel_data.isqrt*f_r, abel_data.acr*(f[:,:-1]-f_r*r[:-1])]).sum(axis=0)
