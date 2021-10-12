@@ -401,7 +401,20 @@ def read_beam(filename, ncol, units):
         beam_prof = beam_prof[:first_neg]
     return radius, beam_prof
 
-def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], normalize=True, fwhm_beam=None):
+def get_central(mat, side):
+    '''
+    Get the central square of a matrix with given side. If side is even, automatically adopts the subsequent odd number
+    -------------------------------------------------------------------------------------------------------------------
+    mat = 2D matrix
+    side = side of the output matrix
+    '''
+    if side is None or side > mat.shape[0]:
+        warnings.warn("Side value is None or exceeds the original matrix side. The original matrix is returned", stacklevel=2)
+        return mat
+    centre = mat.shape[0]//2
+    return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
+
+def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
@@ -410,6 +423,8 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
     units = units in astropy.units format
+    crop_image = whether to crop or not the original 2D image (default is False)
+    cropped_side = side of the cropped image (in pixels, default is None)
     normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
     -------------------------------------------------------------------
@@ -437,15 +452,20 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             beam_2d = b.copy()
             # If matrix dimensions are even, turn them odd
             if beam_2d.shape[0]%2 == 0:
-                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape)
+                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape) # get index of maximum value
                 if posmax == (0, 0):
                     beam_2d = ifftshift(fftshift(beam_2d)[1:,1:])
-                elif posmax == (beam_mat[0]/2, beam_mat[0]/2):
+                elif posmax == (beam_2d.shape[0]/2, beam_2d.shape[0]/2):
                     beam_2d = beam_2d[1:,1:]
-                elif posmax == (beam_mat[0]/2-1, beam_mat[0]/2-1):
+                elif posmax == (beam_2d.shape[0]/2-1, beam_2d.shape[0]/2-1):
                     beam_2d = beam_2d[:-1,:-1]
                 else:
                     raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
+    if crop_image:
+        if beam_2d[0,0] > beam_2d[beam_2d.shape[0]//2, beam_2d.shape[0]//2]: # peak at the corner
+            beam_2d = ifftshift(get_central(fftshift(beam_2d), cropped_side))
+        else: # peak at the center
+            beam_2d = get_central(beam_2d, cropped_side)     
     if normalize:
         beam_2d /= beam_2d.sum()
         beam_2d *= u.beam
@@ -533,7 +553,6 @@ class abel_data:
         else:
             ratio = r[1:]/r[:-1]
         self.acr = np.arccosh(ratio)
-        # self.corr = np.repeat(np.c_[np.diag(self.I_isqrt), np.diag(self.I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))][np.newaxis,:,:], 30, axis=0)
             
 def calc_abel(fr, r, abel_data):
     '''
@@ -546,7 +565,6 @@ def calc_abel(fr, r, abel_data):
     f = fr*2*r
     P = np.array(list(map(lambda x: x*abel_data.I_isqrt, f))) # set up the integral
     out = np.trapz(P, axis=2, dx=abel_data.dx)  # take the integral
-    # abel_data.corr[:,:,1] = np.array(list(map(lambda x: np.append(x[abel_data.mask2][1::2], 0), P)))
     corr = np.array(list(map(lambda x: np.c_[np.zeros(r.size), np.append(x[abel_data.mask2][1::2], 0), 
                                              2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))], P))) # build up correction factors
     out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data.dx, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
@@ -565,7 +583,6 @@ class distances:
     '''
     def __init__(self, radius, kpc_as, sep, step):
         self.d_mat = centdistmat(radius*kpc_as) # matrix of distances (radially symmetric)
-        # self.im2d = np.zeros(self.d_mat.shape)#np.append(1, self.d_mat.shape)) # empty matrix for the output
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
         self.labels = np.rint(self.d_mat/kpc_as/step).astype(int) # labels indicating different annuli within the matrix of distances
@@ -636,8 +653,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     -----------------------------------------------------------------------
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
-    # update pars
-    # parsprior = np.any(np.array([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val]).sum(axis=-1), axis=0)*(-np.inf)
+    # prior on parameters
     parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
     parsprior = np.nansum(np.array([np.repeat(0, parsprior.size), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
     pressprior = press.prior(pars_val)
@@ -648,14 +664,6 @@ def log_lik(pars_val, press, sz, output='ll'):
             return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
         else:
             return None
-    # press.update_vals(press.fit_pars, pars_val)
-    # press = np.array(list(map(lambda x: press.update_vals(press.fit_pars, x), pars_val)))
-    # prior on parameters (-inf if at least one parameter value is out of the parameter space)
-    # parprior = sum(map(lambda x: press.pars[x].prior(), press.fit_pars))#+press.prior(pars_val)
-    # parprior = np.sum([press.pars[p].prior() for p in press.pars])+press.prior()
-    # parprior = sum((press.pars[p].prior() for p in press.pars), press.prior(pars_val))
-    # if not np.isfinite(parprior):
-        # return -np.inf#, None
     # pressure profile
     pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[mask])
     if output == 'pp':
@@ -667,10 +675,6 @@ def log_lik(pars_val, press, sz, output='ll'):
     f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
     y_2d = f(sz.dist.d_mat)
-    # Older version
-    # f_arr = f(sz.dist.d_arr)
-    # sz.dist.im2d = np.zeros(np.append(pp.shape[0], sz.dist.d_mat.shape))
-    # y_2d = np.array(list(map(lambda x, y: interp_mat(x, sz.dist.indices, y, sz.sep), sz.dist.im2d, f_arr)))*u.Unit('')
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
@@ -682,8 +686,8 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Log-likelihood calculation
     chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
     log_lik = -chisq/2
+    # Optional integrated Compton parameter calculation
     if sz.calc_integ:
-        #x = np.arange(0., (sz.r_pp[-1]/sz.kpc_as+sz.step).to('arcmin').value, sz.step.to('arcmin').value)*u.arcmin
         cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
         new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
         log_lik -= new_chi/2
