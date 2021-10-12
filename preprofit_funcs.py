@@ -106,9 +106,6 @@ class Pressure:
         '''
         return self.functional_form(r_kpc, pars)
 
-    def prior(self):
-        return 0.
-
 class Press_gNFW(Pressure):
     '''
     Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
@@ -168,6 +165,27 @@ class Press_gNFW(Pressure):
             slope_out = self.functional_form(self.r_out, pars, logder=True)
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
+    
+    def set_universal_params(self, r500, cosmo, z):
+        '''
+        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+        -----------------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+        cosmo = cosmology object
+        z = redshift
+        '''
+        c500 = 1.177
+        self.pars['r_p'].val = r500.value/c500
+        self.pars['a'].val = 1.051
+        self.pars['b'].val = 5.4905
+        self.pars['c'].val = .3081
+        # Compute M500 from definition in terms of density and volume
+        M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to('cm')**3).to('Msun')
+        # Compute P500 according to the definition in Equation (5) from Arnaud's paper
+        hz = cosmo.H(z)/cosmo.H0
+        h70 = cosmo.H0/(70*cosmo.H0.unit)
+        P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
+        self.pars['P_0'].val = (8.403*h70**(-3/2)*P500).value
     
 class Press_cubspline(Pressure):
     '''
@@ -237,6 +255,22 @@ class Press_cubspline(Pressure):
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
     
+    def set_universal_params(self, r500, cosmo, z):
+        '''
+        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+        -----------------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+        cosmo = cosmology object
+        z = redshift
+        '''
+        new_press = Press_gNFW()
+        self.pars = new_press.defPars()
+        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
+        p_params = new_press.press_fun(self.knots).value
+        self.pars = self.defPars()
+        for i in range(p_params.size):
+            self.pars['P_'+str(i)].val = p_params[i]
+
 class Press_nonparam_plaw(Pressure):
     '''
     Class to parametrize the pressure profile with a non parametric power-law model
