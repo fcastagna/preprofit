@@ -9,49 +9,110 @@ import emcee
 import h5py
 
 
-### Global variables
+### Global and local variables
 
-# Cluster cosmology
+## Cluster cosmology
 H0 = 70 # Hubble constant at z=0
-Om0 = 0.3 # Omega matter (density of non-relativistic matter)
+Om0 = 0.3 # Omega matter
 z = 0.888 # redshift
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
-### Pressure modelization
-slope_prior = True # prior on the outer slope?
-r_out = 1e3*u.kpc # outer radius
-max_slopeout = -2. # outer slope constrain
-## Parametric model
+## Beam and transfer function
+# Beam file already includes transfer function?
+beam_and_tf = False
+
+# Beam and transfer function. From input data or Gaussian approximation?
+beam_approx = False
+tf_approx = False
+fwhm_beam = None # fwhm of the normal distribution for the beam approximation
+loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
+
+# Transfer function provenance (not the instrument, but the team who derived it)
+tf_source_team = 'NIKA' # alternatively, 'MUSTANG' or 'SPT'
+
+## File names (FITS and ASCII formats are accepted)
+# NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
+# NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
+files_dir = './data' # files directory
+beam_filename = '%s/Beam150GHz.fits' %files_dir # beam
+tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer function
+flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir # observed data
+convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
+
+# Temperature used for the conversion factor above
+t_const = 12*u.keV # if conversion is not required, preprofit ignores it
+
+# Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
+# NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
+beam_units = [u.arcsec, u.beam] # beam units
+tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
+flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
+conv_units = [u.keV, u.Jy/u.beam] # conversion units
+
+# Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
+crop_image = False # adopt or do not adopt?
+cropped_side = 501 # side of the cropped image (automatically set to odd value)
+
+# Maximum radius for line-of-sight Abel integration
+R_b = 5000*u.kpc
+
+# Name for outputs
+name = 'preprofit'
+plotdir = './' # directory for the plots
+savedir = './' # directory for saved files
+
+## Prior on the Integrated Compton parameter?
+calc_integ = False # apply or do not apply?
+integ_mu = .94/1e3 # from Planck 
+integ_sig = .36/1e3 # from Planck
+
+## Prior on the pressure slope at large radii?
+slope_prior = True # apply or do not apply?
+r_out = 1e3*u.kpc # large radius for the slope prior
+max_slopeout = -2. # maximum value for the slope at r_out
+
+## Pressure modelization
+# 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (cubic spline / power law interpolation)
+
 # Generalized Navarro Frenk and White
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-## Non parametric
+
 # Cubic spline
-knots = [5, 15, 30, 60]*u.arcsec*kpc_as
-press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
-press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+#knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+#press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
+#press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+
 # Power law interpolation
 #rbins = [5, 15, 30, 60]*u.arcsec*kpc_as
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
-# Parameters that we want to fit
-name_pars = list(press.pars)
+## Parameters setup
+name_pars = list(press.pars) # all parameters
 # To see the default parameter space extent, use: print(press.pars)
-# For each parameter, use the following to change the bounds of the prior distribution:
-#press.pars['P_0'].minval = 0.1
-#press.pars['P_0'].maxval = 10.
+
 # To exclude a parameter from the fit:
 #press.pars['P_0'].frozen = True
-# press.pars['c'].frozen = True
+press.pars['c'].frozen = True
 
-# name for outputs
-name = 'preprofit'
-plotdir = './' # directory for the plots
-savedir = './' # directory for saved files
+# As a starting guess, you can set a rough r500 value and apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
+# NOTE: this option is available for both parametric and non parametric pressure models
+press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
 
-# Uncertainty level
-ci = 95
+# Otherwise, you can customize your set of parameters
+# For each parameter, use the following to change the values of the prior distribution, either altogether...
+#press.pars['P_0'] = pfuncs.Param(val=1.5, minval=0.1, maxval=10., frozen=False, unit=u.Unit('keV cm-3'))
+# ... or separately
+#press.pars['P_0'].val = 1.5
+#press.pars['P_0'].minval = 0.1
+#press.pars['P_0'].maxval = 10.
+
+# To adopt a Gaussian prior:
+#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
+
+# Sampling step
+mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
 
 # MCMC parameters
 nburn = 2000 # number of burn-in iterations
@@ -61,46 +122,8 @@ nthreads = 8 # number of processes/threads
 nthin = 50 # thinning
 seed = None # random seed
 
-
-### Local variables
-
-# Sampling step
-mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
-
-R_b = 5000*u.kpc # Radial cluster extent, serves as upper bound for Compton y parameter integration
-t_const = 12*u.keV # constant value of temperature of the cluster, serves for Compton y to surface brightness conversion. If conversion is not required, preprofit ignores it
-
-# File names (FITS and ASCII formats are accepted)
-# NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
-files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir # beam
-tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer function
-flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir # observed data
-convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
-
-# Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
-# NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
-beam_units = [u.arcsec, u.beam] # beam units
-tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
-flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
-conv_units = [u.keV, u.Jy/u.beam] # conversion units
-
-# Beam and transfer function. From raw data or Gaussian approximation?
-beam_approx = False
-tf_approx = False
-fwhm_beam = None # fwhm of the normal distribution for the beam approximation
-loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the tf approximation
-
-# Transfer function provenance (not the instrument, but the team who derived it)
-tf_source_team = 'NIKA' # alternatively, 'MUSTANG' or 'SPT'
-
-# Beam file already includes transfer function?
-beam_and_tf = False
-
-# Integrated Compton parameter option
-calc_integ = 1#False # apply or do not apply?
-integ_mu = .94/1e3 # from Planck 
-integ_sig = .36/1e3 # from Planck
+# Uncertainty level
+ci = 68
 
 # -------------------------------------------------------------------------------------------------------------------------------
 # Code
@@ -123,8 +146,8 @@ def main():
     press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, normalize=True, fwhm_beam=fwhm_beam)
-
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, cropped_side=cropped_side, 
+                                  normalize=True, fwhm_beam=fwhm_beam)
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
         mymaxr = beam_2d.shape[0]//2*mystep
@@ -140,7 +163,7 @@ def main():
     radius = np.arange(0., (mymaxr+mystep).value, mystep.value)*mystep.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
-    r_pp = np.arange((mystep*kpc_as).value, (R_b+mystep*kpc_as).value, (mystep*kpc_as).value)*u.kpc # radius in kpc used to compute the pressure profile
+    r_pp = np.arange((mystep*kpc_as).value, (R_b+mystep*kpc_as).value, (mystep*kpc_as).value)*u.kpc # radius in kpc used to compute the pressure profile (radius 0 excluded)
     r_am = np.arange(0., (mystep*(1+r_pp.size)).to(u.arcmin).value, mystep.to('arcmin').value)*u.arcmin # radius in arcmin (radius 0 included)
 
     # Matrix of distances in kpc centered on 0 with step=mystep
@@ -161,11 +184,6 @@ def main():
     sz = pfuncs.SZ_data(step=mystep, kpc_as=kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, d_mat=d_mat, 
                         filtering=filtering, abel_data=abel_data, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
     
-#    myfun = lambda x, y, z: np.apply_along_axis(pfuncs.log_lik, -1, x, y, z)#[0]
-#    print(np.apply_along_axis(pfuncs.log_lik, 1, [[.1,.3,5,7.8,200]*u.Unit(''), [0,5,646,5,9]*u.Unit('')], press, sz))
-    
-    
-    
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
     if not np.isfinite(pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz)[0][0]):
         raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
@@ -175,13 +193,11 @@ def main():
     
     # Bayesian fit
     try:
-        # sampler = emcee.EnsembleSampler(nwalkers, ndim, np.vectorize(pfuncs.log_lik), args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)], vectorize=True)
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)], vectorize=True)
     except:
-        import sys; sys.exit()
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, vectorize=True)
     # Preliminary fit to increase likelihood
-    # pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
+    pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # Construct MCMC object and do burn in
     mcmc = pfuncs.MCMC(sampler, press.pars, press.fit_pars, seed=seed, initspread=0.1)
     chainfilename = '%s%s_chain.hdf5' % (savedir, name)
