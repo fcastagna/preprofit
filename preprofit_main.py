@@ -148,6 +148,7 @@ def main():
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, cropped_side=cropped_side, 
                                   normalize=True, fwhm_beam=fwhm_beam)
+
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
         mymaxr = beam_2d.shape[0]//2*mystep
@@ -179,11 +180,11 @@ def main():
 
     # Collection of data required for Abel transform calculation
     abel_data = pfuncs.abel_data(r_pp.value)
-    
+
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(step=mystep, kpc_as=kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, d_mat=d_mat, 
                         filtering=filtering, abel_data=abel_data, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
-    
+
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
     if not np.isfinite(pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz)[0][0]):
         raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
