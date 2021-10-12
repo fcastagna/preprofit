@@ -186,7 +186,7 @@ class Press_gNFW(Pressure):
         h70 = cosmo.H0/(70*cosmo.H0.unit)
         P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
         self.pars['P_0'].val = (8.403*h70**(-3/2)*P500).value
-    
+
 class Press_cubspline(Pressure):
     '''
     Class to parametrize the pressure profile with a cubic spline model
@@ -233,7 +233,6 @@ class Press_cubspline(Pressure):
             try:
                 f = interp1d(np.log10(x.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
             except:
-                print('aaaa')
                 if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
         if logder == False:
             out = np.nan*np.ones((mask.size, r_kpc.size))
@@ -327,7 +326,23 @@ class Press_nonparam_plaw(Pressure):
             slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return 0.
-    
+
+    def set_universal_params(self, r500, cosmo, z):
+        '''
+        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+        -----------------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+        cosmo = cosmology object
+        z = redshift
+        '''
+        new_press = Press_gNFW()
+        self.pars = new_press.defPars()
+        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
+        p_params = new_press.press_fun(self.rbins).value
+        self.pars = self.defPars()
+        for i in range(p_params.size):
+            self.pars['P_'+str(i)].val = p_params[i]
+
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
