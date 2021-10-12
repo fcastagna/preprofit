@@ -265,10 +265,12 @@ class Press_cubspline(Pressure):
         new_press = Press_gNFW()
         self.pars = new_press.defPars()
         new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.knots).value
+        new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
+        new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
+        p_params = new_press.press_fun(self.knots,  [new_press.pars[x].val for x in new_press.fit_pars]).value
         self.pars = self.defPars()
         for i in range(p_params.size):
-            self.pars['P_'+str(i)].val = p_params[i]
+            self.pars['P_'+str(i)].val = p_params[0][i]
 
 class Press_nonparam_plaw(Pressure):
     '''
