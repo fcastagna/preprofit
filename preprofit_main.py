@@ -27,9 +27,9 @@ max_slopeout = -2. # outer slope constrain
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 ## Non parametric
 # Cubic spline
-#knots = [5, 15, 30, 60]*u.arcsec*kpc_as
-#press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
-#press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
+press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 # Power law interpolation
 #rbins = [5, 15, 30, 60]*u.arcsec*kpc_as
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
@@ -43,7 +43,7 @@ name_pars = list(press.pars)
 #press.pars['P_0'].maxval = 10.
 # To exclude a parameter from the fit:
 #press.pars['P_0'].frozen = True
-press.pars['c'].frozen = True
+# press.pars['c'].frozen = True
 
 # name for outputs
 name = 'preprofit'
@@ -59,7 +59,7 @@ nlength = 5000 # number of chain iterations (after burn-in)
 nwalkers = 30 # number of random walkers
 nthreads = 8 # number of processes/threads
 nthin = 50 # thinning
-seed = 123#None # random seed
+seed = None # random seed
 
 
 ### Local variables
@@ -167,8 +167,11 @@ def main():
     
     
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
-    start_prof = pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz, output='bright')
-    pplots.plot_guess(start_prof, sz, plotdir=plotdir)
+    if not np.isfinite(pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz)[0][0]):
+        raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
+    else:
+        start_prof = pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz, output='bright')
+        pplots.plot_guess(start_prof, sz, plotdir=plotdir)
     
     # Bayesian fit
     try:
@@ -178,12 +181,12 @@ def main():
         import sys; sys.exit()
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, vectorize=True)
     # Preliminary fit to increase likelihood
-    pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
+    # pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # Construct MCMC object and do burn in
     mcmc = pfuncs.MCMC(sampler, press.pars, press.fit_pars, seed=seed, initspread=0.1)
     chainfilename = '%s%s_chain.hdf5' % (savedir, name)
     # Run mcmc proper and save the chain
-    mcmc.mcmc_run(nburn, nlength, nthin)
+    mcmc.mcmc_run(nburn, nlength, nthin, autorefit=False)
     mcmc.save(chainfilename)
 
     # Extract chain of parameters
