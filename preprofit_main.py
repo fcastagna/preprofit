@@ -136,9 +136,7 @@ def main():
     press.max_val = [press.pars[name].maxval for name in press.fit_pars]
     press.min_val = [press.pars[name].minval for name in press.fit_pars]
     ndim = len(press.fit_pars)
-    press.indexes = {
-    'ind_'+x: np.array(press.fit_pars)==x if x in press.fit_pars else press.pars[x].val for x in name_pars
-    }
+    press.indexes = {'ind_'+x: np.array(press.fit_pars)==x if x in press.fit_pars else press.pars[x].val for x in name_pars}
 
     # Flux density data
     flux_data = pfuncs.read_data(flux_filename, ncol=3, units=flux_units) # radius, flux density, statistical error
@@ -180,7 +178,7 @@ def main():
 
     # Collection of data required for Abel transform calculation
     abel_data = pfuncs.abel_data(r_pp.value)
-
+    
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(step=mystep, kpc_as=kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, d_mat=d_mat, 
                         filtering=filtering, abel_data=abel_data, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
