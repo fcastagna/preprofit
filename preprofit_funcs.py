@@ -281,12 +281,16 @@ class Press_nonparam_plaw(Pressure):
     slope_prior = apply a prior constrain on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, rbins, pbins, slope_prior=True, max_slopeout=-2.):
+    def __init__(self, rbins, pbins, r_kpc, slope_prior=True, max_slopeout=-2.):
         self.rbins = rbins
         self.pbins = pbins
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
         Pressure.__init__(self)
+        self.ind_low = np.maximum(0, np.digitize(r_kpc, rbins)-1) # lower bins indexes
+        self.r_low = rbins[self.ind_low] # lower radial bins
+        self.alpha_den = np.atleast_2d(np.log(self.rbins[:-1]/self.rbins[1:])) # denominator for alpha
+        self.alpha_ind = np.minimum(self.ind_low, len(self.rbins)-2) # alpha indexes
         
     def defPars(self):
         '''
@@ -299,35 +303,32 @@ class Press_nonparam_plaw(Pressure):
             self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
         return self.pars
 
-    def functional_form(self, r_kpc):
+    def functional_form(self, r_kpc, pars):
         '''
         Functional form expression for pressure calculation
         ---------------------------------------------------
         r_kpc = radius (kpc)
+        pars = set of pressure parameters
         '''
-        index = np.digitize(r_kpc, self.rbins)
-        r_low = self.rbins[np.maximum(0, index-1)]
-        r_upp = self.rbins[np.minimum(self.rbins.size-1, index)]
-        pbins = [self.pars[x].val for x in list(self.pars)[1:]]*self.pars['P_0'].unit
-        p_low = pbins[np.maximum(0, index-1)]
-        p_upp = pbins[np.minimum(index, self.rbins.size-1)]
-        alpha = np.empty(index.shape)*u.Unit('')
-        centr = index % self.rbins.size != 0
-        alpha[centr] = (np.log(p_upp/p_low)[centr]/np.log(r_upp/r_low)[centr])
-        alpha[index==0] = alpha[index==1][0]
-        alpha[index==self.rbins.size] = alpha[index==self.rbins.size-1][0]
-        return p_low*(r_kpc/r_low)**alpha
+        pbins = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
+                          else self.pars[x].val for x in ['P_'+str(i) for i in range(self.pbins.size)]])*self.pars['P_0'].unit
+        p_low = pbins[self.ind_low]
+        self.alpha = (np.log(pbins[:-1]/pbins[1:]).T/self.alpha_den)[:,self.alpha_ind]
+        return p_low.T*(r_kpc/self.r_low)**self.alpha
 
-    def prior(self):
+    def prior(self, pars):
         '''
         Checks accordance with prior constrains
         ---------------------------------------
+        pars = set of pressure parameters
         '''
         if self.slope_prior == True:
             i = len(self.rbins)
-            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
+            P_n_1, P_n = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
+                                   else self.pars[x].val for x in ['P_'+str(i) for i in range(self.rbins.size-2, self.rbins.size)]])
+            slope_out = np.log(P_n/P_n_1)/np.log(self.rbins[i-1]/self.rbins[i-2])
             return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
-        return 0.
+        return [0.]
 
     def set_universal_params(self, r500, cosmo, z):
         '''
@@ -340,10 +341,12 @@ class Press_nonparam_plaw(Pressure):
         new_press = Press_gNFW()
         self.pars = new_press.defPars()
         new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.rbins).value
+        new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
+        new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
+        p_params = new_press.press_fun(self.rbins, [new_press.pars[x].val for x in new_press.fit_pars]).value
         self.pars = self.defPars()
         for i in range(p_params.size):
-            self.pars['P_'+str(i)].val = p_params[i]
+            self.pars['P_'+str(i)].val = p_params[0][i]
 
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
