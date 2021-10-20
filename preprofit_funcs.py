@@ -281,16 +281,14 @@ class Press_nonparam_plaw(Pressure):
     slope_prior = apply a prior constrain on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, rbins, pbins, r_kpc, slope_prior=True, max_slopeout=-2.):
+    def __init__(self, rbins, pbins, slope_prior=True, max_slopeout=-2.):
         self.rbins = rbins
         self.pbins = pbins
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
         Pressure.__init__(self)
-        self.ind_low = np.maximum(0, np.digitize(r_kpc, rbins)-1) # lower bins indexes
-        self.r_low = rbins[self.ind_low] # lower radial bins
+        self.alpha = np.atleast_2d(np.ones_like(self.rbins))*u.Unit('')
         self.alpha_den = np.atleast_2d(np.log(self.rbins[:-1]/self.rbins[1:])) # denominator for alpha
-        self.alpha_ind = np.minimum(self.ind_low, len(self.rbins)-2) # alpha indexes
         
     def defPars(self):
         '''
@@ -310,11 +308,14 @@ class Press_nonparam_plaw(Pressure):
         r_kpc = radius (kpc)
         pars = set of pressure parameters
         '''
+        ind_low = np.maximum(0, np.digitize(r_kpc, self.rbins)-1) # lower bins indexes
+        r_low = self.rbins[ind_low] # lower radial bins
+        alpha_ind = np.minimum(ind_low, len(self.rbins)-2) # alpha indexes
         pbins = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
                           else self.pars[x].val for x in ['P_'+str(i) for i in range(self.pbins.size)]])*self.pars['P_0'].unit
-        p_low = pbins[self.ind_low]
-        self.alpha = (np.log(pbins[:-1]/pbins[1:]).T/self.alpha_den)[:,self.alpha_ind]
-        return p_low.T*(r_kpc/self.r_low)**self.alpha
+        p_low = pbins[ind_low]
+        self.alpha = (np.log(pbins[:-1]/pbins[1:]).T/self.alpha_den)[:,alpha_ind]
+        return p_low.T*(r_kpc/r_low)**self.alpha
 
     def prior(self, pars):
         '''
