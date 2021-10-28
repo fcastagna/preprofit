@@ -442,6 +442,25 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
         except:
             b = read_data(filename, ncol=1, units=units)
+            r = np.arange(0., b.shape[0]//2*step.value, step.value)*step.unit
+            r = np.append(-r[:0:-1].value, r.value)*r.unit
+            # If matrix dimensions are even, turn them odd
+            if b.shape[0]%2 == 0:
+                posmax = np.unravel_index(b.argmax(), b.shape) # get index of maximum value
+                if posmax == (0, 0):
+                    b = ifftshift(fftshift(b)[1:,1:])
+                    b1d = fftshift(b[0,:])
+                elif posmax == (b.shape[0]/2, b.shape[0]/2):
+                    b = b[1:,1:]
+                    b1d = b[b.shape[0]//2,:]
+                elif posmax == (b.shape[0]/2-1, b.shape[0]/2-1):
+                    b = b[:-1,:-1]
+                    b1d = b[b.shape[0]//2,:]
+                else:
+                    raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
+            g = interp1d(r, b1d, 'cubic', bounds_error=False, fill_value=(0., 0.))
+            inv_g = lambda x: g(x)-g(0.)/2
+            fwhm_beam = 2*optimize.newton(inv_g, x0=50*step.value)*r.unit
     maxr = (maxr_data+3*fwhm_beam)//step*step
     rad = np.arange(0., (maxr+step).value, step.value)*step.unit
     rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
@@ -454,17 +473,6 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             beam_2d = f(beam_mat)*u.beam
         except:
             beam_2d = b.copy()
-            # If matrix dimensions are even, turn them odd
-            if beam_2d.shape[0]%2 == 0:
-                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape) # get index of maximum value
-                if posmax == (0, 0):
-                    beam_2d = ifftshift(fftshift(beam_2d)[1:,1:])
-                elif posmax == (beam_2d.shape[0]/2, beam_2d.shape[0]/2):
-                    beam_2d = beam_2d[1:,1:]
-                elif posmax == (beam_2d.shape[0]/2-1, beam_2d.shape[0]/2-1):
-                    beam_2d = beam_2d[:-1,:-1]
-                else:
-                    raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
     if crop_image:
         if beam_2d[0,0] > beam_2d[beam_2d.shape[0]//2, beam_2d.shape[0]//2]: # peak at the corner
             beam_2d = ifftshift(get_central(fftshift(beam_2d), cropped_side))
