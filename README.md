@@ -1,6 +1,6 @@
 # PreProFit
 ## Pressure Profile Fitter for galaxy clusters in Python
-*Castagna Fabio, Andreon Stefano, Pranjal RS.*
+*Castagna Fabio, Andreon Stefano*
 
 `preprofit` is a Python program that allows to fit the pressure profile of galaxy clusters using MCMC.
 
@@ -24,6 +24,6 @@ PLEASE NOTE that the transfer function filtering method has been changed on Marc
 - [corner](https://pypi.org/project/corner/)
 
 ### Credits
-Castagna Fabio, Andreon Stefano, Pranjal RS.
+Castagna Fabio, Andreon Stefano.
 
 For more details, see [Castagna and Andreon, A&A, 2019](https://ui.adsabs.harvard.edu/abs/2019A%26A...632A..22C/abstract).
