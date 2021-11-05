@@ -80,7 +80,7 @@ press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max
 
 # Cubic spline
 #knots = [5, 15, 30, 60]*u.arcsec*kpc_as
-#press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
+#press_knots = [1e-1, 2e-2, 5e-3, 1e-4]*u.Unit('keV/cm3')
 #press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Power law interpolation
@@ -96,7 +96,8 @@ name_pars = list(press.pars) # all parameters
 #press.pars['P_0'].frozen = True
 press.pars['c'].frozen = True
 
-# As a starting guess, you can set a rough r500 value and apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
+# To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and 
+# JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
 # NOTE: this option is available for both parametric and non parametric pressure models
 press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
 
