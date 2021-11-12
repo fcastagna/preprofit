@@ -17,7 +17,7 @@ def plot_guess(out_prof, sz,  plotdir='./'):
     '''
     plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
-    plt.plot(sz.radius[sz.sep:], out_prof[0,:], color='r', label='Best-fit')
+    plt.plot(sz.radius[sz.sep:], out_prof[0,:], color='r', label='Starting guess')
     plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
     plt.legend()
     plt.xlabel('Radius ('+str(sz.flux_data[0].unit)+')')
