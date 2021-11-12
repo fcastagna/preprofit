@@ -18,7 +18,7 @@ def plot_guess(out_prof, sz,  plotdir='./'):
     if out_prof[1] == None: raise RuntimeError('The starting paramaters you adopted are not in agreement with prior constraints. Please fix them and retry')
     plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
-    plt.plot(sz.radius[sz.sep:], out_prof, color='r', label='Best-fit')
+    plt.plot(sz.radius[sz.sep:], out_prof, color='r', label='Starting guess')
     plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
     plt.legend()
     plt.xlabel('Radius ('+str(sz.flux_data[0].unit)+')')
