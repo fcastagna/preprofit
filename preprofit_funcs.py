@@ -711,7 +711,7 @@ def log_lik(pars_val, press, sz, output='ll'):
             parprior[mask] = log_lik.value
             newmap_prof = np.repeat(np.inf, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
             newmap_prof[mask] = map_prof.value
-            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)#, axis=None)#+1)*log_lik.value#, map_prof.value
+            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
         else:
             return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
     elif output == 'chisq':
