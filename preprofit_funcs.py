@@ -673,7 +673,10 @@ def log_lik(pars_val, press, sz, output='ll'):
     mask = np.isfinite(np.float64(parprior))
     if mask.sum(axis=-1) == 0:#mask.size == 1 and mask.sum() == 1:
         if output == 'll':
+            # try:
             return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
+            # except:
+            # return [[-np.inf, None]]
         else:
             return None
     # pressure profile
@@ -692,6 +695,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Conversion from Compton parameter to mJy/beam
     map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
     ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])*press.pars['pedestal'].unit
+    # ped = np.array((pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else np.repeat(press.pars['pedestal'].val, map_prof.shape[0]))*press.pars['pedestal'].unit
     map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T
     if output == 'bright':
         return map_prof
@@ -978,3 +982,25 @@ def get_outer_slope(flatchain, press, r_out):
             i = len(press.rbins)
             slopes[j] = np.log(press.pars['P_'+str(i-1)].val/press.pars['P_'+str(i-2)].val)/np.log(press.rbins[i-1]/press.rbins[i-2])
     return slopes
+
+def update_new(self, old_state, new_state, accepted, subset=None):
+    '''
+    Updated version of the MBProj2 function
+    '''
+    if subset is None:
+        subset = np.ones(len(old_state.coords), dtype=bool)
+    m1 = subset & accepted
+    m2 = accepted[subset]
+    old_state.coords[m1] = new_state.coords[m2]
+    old_state.log_prob[m1] = new_state.log_prob[m2]
+
+    if np.sum(list(map(lambda x: new_state.blobs[x] is not None, 
+                       range(new_state.blobs.size)))) > 0:
+        if old_state.blobs is None:
+            raise ValueError(
+                "If you start sampling with a given log_prob, "
+                "you also need to provide the current list of "
+                "blobs at that position."
+            )
+        old_state.blobs[m1] = new_state.blobs[m2]
+    return old_state
