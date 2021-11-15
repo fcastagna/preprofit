@@ -7,23 +7,15 @@ from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
 import emcee
 import h5py
-
 from types import MethodType
 emcee.moves.move.Move.update = MethodType(pfuncs.update_new, emcee.moves.move.Move.update)
 
-code ='2300-5331'
-clus = 'SPT-CLJ'+code
-plotdir = './%s/' %code # directory for the plots
-savedir = './%s/' %code # directory for saved files
-names, reds = np.loadtxt('data/fullsample_SPT.txt', skiprows=1, dtype=('str', 'str'), usecols=(0,3), unpack=1)
-reds = np.float64(reds)
-index = np.where(clus == names)[0][0]
 ### Global and local variables
 
 ## Cluster cosmology
 H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
-z = reds[index] # redshift
+z = 0.888 # redshift
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
