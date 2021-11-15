@@ -8,19 +8,28 @@ from scipy.fftpack import fft2
 import emcee
 import h5py
 
+from types import MethodType
+emcee.moves.move.Move.update = MethodType(pfuncs.update_new, emcee.moves.move.Move.update)
 
+code ='2300-5331'
+clus = 'SPT-CLJ'+code
+plotdir = './%s/' %code # directory for the plots
+savedir = './%s/' %code # directory for saved files
+names, reds = np.loadtxt('data/fullsample_SPT.txt', skiprows=1, dtype=('str', 'str'), usecols=(0,3), unpack=1)
+reds = np.float64(reds)
+index = np.where(clus == names)[0][0]
 ### Global and local variables
 
 ## Cluster cosmology
 H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
-z = 0.888 # redshift
+z = reds[index] # redshift
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 
 ## Beam and transfer function
 # Beam file already includes transfer function?
-beam_and_tf = False
+beam_and_tf = True
 
 # Beam and transfer function. From input data or Gaussian approximation?
 beam_approx = False
@@ -29,38 +38,36 @@ fwhm_beam = None # fwhm of the normal distribution for the beam approximation
 loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
 
 # Transfer function provenance (not the instrument, but the team who derived it)
-tf_source_team = 'NIKA' # alternatively, 'MUSTANG' or 'SPT'
+tf_source_team = 'SPT' # alternatively, 'MUSTANG' or 'SPT'
 
 ## File names (FITS and ASCII formats are accepted)
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
 files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir # beam
-tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer function
-flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir # observed data
-convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
+beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir#'%s/Beam150GHz.fits' %files_dir # beam
+tf_filename = None#'%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer function
+flux_filename = '%s/press_data_' %files_dir +clus+'.dat'#'%s/press_clj1226_flagsource.dat' %files_dir # observed data
+convert_filename = None#'%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
 
 # Temperature used for the conversion factor above
 t_const = 12*u.keV # if conversion is not required, preprofit ignores it
 
 # Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
-beam_units = [u.arcsec, u.beam] # beam units
-tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
-flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
-conv_units = [u.keV, u.Jy/u.beam] # conversion units
+beam_units = u.beam#[u.arcsec, u.beam] # beam units
+#tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
+flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
+# conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
 # Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
-crop_image = False # adopt or do not adopt?
-cropped_side = 501 # side of the cropped image (automatically set to odd value)
+crop_image = 1#False # adopt or do not adopt?
+cropped_side = 200#501 # side of the cropped image (automatically set to odd value)
 
 # Maximum radius for line-of-sight Abel integration
 R_b = 5000*u.kpc
 
 # Name for outputs
 name = 'preprofit'
-plotdir = './' # directory for the plots
-savedir = './' # directory for saved files
 
 ## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
@@ -79,12 +86,12 @@ max_slopeout = -2. # maximum value for the slope at r_out
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Cubic spline
-#knots = [5, 15, 30, 60]*u.arcsec*kpc_as
-#press_knots = [1e-1, 2e-2, 5e-3, 1e-4]*u.Unit('keV/cm3')
+#knots = [50, 150, 300, 500]*u.arcsec*kpc_as
+#press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Power law interpolation
-#rbins = [5, 15, 30, 60]*u.arcsec*kpc_as
+#rbins = [50, 150, 300, 500]*u.arcsec*kpc_as
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
@@ -95,9 +102,12 @@ name_pars = list(press.pars) # all parameters
 # To exclude a parameter from the fit:
 #press.pars['P_0'].frozen = True
 press.pars['c'].frozen = True
+press.pars['P_0'].maxval = 1000
+press.pars['a'].maxval = 50
+press.pars['b'].maxval = 100
+press.pars['pedestal'].frozen = True
 
-# To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and 
-# JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
+# As a starting guess, you can set a rough r500 value and apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
 # NOTE: this option is available for both parametric and non parametric pressure models
 press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
 
@@ -108,16 +118,20 @@ press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
 #press.pars['P_0'].val = 1.5
 #press.pars['P_0'].minval = 0.1
 #press.pars['P_0'].maxval = 10.
+#press.pars['P_0'].val = 6e-3
+#press.pars['P_1'].val = 2e-3
+#press.pars['P_2'].val = 3.6e-4
+#press.pars['P_3'].val = 6.7e-5
 
 # To adopt a Gaussian prior:
 #press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
 
 # Sampling step
-mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
+mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
 
 # MCMC parameters
-nburn = 2000 # number of burn-in iterations
-nlength = 5000 # number of chain iterations (after burn-in)
+nburn = 5000 # number of burn-in iterations
+nlength = 2000 # number of chain iterations (after burn-in)
 nwalkers = 30 # number of random walkers
 nthreads = 8 # number of processes/threads
 nthin = 50 # thinning
@@ -190,14 +204,15 @@ def main():
     else:
         start_prof = pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz, output='bright')
         pplots.plot_guess(start_prof, sz, plotdir=plotdir)
-    
+    # print([press.pars[x].val for x in press.fit_pars]); import sys; sys.exit()    
     # Bayesian fit
     try:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)], vectorize=True)
     except:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, vectorize=True)
+
     # Preliminary fit to increase likelihood
-    pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
+    # pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # Construct MCMC object and do burn in
     mcmc = pfuncs.MCMC(sampler, press.pars, press.fit_pars, seed=seed, initspread=0.1)
     chainfilename = '%s%s_chain.hdf5' % (savedir, name)
