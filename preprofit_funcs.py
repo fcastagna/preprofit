@@ -12,6 +12,7 @@ from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
+eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)]
 
 class Param:
     '''
@@ -117,7 +118,7 @@ class Press_gNFW(Pressure):
     def __init__(self, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         Pressure.__init__(self)
         self.slope_prior = slope_prior
-        self.r_out = r_out
+        self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
 
     def defPars(self):
@@ -175,12 +176,12 @@ class Press_gNFW(Pressure):
         z = redshift
         '''
         c500 = 1.177
-        self.pars['r_p'].val = r500.value/c500
+        self.pars['r_p'].val = r500.to(u.kpc, equivalencies=eq_kpc_as).value/c500
         self.pars['a'].val = 1.051
         self.pars['b'].val = 5.4905
         self.pars['c'].val = .3081
         # Compute M500 from definition in terms of density and volume
-        M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to('cm')**3).to('Msun')
+        M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to(u.cm)**3).to(u.Msun)
         # Compute P500 according to the definition in Equation (5) from Arnaud's paper
         hz = cosmo.H(z)/cosmo.H0
         h70 = cosmo.H0/(70*cosmo.H0.unit)
@@ -198,11 +199,11 @@ class Press_cubspline(Pressure):
     max_slopeout = maximum allowed value for the outer slope
     '''
     def __init__(self, knots, pr_knots, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        self.knots = knots
+        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
         self.pr_knots = pr_knots
         Pressure.__init__(self)
         self.slope_prior = slope_prior
-        self.r_out = r_out
+        self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
         
     def defPars(self):
@@ -225,13 +226,12 @@ class Press_cubspline(Pressure):
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
         p_params = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_'+str(i) for i in range(self.knots.size)]])
-        x = self.knots.to('kpc')
         mask = np.any(p_params <= 0, axis=0)
         if np.all(mask == True):
             return np.array(np.inf)
         else:
             try:
-                f = interp1d(np.log10(x.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
+                f = interp1d(np.log10(self.knots.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
             except:
                 if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
         if logder == False:
@@ -264,7 +264,7 @@ class Press_cubspline(Pressure):
         '''
         new_press = Press_gNFW()
         self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
+        new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=eq_kpc_as), cosmo=cosmo, z=z)
         new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
         new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
         p_params = new_press.press_fun(self.knots, [new_press.pars[x].val for x in new_press.fit_pars]).value
@@ -282,7 +282,7 @@ class Press_nonparam_plaw(Pressure):
     max_slopeout = maximum allowed value for the outer slope
     '''
     def __init__(self, rbins, pbins, slope_prior=True, max_slopeout=-2.):
-        self.rbins = rbins
+        self.rbins = rbins.to(u.kpc, equivalencies=eq_kpc_as)
         self.pbins = pbins
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
@@ -341,7 +341,7 @@ class Press_nonparam_plaw(Pressure):
         '''
         new_press = Press_gNFW()
         self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
+        new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=eq_kpc_as), cosmo=cosmo, z=z)
         new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
         new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
         p_params = new_press.press_fun(self.rbins, [new_press.pars[x].val for x in new_press.fit_pars]).value
@@ -466,7 +466,7 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
     rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
     beam_mat = centdistmat(rad)
     if approx:
-        sigma_beam = fwhm_beam.to('arcsec')/(2*np.sqrt(2*np.log(2)))
+        sigma_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)*u.beam
     else:
         try:
@@ -527,7 +527,7 @@ def filt_image(wn_as, tf, tf_source_team, side, step):
     '''
     Create the 2D filtering image from the transfer function data
     -------------------------------------------------------------
-    wn_as = vector of wave numbers in arcsec
+    wn_as = vector of wave numbers
     tf = transmission data
     tf_source_team = transfer function provenance ('NIKA', 'MUSTANG', or 'SPT')
     side = one side length for the output image
@@ -537,7 +537,7 @@ def filt_image(wn_as, tf, tf_source_team, side, step):
     '''
     if not tf_source_team in ['NIKA', 'MUSTANG', 'SPT']:
         raise RuntimeError('Accepted values for tf_source_team are: NIKA, MUSTANG, SPT')
-    f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
+    f = interp1d(wn_as.to(1/step.unit, equivalencies=eq_kpc_as), tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
     kmax = 1/step
     karr = (dist(side)/side)*u.Unit('')
     if tf_source_team == 'NIKA':
@@ -589,15 +589,14 @@ class distances:
     Class of data involving distances required in likelihood computation
     --------------------------------------------------------------------
     radius = array of radii in arcsec
-    kpc_as = kpc in arcsec
     sep = index of radius 0
     step = binning step
     '''
-    def __init__(self, radius, kpc_as, sep, step):
-        self.d_mat = centdistmat(radius*kpc_as) # matrix of distances (radially symmetric)
+    def __init__(self, radius, sep, step):
+        self.d_mat = centdistmat(radius.to(u.kpc, equivalencies=eq_kpc_as) # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
-        self.labels = np.rint(self.d_mat/kpc_as/step).astype(int) # labels indicating different annuli within the matrix of distances
+        self.labels = np.rint(self.d_mat.to(u.arcsec, equivalencies=eq_kpc_as)/step).astype(int) # labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
     '''
@@ -620,9 +619,8 @@ class SZ_data:
     Class for the SZ data required for the analysis
     -----------------------------------------------
     step = binning step
-    kpc_as = kpc in arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
-    flux_data = radius (arcsec), flux density, statistical error
+    flux_data = radius, flux density, statistical error
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
@@ -633,16 +631,15 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
-        self.kpc_as = kpc_as
         self.conv_temp_sb = conv_temp_sb
         self.flux_data = flux_data
-        self.radius = radius
+        self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
-        self.r_pp = r_pp
+        self.r_pp = r_pp.to(u.kpc, equivalencies=eq_kpc_as)
         self.r_am = r_am
-        self.dist = distances(radius, kpc_as, sep, step)
+        self.dist = distances(radius, sep, step)
         self.filtering = filtering
         self.abel_data = abel_data
         self.calc_integ = calc_integ
@@ -973,7 +970,7 @@ def get_outer_slope(flatchain, press, r_out):
     for j in range(slopes.size):
         press.update_vals(press.fit_pars, flatchain[j])
         try:
-            slopes[j] = press.functional_form(r_out, [press.pars[x].val for x in press.fit_pars], logder=True)
+            slopes[j] = press.functional_form(r_out.to(u.kpc, equivalencies=eq_kpc_as), [press.pars[x].val for x in press.fit_pars], logder=True)
         except:
             i = len(press.rbins)
             slopes[j] = np.log(press.pars['P_'+str(i-1)].val/press.pars['P_'+str(i-2)].val)/np.log(press.rbins[i-1]/press.rbins[i-2])
