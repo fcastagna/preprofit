@@ -81,12 +81,12 @@ max_slopeout = -2. # maximum value for the slope at r_out
 press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Cubic spline
-#knots = [5, 15, 30, 60]*u.arcsec*kpc_as
+#knots = [5, 15, 30, 60]*u.kpc
 #press_knots = [1e-1, 2e-2, 5e-3, 1e-4]*u.Unit('keV/cm3')
 #press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Power law interpolation
-#rbins = [5, 15, 30, 60]*u.arcsec*kpc_as
+#rbins = [5, 15, 30, 60]*u.kpc
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
@@ -165,11 +165,13 @@ def main():
     radius = np.arange(0., (mymaxr+mystep).value, mystep.value)*mystep.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
-    r_pp = np.arange((mystep*kpc_as).value, (R_b+mystep*kpc_as).value, (mystep*kpc_as).value)*u.kpc # radius in kpc used to compute the pressure profile (radius 0 excluded)
-    r_am = np.arange(0., (mystep*(1+r_pp.size)).to(u.arcmin).value, mystep.to('arcmin').value)*u.arcmin # radius in arcmin (radius 0 included)
+    r_pp = np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as).value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)).value, 
+                     mystep.to(u.kpc, equivalencies=eq_kpc_as).value)*u.kpc # radius in kpc used to compute the pressure profile (radius 0 excluded)
+    r_am = np.arange(0., (mystep*(1+r_pp.size)).to(u.arcmin, equivalencies=eq_kpc_as).value, 
+                     mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
 
     # Matrix of distances in kpc centered on 0 with step=mystep
-    d_mat = pfuncs.centdistmat(radius*kpc_as)
+    d_mat = pfuncs.centdistmat(radius.to(u.kpc, equivalencies=eq_kpc_as))
     
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
@@ -183,8 +185,8 @@ def main():
     abel_data = pfuncs.abel_data(r_pp.value)
     
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(step=mystep, kpc_as=kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, d_mat=d_mat, 
-                        filtering=filtering, abel_data=abel_data, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
+    sz = pfuncs.SZ_data(step=mystep, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, d_mat=d_mat, filtering=filtering, 
+                        abel_data=abel_data, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
     if not np.isfinite(pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz)[0][0]):
