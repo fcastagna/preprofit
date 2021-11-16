@@ -673,10 +673,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     mask = np.isfinite(np.float64(parprior))
     if mask.sum(axis=-1) == 0:#mask.size == 1 and mask.sum() == 1:
         if output == 'll':
-            # try:
             return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
-            # except:
-            # return [[-np.inf, None]]
         else:
             return None
     # pressure profile
@@ -695,7 +692,6 @@ def log_lik(pars_val, press, sz, output='ll'):
     # Conversion from Compton parameter to mJy/beam
     map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
     ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])*press.pars['pedestal'].unit
-    # ped = np.array((pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else np.repeat(press.pars['pedestal'].val, map_prof.shape[0]))*press.pars['pedestal'].unit
     map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T
     if output == 'bright':
         return map_prof
@@ -715,7 +711,7 @@ def log_lik(pars_val, press, sz, output='ll'):
             parprior[mask] = log_lik.value
             newmap_prof = np.repeat(np.inf, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
             newmap_prof[mask] = map_prof.value
-            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)#, axis=None)#+1)*log_lik.value#, map_prof.value
+            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
         else:
             return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
     elif output == 'chisq':
