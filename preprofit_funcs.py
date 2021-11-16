@@ -12,7 +12,6 @@ from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
-eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)]
 
 class Param:
     '''
