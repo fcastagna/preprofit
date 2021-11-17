@@ -691,8 +691,8 @@ def log_lik(pars_val, press, sz, output='ll'):
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
-    ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])*press.pars['pedestal'].unit
-    map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T
+    ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])
+    map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T*press.pars['pedestal'].unit
     if output == 'bright':
         return map_prof
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
