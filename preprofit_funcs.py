@@ -987,7 +987,7 @@ def update_new(self, old_state, new_state, accepted, subset=None):
     old_state.log_prob[m1] = new_state.log_prob[m2]
 
     if np.sum(list(map(lambda x: new_state.blobs[x] is not None, 
-                       range(new_state.blobs.size)))) > 0:
+                       range(new_state.blobs.shape[0])))) > 0:
         if old_state.blobs is None:
             raise ValueError(
                 "If you start sampling with a given log_prob, "
