@@ -460,7 +460,8 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             g = interp1d(r, b1d, 'cubic', bounds_error=False, fill_value=(0., 0.))
             inv_g = lambda x: g(x)-g(0.)/2
             fwhm_beam = 2*optimize.newton(inv_g, x0=50*step.value)*r.unit
-    maxr = (maxr_data+3*fwhm_beam.to(maxr_data.unit, equivalencies=eq_kpc_as))//step.to(maxr_data.unit, equivalencies=eq_kpc_as)*step.to(maxr_data.unit, equivalencies=eq_kpc_as)
+    maxr = (maxr_data+3*fwhm_beam.to(maxr_data.unit, equivalencies=eq_kpc_as))//step.to(maxr_data.unit, 
+                                                                                        equivalencies=eq_kpc_as)*step.to(maxr_data.unit, equivalencies=eq_kpc_as)
     rad = np.arange(0., (maxr+step.to(maxr_data.unit, equivalencies=eq_kpc_as)).value, step.to(maxr_data.unit, equivalencies=eq_kpc_as).value)*maxr.unit
     rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
     beam_mat = centdistmat(rad)
