@@ -537,13 +537,13 @@ def filt_image(wn_as, tf, tf_source_team, side, step):
     '''
     if not tf_source_team in ['NIKA', 'MUSTANG', 'SPT']:
         raise RuntimeError('Accepted values for tf_source_team are: NIKA, MUSTANG, SPT')
-    f = interp1d(wn_as.to(1/step.unit, equivalencies=eq_kpc_as), tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
-    kmax = 1/step
+    f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
+    kmax = 1/(step.to(wn_as.unit**-1, equivalencies=eq_kpc_as))
     karr = (dist(side)/side)*u.Unit('')
     if tf_source_team == 'NIKA':
         karr /= karr.max()
     karr *= kmax
-    return f(karr)
+    return f(karr)*tf.unit
 
 class abel_data:
     '''
