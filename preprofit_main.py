@@ -155,7 +155,8 @@ def main():
         mymaxr = beam_2d.shape[0]//2*mystep
         filtering = beam_2d.copy()
     else:
-        mymaxr = (maxr_data+3*fwhm)//mystep*mystep # max radius needed
+        mymaxr = (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//mystep.to(
+            maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as) # max radius needed
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep) # transfer function matrix
