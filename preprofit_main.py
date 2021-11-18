@@ -163,7 +163,7 @@ def main():
         filtering = np.abs(fft2(beam_2d))*filt_tf # filtering matrix including both PSF and transfer function
 
     # Radius definition
-    radius = np.arange(0., (mymaxr+mystep).value, mystep.value)*mystep.unit # array of radii
+    radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as)).value, mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     r_pp = np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as).value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)).value, 
