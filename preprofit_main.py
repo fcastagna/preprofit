@@ -152,7 +152,7 @@ def main():
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
-        mymaxr = beam_2d.shape[0]//2*mystep
+        mymaxr = beam_2d.shape[0]//2*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)
         filtering = beam_2d.copy()
     else:
         mymaxr = (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//mystep.to(
