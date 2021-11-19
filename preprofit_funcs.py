@@ -596,7 +596,7 @@ class distances:
         self.d_mat = centdistmat(radius.to(u.kpc, equivalencies=eq_kpc_as)) # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
-        self.labels = np.rint(self.d_mat.to(u.arcsec, equivalencies=eq_kpc_as)/step).astype(int) # labels indicating different annuli within the matrix of distances
+        self.labels = np.rint(self.d_mat.to(step.unit, equivalencies=eq_kpc_as)/step).astype(int) # labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
     '''
