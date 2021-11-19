@@ -152,17 +152,16 @@ def main():
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
-        mymaxr = beam_2d.shape[0]//2*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)
         filtering = beam_2d.copy()
     else:
-        mymaxr = (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//mystep.to(
-            maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as) # max radius needed
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep) # transfer function matrix
         filtering = np.abs(fft2(beam_2d))*filt_tf # filtering matrix including both PSF and transfer function
 
     # Radius definition
+    mymaxr = [beam_2d.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
+              mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)][0] # max radius needed
     radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as)).value, mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
