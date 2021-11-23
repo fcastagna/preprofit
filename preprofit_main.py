@@ -152,7 +152,7 @@ def main():
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
-        filtering = beam_2d.copy()
+        filtering = np.abs(fft2(beam_2d))
     else:
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
