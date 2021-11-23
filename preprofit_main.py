@@ -47,6 +47,7 @@ t_const = 12*u.keV # if conversion is not required, preprofit ignores it
 
 # Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
+# NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
 beam_units = [u.arcsec, u.beam] # beam units
 tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
@@ -143,7 +144,7 @@ def main():
 
     # Flux density data
     flux_data = pfuncs.read_data(flux_filename, ncol=3, units=flux_units) # radius, flux density, statistical error
-    maxr_data = flux_data[0][-1] # highest radius in the data
+    maxr_data = flux_data[0][-1] # largest radius in the data
     press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
