@@ -228,8 +228,9 @@ def main():
     pplots.fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
-    p_prof = pplots.press_prof(cube_chain, press, r_pp, ci=ci)
-    pplots.plot_press(r_pp, p_prof, ci=ci, plotdir=plotdir)
+    p_prof = pfuncs.log_lik(flat_chain, press, sz, 'pp')
+    p_quant = pplots.get_equal_tailed(p_prof, ci=ci)
+    pplots.plot_press(r_pp, p_quant, ci=ci, plotdir=plotdir)
     
     # Outer slope posterior distribution
     slopes = pfuncs.get_outer_slope(flat_chain, press, r_out)
