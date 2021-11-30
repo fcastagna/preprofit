@@ -439,7 +439,7 @@ def mybeam(step, maxr_data, eq_kpc_as, approx=False, filename=None, units=[u.arc
             inv_f = lambda x: f(x)-f(0.)/2
             fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
         except:
-            b = read_data(filename, ncol=1, units=units)
+            b = read_data(filename, ncol=1, units=np.atleast_2d(units)[0][0])
             r = np.arange(0., b.shape[0]//2*step.value, step.value)*step.unit
             r = np.append(-r[:0:-1].value, r.value)*r.unit
             # If matrix dimensions are even, turn them odd
