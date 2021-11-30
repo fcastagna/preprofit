@@ -626,14 +626,13 @@ class SZ_data:
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
-    d_mat = matrix of distances in kpc centered on 0 with given step
     filtering = transfer function matrix
     abel_data = collection of data required for Abel transform calculation
     calc_integ = whether to include integrated Compton parameter in the likelihood (boolean, default is False)
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.eq_kpc_as = eq_kpc_as
         self.conv_temp_sb = conv_temp_sb
