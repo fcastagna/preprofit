@@ -72,10 +72,12 @@ class ParamGaussian(Param):
 class Pressure:
     '''
     Class to parametrize the pressure profile
-    -----------------------------------------    
+    -----------------------------------------
+    eq_kpc_as = equation for switching between kpc and arcsec
     '''
-    def __init__(self):
+    def __init__(self, eq_kpc_as):
         self.pars = self.defPars()
+        self.eq_kpc_as = eq_kpc_as
         
     def defPars(self):
         '''
@@ -114,8 +116,8 @@ class Press_gNFW(Pressure):
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        Pressure.__init__(self)
+    def __init__(self, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+        Pressure.__init__(self, eq_kpc_as)
         self.slope_prior = slope_prior
         self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
@@ -175,7 +177,7 @@ class Press_gNFW(Pressure):
         z = redshift
         '''
         c500 = 1.177
-        self.pars['r_p'].val = r500.to(u.kpc, equivalencies=eq_kpc_as).value/c500
+        self.pars['r_p'].val = r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500
         self.pars['a'].val = 1.051
         self.pars['b'].val = 5.4905
         self.pars['c'].val = .3081
@@ -197,10 +199,10 @@ class Press_cubspline(Pressure):
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, knots, pr_knots, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+    def __init__(self, knots, pr_knots, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
         self.pr_knots = pr_knots
-        Pressure.__init__(self)
+        Pressure.__init__(self, eq_kpc_as)
         self.slope_prior = slope_prior
         self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
@@ -261,13 +263,11 @@ class Press_cubspline(Pressure):
         cosmo = cosmology object
         z = redshift
         '''
-        new_press = Press_gNFW()
-        self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=eq_kpc_as), cosmo=cosmo, z=z)
+        new_press = Press_gNFW(self.eq_kpc_as)
+        new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=self.eq_kpc_as), cosmo=cosmo, z=z)
         new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
         new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
         p_params = new_press.press_fun(self.knots, [new_press.pars[x].val for x in new_press.fit_pars]).value
-        self.pars = self.defPars()
         for i in range(p_params.size):
             self.pars['P_'+str(i)].val = p_params[0][i]
 
@@ -280,12 +280,12 @@ class Press_nonparam_plaw(Pressure):
     slope_prior = apply a prior constrain on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, rbins, pbins, slope_prior=True, max_slopeout=-2.):
+    def __init__(self, rbins, pbins, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
         self.rbins = rbins.to(u.kpc, equivalencies=eq_kpc_as)
         self.pbins = pbins
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
-        Pressure.__init__(self)
+        Pressure.__init__(self, eq_kpc_as)
         self.alpha = np.atleast_2d(np.ones_like(self.rbins))*u.Unit('')
         self.alpha_den = np.atleast_2d(np.log(self.rbins[:-1]/self.rbins[1:])) # denominator for alpha
         
@@ -338,13 +338,11 @@ class Press_nonparam_plaw(Pressure):
         cosmo = cosmology object
         z = redshift
         '''
-        new_press = Press_gNFW()
-        self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=eq_kpc_as), cosmo=cosmo, z=z)
+        new_press = Press_gNFW(self.eq_kpc_as)
+        new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=self.eq_kpc_as), cosmo=cosmo, z=z)
         new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
         new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
         p_params = new_press.press_fun(self.rbins, [new_press.pars[x].val for x in new_press.fit_pars]).value
-        self.pars = self.defPars()
         for i in range(p_params.size):
             self.pars['P_'+str(i)].val = p_params[0][i]
 
@@ -379,7 +377,7 @@ def read_data(filename, ncol=1, units=u.Unit('')):
             return data*units
         else:
             return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
-    else:# len(dim) == 2:
+    else:
         if dim[0] == dim[1]:
             return data*units
         else:
@@ -417,12 +415,13 @@ def get_central(mat, side):
     centre = mat.shape[0]//2
     return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
 
-def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, eq_kpc_as, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
     step = binning step
     maxr_data = highest radius in the data
+    eq_kpc_as = equation for switching between kpc and arcsec
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
     units = units in astropy.units format
@@ -523,7 +522,7 @@ def dist(naxis):
     result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
-def filt_image(wn_as, tf, tf_source_team, side, step):
+def filt_image(wn_as, tf, tf_source_team, side, step, eq_kpc_as):
     '''
     Create the 2D filtering image from the transfer function data
     -------------------------------------------------------------
@@ -532,6 +531,7 @@ def filt_image(wn_as, tf, tf_source_team, side, step):
     tf_source_team = transfer function provenance ('NIKA', 'MUSTANG', or 'SPT')
     side = one side length for the output image
     step = binning step
+    eq_kpc_as = equation for switching between kpc and arcsec
     -------------------------------
     RETURN: the (side x side) image
     '''
@@ -591,8 +591,9 @@ class distances:
     radius = array of radii in arcsec
     sep = index of radius 0
     step = binning step
+    eq_kpc_as = equation for switching between kpc and arcsec
     '''
-    def __init__(self, radius, sep, step):
+    def __init__(self, radius, sep, step, eq_kpc_as):
         self.d_mat = centdistmat(radius.to(u.kpc, equivalencies=eq_kpc_as)) # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
@@ -619,6 +620,7 @@ class SZ_data:
     Class for the SZ data required for the analysis
     -----------------------------------------------
     step = binning step
+    eq_kpc_as = equation for switching between kpc and arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
     flux_data = radius, flux density, statistical error
     radius = array of radii in arcsec
@@ -631,17 +633,18 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, d_mat, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
+        self.eq_kpc_as = eq_kpc_as
         self.conv_temp_sb = conv_temp_sb
         self.flux_data = flux_data
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp.to(u.kpc, equivalencies=eq_kpc_as)
         self.r_am = r_am
-        self.dist = distances(radius, sep, step)
+        self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
-        self.abel_data = abel_data
+        self.abel_data = abel_data(r_pp.value)
         self.calc_integ = calc_integ
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
@@ -970,7 +973,7 @@ def get_outer_slope(flatchain, press, r_out):
     for j in range(slopes.size):
         press.update_vals(press.fit_pars, flatchain[j])
         try:
-            slopes[j] = press.functional_form(r_out.to(u.kpc, equivalencies=eq_kpc_as), [press.pars[x].val for x in press.fit_pars], logder=True)
+            slopes[j] = press.functional_form(r_out.to(u.kpc, equivalencies=press.eq_kpc_as), [press.pars[x].val for x in press.fit_pars], logder=True)
         except:
             i = len(press.rbins)
             slopes[j] = np.log(press.pars['P_'+str(i-1)].val/press.pars['P_'+str(i-2)].val)/np.log(press.rbins[i-1]/press.rbins[i-2])
