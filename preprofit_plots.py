@@ -139,34 +139,6 @@ def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def press_prof(cube_chain, press, r_kpc, num='all', seed=None, ci=95):
-    '''
-    Radial pressure profile (median and uncertainty interval) from given number of samples
-    --------------------------------------------------------------------------------------
-    cube_chain = 3d array of sampled values (nw x niter x nparam)
-    press = pressure object of the class Pressure
-    r_kpc = radius (kpc)
-    num = number of samples to include (default is 'all', i.e. nw x niter parameters)
-    seed = random seed (default is None)
-    ci = uncertainty level of the interval
-    ------------------------------------------------
-    RETURN: median and uncertainty interval profiles
-    '''
-    nw = cube_chain.shape[0]
-    if num == 'all':
-        num = nw*cube_chain.shape[1]
-    w, it = np.meshgrid(np.arange(nw), np.arange(cube_chain.shape[1]))
-    w = w.flatten()
-    it = it.flatten()
-    np.random.seed(seed)
-    rand = np.random.choice(w.size, num, replace=False)
-    press_prof = []
-    for j in rand:
-        press.update_vals(press.fit_pars, cube_chain[w[j],it[j],:])
-        press_prof.append(press.press_fun(r_kpc, [press.pars[x].val for x in press.fit_pars])[0])
-    perc_press = get_equal_tailed(press_prof, ci)
-    return perc_press
-
 def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./'):
     '''
     Plot the radial pressure profiles
