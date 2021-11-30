@@ -670,7 +670,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     pressprior = press.prior(pars_val)
     parprior = np.sum([parsprior, pressprior], axis=0)
     mask = np.isfinite(np.float64(parprior))
-    if mask.sum(axis=-1) == 0:#mask.size == 1 and mask.sum() == 1:
+    if mask.sum(axis=-1) == 0:
         if output == 'll':
             return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
         else:
