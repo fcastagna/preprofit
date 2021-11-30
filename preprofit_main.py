@@ -84,12 +84,12 @@ max_slopeout = -2. # maximum value for the slope at r_out
 press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Cubic spline
-#knots = [5, 15, 30, 60]*u.kpc
-#press_knots = [1e-1, 2e-2, 5e-3, 1e-4]*u.Unit('keV/cm3')
+#knots = [100, 300, 500, 700]*u.kpc
+#press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Power law interpolation
-#rbins = [5, 15, 30, 60]*u.kpc
+#rbins = [100, 300, 500, 700]*u.kpc
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
