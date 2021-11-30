@@ -19,6 +19,7 @@ Om0 = 0.3 # Omega matter
 z = 0.888 # redshift
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
+eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
 
 ## Beam and transfer function
 # Beam file already includes transfer function?
@@ -79,17 +80,17 @@ max_slopeout = -2. # maximum value for the slope at r_out
 # 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (cubic spline / power law interpolation)
 
 # Generalized Navarro Frenk and White
-press = pfuncs.Press_gNFW(slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Cubic spline
 #knots = [5, 15, 30, 60]*u.kpc
 #press_knots = [1e-1, 2e-2, 5e-3, 1e-4]*u.Unit('keV/cm3')
-#press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+#press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Power law interpolation
 #rbins = [5, 15, 30, 60]*u.kpc
 #pbins = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
-#press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, slope_prior=slope_prior, max_slopeout=max_slopeout)
+#press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Parameters setup
 name_pars = list(press.pars) # all parameters
@@ -148,8 +149,8 @@ def main():
     press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, cropped_side=cropped_side, 
-                                  normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
+                                  cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
@@ -157,7 +158,7 @@ def main():
     else:
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
-        filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep) # transfer function matrix
+        filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep, eq_kpc_as) # transfer function matrix
         filtering = np.abs(fft2(beam_2d))*filt_tf # filtering matrix including both PSF and transfer function
 
     # Radius definition
@@ -171,9 +172,6 @@ def main():
     r_am = np.arange(0., (mystep*(1+r_pp.size)).to(u.arcmin, equivalencies=eq_kpc_as).value, 
                      mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
 
-    # Matrix of distances in kpc centered on 0 with step=mystep
-    d_mat = pfuncs.centdistmat(radius.to(u.kpc, equivalencies=eq_kpc_as))
-    
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
         temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units)
@@ -182,12 +180,9 @@ def main():
     else:
         conv_temp_sb = 1*u.Unit('')
 
-    # Collection of data required for Abel transform calculation
-    abel_data = pfuncs.abel_data(r_pp.value)
-    
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(step=mystep, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, d_mat=d_mat, filtering=filtering, 
-                        abel_data=abel_data, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
+                        calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
     if not np.isfinite(pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz)[0][0]):
