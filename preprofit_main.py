@@ -181,7 +181,7 @@ def main():
         conv_temp_sb = 1*u.Unit('')
 
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(step=mystep, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, d_mat=d_mat, filtering=filtering, 
+    sz = pfuncs.SZ_data(step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, filtering=filtering, 
                         calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
