@@ -7,7 +7,7 @@ from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
 import emcee
 import h5py
-import six.moves.cPickle as pickle
+import cloudpickle
 from types import MethodType
 emcee.moves.move.Move.update = MethodType(pfuncs.update_new, emcee.moves.move.Move.update)
 
@@ -195,9 +195,9 @@ def main():
     
     # Save objects
     with open('%s/press_obj.pickle' % savedir, 'wb') as f:
-        pickle.dump(press, f, -1)
+        cloudpickle.dump(press, f, -1)
     with open('%s/szdata_obj.pickle' % savedir, 'wb') as f:
-        pickle.dump(sz, f, -1)
+        cloudpickle.dump(sz, f, -1)
     
     # Bayesian fit
     try:
