@@ -119,6 +119,7 @@ press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
 
 # Sampling step
 mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
+# NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
 
 # MCMC parameters
 nburn = 2000 # number of burn-in iterations
@@ -204,6 +205,7 @@ def main():
     except:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, vectorize=True)
     # Preliminary fit to increase likelihood
+    print('Fitted parameters:', press.fit_pars)
     pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # Construct MCMC object and do burn in
     mcmc = pfuncs.MCMC(sampler, press.pars, press.fit_pars, seed=seed, initspread=0.1)
