@@ -667,8 +667,11 @@ def log_lik(pars_val, press, sz, output='ll'):
     # prior on parameters
     parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
     parsprior = np.nansum(np.array([np.repeat(0, parsprior.size), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+    # prior on pressure distribution
     pressprior = press.prior(pars_val)
+    # overall prior
     parprior = np.sum([parsprior, pressprior], axis=0)
+    # mask on infinite values
     mask = np.isfinite(np.float64(parprior))
     if mask.sum(axis=-1) == 0:
         if output == 'll':
@@ -697,7 +700,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     # Log-likelihood calculation
     chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
-    log_lik = -chisq/2
+    log_lik = -chisq/2+parprior[mask]
     # Optional integrated Compton parameter calculation
     if sz.calc_integ:
         cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
