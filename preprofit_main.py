@@ -239,6 +239,7 @@ def main():
     # Radial pressure profile
     p_prof = pfuncs.log_lik(flat_chain, press, sz, 'pp')
     p_quant = pplots.get_equal_tailed(p_prof, ci=ci)
+    np.savetxt('%s/press_prof.dat' % savedir, p_quant.T) # save pressure profile (mean + CI)
     pplots.plot_press(r_pp, p_quant, ci=ci, plotdir=plotdir)
     
     # Outer slope posterior distribution
