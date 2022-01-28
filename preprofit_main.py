@@ -204,11 +204,13 @@ def main():
     # Extract surface brightness profiles
     cube_surbr = np.array(h5py.File(chainfilename, 'r')['bright'])
     flat_surbr = cube_surbr.reshape(-1, cube_surbr.shape[2], order='F')
+    # Median surface brightness profile + CI
+    perc_sz = pplots.get_equal_tailed(flat_surbr, ci=ci)
 
     # Posterior distribution parameters
     param_med = np.median(flat_chain, axis=0)
     param_std = np.std(flat_chain, axis=0)
-    pfuncs.print_summary(press, param_med, param_std, sz)
+    pfuncs.print_summary(press, param_med, param_std, perc_sz[1], sz)
     pfuncs.save_summary(name, press, param_med, param_std, ci=ci)
 
     ### Plots
@@ -217,7 +219,6 @@ def main():
     pplots.triangle(flat_chain, press.fit_pars, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
     # Best fitting profile on SZ surface brightness
-    perc_sz = pplots.get_equal_tailed(flat_surbr, ci=ci)
     pplots.fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
