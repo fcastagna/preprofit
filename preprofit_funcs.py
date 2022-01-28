@@ -888,15 +888,18 @@ class MCMC:
             f['lastpos'] = self.sampler.chain[:, -1, :].astype(np.float32)
         print('Done')
 
-def print_summary(press, pmed, pstd, sz):
+def print_summary(press, pmed, pstd, medsf, sz):
     '''
     Prints as output a statistical summary of the posterior distribution
     --------------------------------------------------------------------
     press = pressure object of the class Pressure
     pmed = array of means of parameters sampled in the chain
     pstd = array of standard deviations of parameters sampled in the chain
+    medsf = median surface brightness profile 
     sz = class of SZ data
     '''
+    g = interp1d(sz.radius[sz.sep:], medsf, 'cubic', fill_value='extrapolate', axis=-1)
+    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*sz.flux_data[1].unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
     wid1 = len(max(press.fit_pars, key=len))
     wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
     wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
@@ -913,7 +916,7 @@ def print_summary(press, pmed, pstd, sz):
               ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e'))+
               ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
     print('-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0))+
-          '\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(pmed, press, sz, output='chisq')), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
+          '\nMedian profile Chi2 = %s with %s df' % ('{:.4f}'.format(chisq.value), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
 
 def save_summary(filename, press, pmed, pstd, ci):
     '''
