@@ -1,5 +1,5 @@
-import supervec_funcs as pfuncs
-import supervec_plots as pplots
+import preprofit_funcs as pfuncs
+import preprofit_plots as pplots
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
