@@ -1,5 +1,5 @@
-import preprofit_funcs as pfuncs
-import preprofit_plots as pplots
+import supervec_funcs as pfuncs
+import supervec_plots as pplots
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
@@ -13,18 +13,25 @@ emcee.moves.move.Move.update = MethodType(pfuncs.update_new, emcee.moves.move.Mo
 
 
 ### Global and local variables
+code = ['0504-4929', '0500-5116']
+clus = list(map(lambda x: 'SPT-CLJ'+x, code))
+plotdir = './joint_clus/' # directory for the plots
+savedir = './joint_clus/' # directory for saved files
+names, reds = np.loadtxt('data/fullsample_SPT.txt', skiprows=1, dtype=('str', 'str'), usecols=(0,3), unpack=1)
+reds = np.float64(reds)
+index = list(map(lambda x: np.where(x == names)[0][0], clus))
 
 ## Cluster cosmology
 H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
-z = 0.888 # redshift
+z = reds[index] # redshift
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
 
 ## Beam and transfer function
 # Beam file already includes transfer function?
-beam_and_tf = False
+beam_and_tf = True
 
 # Beam and transfer function. From input data or Gaussian approximation?
 beam_approx = False
@@ -33,15 +40,15 @@ fwhm_beam = None # fwhm of the normal distribution for the beam approximation
 loc, scale, c = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
 
 # Transfer function provenance (not the instrument, but the team who derived it)
-tf_source_team = 'NIKA' # alternatively, 'MUSTANG' or 'SPT'
+tf_source_team = 'SPT' # alternatively, 'MUSTANG' or 'SPT'
 
 ## File names (FITS and ASCII formats are accepted)
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
 files_dir = './data' # files directory
-beam_filename = '%s/Beam150GHz.fits' %files_dir # beam
+beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # beam
 tf_filename = '%s/TransferFunction150GHz_CLJ1227.fits' %files_dir # transfer function
-flux_filename = '%s/press_clj1226_flagsource.dat' %files_dir # observed data
+flux_filename = list(map(lambda x: '%s/press_data_' %files_dir +x+'.dat', clus))
 convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compton -> observed data
 
 # Temperature used for the conversion factor above
@@ -50,22 +57,22 @@ t_const = 12*u.keV # if conversion is not required, preprofit ignores it
 # Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
-beam_units = [u.arcsec, u.beam] # beam units
+beam_units = u.beam # beam units
 tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
-flux_units = [u.arcsec, u.Unit('mJy beam-1'), u.Unit('mJy beam-1')] # observed data units
+flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
 conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
 # Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
-crop_image = False # adopt or do not adopt?
-cropped_side = 501 # side of the cropped image (automatically set to odd value)
+crop_image = True # adopt or do not adopt?
+cropped_side = 201 # side of the cropped image (automatically set to odd value)
 
 # Maximum radius for line-of-sight Abel integration
 R_b = 5000*u.kpc
 
 # Name for outputs
 name = 'preprofit'
-plotdir = './' # directory for the plots
-savedir = './' # directory for saved files
+# plotdir = './' # directory for the plots
+# savedir = './' # directory for saved files
 
 ## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
@@ -81,12 +88,14 @@ max_slopeout = -2. # maximum value for the slope at r_out
 # 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (cubic spline / power law interpolation)
 
 # Generalized Navarro Frenk and White
-press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+# press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # Cubic spline
-#knots = [100, 300, 500, 700]*u.kpc
-#press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
-#press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+knots = [100, 300, 500, 700]*u.kpc
+press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
+press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+
+press.pars = [press.defPars() for x in range(len(clus))]
 
 # Power law interpolation
 #rbins = [100, 300, 500, 700]*u.kpc
@@ -94,17 +103,19 @@ press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Parameters setup
-name_pars = list(press.pars) # all parameters
+name_pars = list(press.pars[0]) # all parameters
 # To see the default parameter space extent, use: print(press.pars)
 
 # To exclude a parameter from the fit:
 #press.pars['P_0'].frozen = True
-press.pars['c'].frozen = True
+# press.pars['c'].frozen = True
+for i in range(len(press.pars)):
+    press.pars[i]['pedestal'].frozen = 0
 
 # To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and 
 # JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
 # NOTE: this option is available for both parametric and non parametric pressure models
-press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
+# press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
 
 # Otherwise, you can customize your set of parameters
 # For each parameter, use the following to change the values of the prior distribution, either altogether...
@@ -118,7 +129,7 @@ press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
 #press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
 
 # Sampling step
-mystep = 2.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
+mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
 
 # MCMC parameters
@@ -139,24 +150,25 @@ ci = 68
 def main():
 
     # Parameter definition
-    press.fit_pars =  [x for x in press.pars if not press.pars[x].frozen]
-    press.max_val = [press.pars[name].maxval for name in press.fit_pars]
-    press.min_val = [press.pars[name].minval for name in press.fit_pars]
+    press.fit_pars = [y for y in press.pars[0] if not press.pars[0][y].frozen]
+    press.max_val = [press.pars[0][name].maxval for name in press.fit_pars]
+    press.min_val = [press.pars[0][name].minval for name in press.fit_pars]
     ndim = len(press.fit_pars)
-    press.indexes = {'ind_'+x: np.array(press.fit_pars)==x if x in press.fit_pars else press.pars[x].val for x in name_pars}
+    press.indexes = {'ind_'+y: np.array(press.fit_pars)==y if y in press.fit_pars else press.pars[y].val for y in name_pars}
 
     # Flux density data
-    flux_data = pfuncs.read_data(flux_filename, ncol=3, units=flux_units) # radius, flux density, statistical error
-    maxr_data = flux_data[0][-1] # largest radius in the data
-    press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
+    flux_data = list(map(lambda x: pfuncs.read_data(x, ncol=3, units=flux_units), flux_filename)) # radius, flux density, statistical error
+    maxr_data = list(map(lambda x: x[0][-1], flux_data)) # highest radius in the data
+    for i in range(len(press.pars)): 
+        press.pars[i]['pedestal'].unit = flux_data[i][1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
-                                  cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = np.array(list(map(lambda x: pfuncs.mybeam(mystep, x, approx=beam_approx, filename=beam_filename, eq_kpc_as=eq_kpc_as, units=beam_units, crop_image=crop_image, cropped_side=cropped_side, 
+                                                              normalize=True, fwhm_beam=fwhm_beam), maxr_data)), dtype='O').T
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
-        filtering = np.abs(fft2(beam_2d))
+        filtering = list(map(lambda x: np.abs(fft2(x)), beam_2d))
     else:
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=c) # wave number, transmission
@@ -164,15 +176,13 @@ def main():
         filtering = np.abs(fft2(beam_2d))*filt_tf # filtering matrix including both PSF and transfer function
 
     # Radius definition
-    mymaxr = [beam_2d.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
+    mymaxr = [beam_2d[0].shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
               mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)][0] # max radius needed
     radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as)).value, mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
-    r_pp = np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as).value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)).value, 
-                     mystep.to(u.kpc, equivalencies=eq_kpc_as).value)*u.kpc # radius in kpc used to compute the pressure profile (radius 0 excluded)
-    r_am = np.arange(0., (mystep*(1+r_pp.size)).to(u.arcmin, equivalencies=eq_kpc_as).value, 
-                     mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
+    r_pp = np.array(list(map(lambda x: np.arange((x).value, (R_b+x).value, (x).value)*u.kpc, mystep*kpc_as)), dtype='O')
+    r_am = np.array(list(map(lambda x: np.arange(0., (mystep*(1+x.size)).to(u.arcmin).value, mystep.to('arcmin').value)*u.arcmin, r_pp)), dtype='O') # radius in arcmin (radius 0 included)
 
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
@@ -183,15 +193,23 @@ def main():
         conv_temp_sb = 1*u.Unit('')
 
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, filtering=filtering, 
-                        calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
+    sz = [pfuncs.SZ_data(step=mystep, conv_temp_sb=conv_temp_sb, eq_kpc_as=eq_kpc_as, flux_data=flux_data[i], 
+                         radius=radius, sep=sep, r_pp=r_pp[i], r_am=r_am[i], ith=i, filtering=filtering[i], 
+                         calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig) for i in np.arange(len(clus))]
+
+    # bestpars = np.array([[-.000009423257637394848, 0.06172704462977999, 0.014127960165151006, 0.005064222156992524, 0.0005632371659706729],
+    #                     [-.000021735160741870184, 0.9804752136059053, 0.42149619159777646, 0.04461957488036962, 0.0025949807412450347]])
+    # for cl in range(len(clus)):
+    #     for name, i in zip(press.fit_pars, range(len(press.fit_pars))):
+    #         press.pars[cl][name].val = bestpars[cl][i]
 
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
-    if not np.isfinite(pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz)[0][0]):
+    start_pars = np.array([[press.pars[y][x].val for x in press.fit_pars] for y in range(len(sz))])
+    if not np.all(np.isfinite(pfuncs.log_lik(start_pars, press, sz)[:,0])):
         raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
     else:
-        start_prof = pfuncs.log_lik([press.pars[x].val for x in press.fit_pars], press, sz, output='bright')
-        pplots.plot_guess(start_prof, sz, plotdir=plotdir)
+        start_prof = pfuncs.log_lik(start_pars, press, sz, output='bright')
+        # pplots.plot_guess(start_prof, sz, plotdir=plotdir)
     
     # Save objects
     with open('%s/press_obj.pickle' % savedir, 'wb') as f:
@@ -201,12 +219,12 @@ def main():
     
     # Bayesian fit
     try:
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)], vectorize=True)
+        sampler = emcee.EnsembleSampler(nwalkers*len(clus), ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, blobs_dtype=[('bright', list)], vectorize=True)
     except:
         sampler = emcee.EnsembleSampler(nwalkers, ndim, pfuncs.log_lik, args=[press, sz], threads=nthreads, vectorize=True)
     # Preliminary fit to increase likelihood
     print('Fitted parameters:', press.fit_pars)
-    pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
+    # pfuncs.prelim_fit(sampler, press.pars, press.fit_pars)
     # Construct MCMC object and do burn in
     mcmc = pfuncs.MCMC(sampler, press.pars, press.fit_pars, seed=seed, initspread=0.1)
     chainfilename = '%s%s_chain.hdf5' % (savedir, name)
@@ -220,13 +238,11 @@ def main():
     # Extract surface brightness profiles
     cube_surbr = np.array(h5py.File(chainfilename, 'r')['bright'])
     flat_surbr = cube_surbr.reshape(-1, cube_surbr.shape[2], order='F')
-    # Median surface brightness profile + CI
-    perc_sz = pplots.get_equal_tailed(flat_surbr, ci=ci)
 
     # Posterior distribution parameters
     param_med = np.median(flat_chain, axis=0)
     param_std = np.std(flat_chain, axis=0)
-    pfuncs.print_summary(press, param_med, param_std, perc_sz[1], sz)
+    pfuncs.print_summary(press, param_med, param_std, sz)
     pfuncs.save_summary(name, press, param_med, param_std, ci=ci)
 
     ### Plots
@@ -235,12 +251,12 @@ def main():
     pplots.triangle(flat_chain, press.fit_pars, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
     # Best fitting profile on SZ surface brightness
+    perc_sz = pplots.get_equal_tailed(flat_surbr, ci=ci)
     pplots.fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
     p_prof = pfuncs.log_lik(flat_chain, press, sz, 'pp')
     p_quant = pplots.get_equal_tailed(p_prof, ci=ci)
-    np.savetxt('%s/press_prof.dat' % savedir, p_quant.T) # save pressure profile (mean + CI)
     pplots.plot_press(r_pp, p_quant, ci=ci, plotdir=plotdir)
     
     # Outer slope posterior distribution
