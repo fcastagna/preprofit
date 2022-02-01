@@ -154,8 +154,7 @@ class Press_gNFW(Pressure):
                               else self.pars[x].val)*self.pars[x].unit for x in ['P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
             return (P_0/(np.outer(r_kpc, 1/r_p)**c*(1+np.outer(r_kpc, 1/r_p)**a)**((b-c)/a))).T
-        else:
-            return (b-c)/(1+(r_kpc/r_p)**a)-b
+        return (b-c)/(1+(r_kpc/r_p)**a)-b
 
     def prior(self, pars):
         '''
@@ -165,7 +164,7 @@ class Press_gNFW(Pressure):
         '''
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
-            return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+            return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
     
     def set_universal_params(self, r500, cosmo, z):
@@ -230,19 +229,17 @@ class Press_cubspline(Pressure):
         mask = np.any(p_params <= 0, axis=0)
         if np.all(mask == True):
             return np.array(np.inf)
-        else:
-            try:
-                f = interp1d(np.log10(self.knots.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
-            except:
-                if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
+        try:
+            f = interp1d(np.log10(self.knots.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
+        except:
+            if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
         if logder == False:
             out = np.nan*np.ones((mask.size, r_kpc.size))
             out[~mask,:] = 10**f(np.log10(r_kpc.value))
             return out*self.pars['P_0'].unit
-        else:
-            out = np.inf*np.ones(mask.size)
-            out[~mask] = f._spline.derivative()(np.log10(r_kpc.value))
-            return out*u.Unit('')
+        out = np.inf*np.ones(mask.size)
+        out[~mask] = f._spline.derivative()(np.log10(r_kpc.value))
+        return out*u.Unit('')
 
     def prior(self, pars):
         '''
@@ -252,7 +249,7 @@ class Press_cubspline(Pressure):
         '''
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
-            return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+            return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
     
     def set_universal_params(self, r500, cosmo, z):
@@ -327,7 +324,7 @@ class Press_nonparam_plaw(Pressure):
             P_n_1, P_n = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
                                    else self.pars[x].val for x in ['P_'+str(i) for i in range(self.rbins.size-2, self.rbins.size)]])
             slope_out = np.log(P_n/P_n_1)/np.log(self.rbins[i-1]/self.rbins[i-2])
-            return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+            return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
 
     def set_universal_params(self, r500, cosmo, z):
@@ -375,13 +372,11 @@ def read_data(filename, ncol=1, units=u.Unit('')):
     if len(dim) == 1:
         if ncol == 1:
             return data*units
-        else:
-            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
+        return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
     else:
         if dim[0] == dim[1]:
             return data*units
-        else:
-            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
+        return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
 
 def read_beam(filename, ncol, units):
     '''
@@ -666,7 +661,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     '''
     # prior on parameters
     parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
-    parsprior = np.nansum(np.array([np.repeat(0, parsprior.size), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+    parsprior = np.nansum(np.array([np.zeros(parsprior.shape), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
     # prior on pressure distribution
     pressprior = press.prior(pars_val)
     # overall prior
@@ -676,8 +671,7 @@ def log_lik(pars_val, press, sz, output='ll'):
     if mask.sum(axis=-1) == 0:
         if output == 'll':
             return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
-        else:
-            return None
+        return None
     # pressure profile
     pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[mask])
     if output == 'pp':
@@ -714,8 +708,7 @@ def log_lik(pars_val, press, sz, output='ll'):
             newmap_prof = np.repeat(None, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
             newmap_prof[mask] = map_prof.value
             return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
-        else:
-            return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
+        return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
     elif output == 'chisq':
         return chisq.value
     else:
