@@ -15,8 +15,8 @@ emcee.moves.move.Move.update = MethodType(pfuncs.update_new, emcee.moves.move.Mo
 ### Global and local variables
 code = ['0504-4929', '0500-5116']
 clus = list(map(lambda x: 'SPT-CLJ'+x, code))
-plotdir = './joint_clus/' # directory for the plots
-savedir = './joint_clus/' # directory for saved files
+plotdir = './' # directory for the plots
+savedir = './' # directory for saved files
 names, reds = np.loadtxt('data/fullsample_SPT.txt', skiprows=1, dtype=('str', 'str'), usecols=(0,3), unpack=1)
 reds = np.float64(reds)
 index = list(map(lambda x: np.where(x == names)[0][0], clus))
