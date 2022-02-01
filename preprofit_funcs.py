@@ -154,8 +154,7 @@ class Press_gNFW(Pressure):
                               else self.pars[x].val)*self.pars[x].unit for x in ['P_0', 'a', 'b', 'c', 'r_p']]
         if logder == False:
             return (P_0/(np.outer(r_kpc, 1/r_p)**c*(1+np.outer(r_kpc, 1/r_p)**a)**((b-c)/a))).T
-        else:
-            return (b-c)/(1+(r_kpc/r_p)**a)-b
+        return (b-c)/(1+(r_kpc/r_p)**a)-b
 
     def prior(self, pars):
         '''
@@ -165,7 +164,7 @@ class Press_gNFW(Pressure):
         '''
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
-            return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+            return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
     
     def set_universal_params(self, r500, cosmo, z):
@@ -229,20 +228,18 @@ class Press_cubspline(Pressure):
         p_params = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_'+str(i) for i in range(self.knots.size)]])
         mask = np.any(p_params <= 0, axis=0)
         if np.all(mask == True):
-            return np.array(np.inf)
-        else:
-            try:
-                f = interp1d(np.log10(self.knots.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
-            except:
-                if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
+            return np.array([[np.inf]*len(mask)]).T
+        try:
+            f = interp1d(np.log10(self.knots.value), np.log10(np.float64(p_params[:,~mask])).T, kind='cubic', fill_value='extrapolate')
+        except:
+            if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
         if logder == False:
             out = np.nan*np.ones((mask.size, r_kpc.size))
             out[~mask,:] = 10**f(np.log10(r_kpc.value))
-            return out*self.pars['P_0'].unit
-        else:
-            out = np.inf*np.ones(mask.size)
-            out[~mask] = f._spline.derivative()(np.log10(r_kpc.value))
-            return out*u.Unit('')
+            return out*self.pars[0]['P_0'].unit
+        out = np.inf*np.ones(mask.shape)
+        out[~mask] = f._spline.derivative()(np.log10(r_kpc.value))
+        return out*u.Unit('')
 
     def prior(self, pars):
         '''
@@ -252,7 +249,7 @@ class Press_cubspline(Pressure):
         '''
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
-            return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+            return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
     
     def set_universal_params(self, r500, cosmo, z):
@@ -327,7 +324,7 @@ class Press_nonparam_plaw(Pressure):
             P_n_1, P_n = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
                                    else self.pars[x].val for x in ['P_'+str(i) for i in range(self.rbins.size-2, self.rbins.size)]])
             slope_out = np.log(P_n/P_n_1)/np.log(self.rbins[i-1]/self.rbins[i-2])
-            return np.nansum(np.array([np.repeat(0, slope_out.size), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+            return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
         return [0.]
 
     def set_universal_params(self, r500, cosmo, z):
@@ -375,13 +372,11 @@ def read_data(filename, ncol=1, units=u.Unit('')):
     if len(dim) == 1:
         if ncol == 1:
             return data*units
-        else:
-            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
+        return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
     else:
         if dim[0] == dim[1]:
             return data*units
-        else:
-            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
+        return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
 
 def read_beam(filename, ncol, units):
     '''
@@ -593,12 +588,15 @@ class distances:
     step = binning step
     eq_kpc_as = equation for switching between kpc and arcsec
     '''
-    def __init__(self, radius, sep, step, eq_kpc_as):
-        self.d_mat = centdistmat(radius.to(u.kpc, equivalencies=eq_kpc_as)) # matrix of distances (radially symmetric)
+    def __init__(self, radius, sep, step, eq_kpc_as, ith):
+        nobj = u.kpc.to(u.arcsec, equivalencies=eq_kpc_as).size
+        self.d_mat = list(map(lambda x: centdistmat(x), np.repeat(radius, nobj).reshape(radius.size, nobj).to(u.kpc, equivalencies=eq_kpc_as).T))[ith] # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
+        # self.d_arr = list(map(lambda x: x[sep:,sep:][self.indices], self.d_mat))[0] # array of unique values within the matrix of distances
         self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
-        self.labels = np.rint(self.d_mat.to(step.unit, equivalencies=eq_kpc_as)/step).astype(int) # labels indicating different annuli within the matrix of distances
-    
+        # self.labels = np.rint((np.array(self.d_mat).flatten()*self.d_mat.unit).reshape(self.d_mat.shape[0],self.d_mat.shape[1],nobj).to(step.unit, equivalencies=eq_kpc_as)/step).astype(int) # labels indicating different annuli within the matrix of distances
+        self.labels = np.rint(((np.repeat(self.d_mat.flatten(), nobj).reshape(self.d_mat.shape[0], self.d_mat.shape[1], nobj))).to(step.unit, equivalencies=eq_kpc_as)/step).astype(int)[:,:,ith]
+
 def interp_mat(mat, indices, func, sep):
     '''
     Quick interpolation on a radially symmetric matrix
@@ -632,7 +630,7 @@ class SZ_data:
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, ith, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
         self.eq_kpc_as = eq_kpc_as
         self.conv_temp_sb = conv_temp_sb
@@ -641,7 +639,8 @@ class SZ_data:
         self.sep = sep
         self.r_pp = r_pp.to(u.kpc, equivalencies=eq_kpc_as)
         self.r_am = r_am
-        self.dist = distances(radius, sep, step, eq_kpc_as)
+        self.ith = ith
+        self.dist = distances(radius, sep, step, eq_kpc_as, ith)
         self.filtering = filtering
         self.abel_data = abel_data(r_pp.value)
         self.calc_integ = calc_integ
@@ -664,58 +663,68 @@ def log_lik(pars_val, press, sz, output='ll'):
     -----------------------------------------------------------------------
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
+    # adapt dimensions
+    pars_val = pars_val.reshape(len(sz), int(pars_val.shape[0]/len(sz)), pars_val.shape[-1])
     # prior on parameters
     parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
-    parsprior = np.nansum(np.array([np.repeat(0, parsprior.size), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+    parsprior = np.nansum(np.array([np.zeros(parsprior.shape), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
     # prior on pressure distribution
     pressprior = press.prior(pars_val)
     # overall prior
-    parprior = np.sum([parsprior, pressprior], axis=0)
+    parprior = np.sum([parsprior, pressprior], axis=0) #np.add.reduce?
     # mask on infinite values
     mask = np.isfinite(np.float64(parprior))
-    if mask.sum(axis=-1) == 0:
+    maskedpars = np.array([pars_val[x][mask[x]] for x in range(len(sz))], dtype='O')
+    masknozero = np.where(mask.sum(axis=-1) > 0)[0]
+    if mask.sum() == 0: # correct this section
         if output == 'll':
-            return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
-        else:
-            return None
+            return np.concatenate((parprior, np.array([[None]]*parprior.size, dtype='O')), axis=-1)#np.atleast_3d(np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)).reshape(((len(pars_val),)+np.atleast_2d(parprior).shape))
+        return None
     # pressure profile
-    pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[mask])
+    pp = list(map(lambda x, y: press.press_fun(r_kpc=x.r_pp, pars=y), sz, maskedpars[masknozero]))#pars_val[mask]))
+    # pp = [press.press_fun(r_kpc=sz[i].r_pp, pars=pars_val[i][j]) for i, j in zip(np.where(mask)[0], np.where(mask)[1])]
     if output == 'pp':
         return pp
     # abel transform
-    ab = calc_abel(pp.value, r=sz.r_pp.value, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
+    ab = list(map(lambda x, y: calc_abel(x.value, r=y.r_pp.value, abel_data=y.abel_data)*x.unit*y.r_pp.unit, pp, sz))
     # Compton parameter
-    y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
-    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
+    y = list(map(lambda x: (const.sigma_T/(const.m_e*const.c**2)*x).to(''), ab))
+    f = list(map(lambda x, z: interp1d(np.append(-x.r_pp, x.r_pp), np.append(z, z, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1), sz, y))
     # Compton parameter 2D image
-    y_2d = f(sz.dist.d_mat)
+    y_2d = list(map(lambda x, g: g(x.dist.d_mat), sz, f))
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
+    map_out = list(map(lambda x, y: np.real(fftshift(ifft2(np.abs(fft2(y))*x.filtering), axes=(-2, -1))), sz, y_2d))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
-    ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])
-    map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T*press.pars['pedestal'].unit
+    # map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), 
+    #                      map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
+    # np.array((list(map(lambda x: mean(x, labels=sz[0].dist.labels[:,:,0], index=np.arange(sz[0].sep+1)), 
+    #                    np.array(map_out)[0,:,:,:]))*sz[0].conv_temp_sb).to(sz[0].flux_data[1].unit)).shape
+    nw = np.array(pars_val).shape[1] if len(np.array(pars_val).shape)==3 else 1
+    map_prof = list(map(lambda x, y, z: [(mean(x[j], labels=z.dist.labels, index=np.arange(z.sep+1))*z.conv_temp_sb) for j in range(y)]*(z.flux_data[1].unit), map_out, mask.sum(axis=-1)[masknozero], np.array(sz)[masknozero]))
+    ped = [(pars_val*press.indexes['ind_pedestal']).sum(axis=-1)[x][mask[x]]*press.pars[x]['pedestal'].unit for x in masknozero] if 'pedestal' in press.fit_pars else press.pars['pedestal'].val
+    map_prof = [np.array([map_prof[x].T, np.atleast_2d(ped[x]) if 'pedestal' in press.fit_pars else ped], dtype='O').sum(axis=0).T for x in range(len(masknozero))]#np.transpose(np.transpose(map_prof)+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).reshape(np.array(map_prof).T.shape[1:])*press.pars[0]['pedestal'].unit)
     if output == 'bright':
         return map_prof
-    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
+    g = list(map(lambda x, y: interp1d(x.radius[x.sep:], y, 'cubic', fill_value='extrapolate', axis=-1), sz, map_prof))
     # Log-likelihood calculation
-    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
-    log_lik = -chisq/2+parprior[mask]
+    fit = list(map(lambda x, h, y: (x.flux_data[1]-h(x.flux_data[0])*y.unit)/x.flux_data[2], sz, g, map_prof))
+    chisq = list(map(lambda x: np.nansum(np.array(x)**2, axis=-1)*x.unit, fit))
+    parpr = [parprior[x][mask[x]] for x in masknozero]#np.atleast_2d(parprior[mask].reshape(parprior.shape)).T if nw==1 else np.array([parprior[x][mask[x]] for x in range(len(sz))])#parprior[mask].reshape(masknozero.shape) if nw==1 else 
+    log_lik = -np.array(chisq, dtype='O')/2+parpr
     # Optional integrated Compton parameter calculation
-    if sz.calc_integ:
-        cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
-        new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
+    if sz[0].calc_integ:
+        cint = list(map(lambda x, w, z: simps(np.concatenate((np.atleast_2d(x(0.)).T, w), axis=-1)*z.r_am, z.r_am, axis=-1)*2*np.pi, f, y, sz))
+        new_chi = np.array(list(map(lambda x, z: ((x-z.integ_mu)/z.integ_sig)**2, cint, sz)))
         log_lik -= new_chi/2
         if output == 'integ':
             return cint.value
     if output == 'll':
         if np.any(~mask):
-            parprior[mask] = log_lik.value
-            newmap_prof = np.repeat(None, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
-            newmap_prof[mask] = map_prof.value
-            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
-        else:
-            return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
+            parprior[mask] = np.concatenate(([log_lik[x] for x in range(len(masknozero))]))
+            newmap_prof = np.repeat(None, parsprior.size*map_prof[0].shape[1]).reshape(len(sz), parsprior.shape[1], map_prof[0].shape[1])
+            newmap_prof[mask] = np.concatenate(([map_prof[x].value for x in range(len(masknozero))]))
+            return np.concatenate((np.atleast_3d(parprior), newmap_prof), axis=-1).reshape(np.prod([len(newmap_prof), newmap_prof[0].shape[0]]), newmap_prof[0].shape[-1]+1)
+        return np.float64(np.concatenate((np.atleast_2d(log_lik.flatten()).T, np.array(map_prof).reshape(np.prod([len(map_prof), map_prof[0].shape[0]]), map_prof[0].shape[-1])), axis=-1))#np.concatenate((np.atleast_2d(log_lik.flatten()).T, map_prof.reshape(np.prod(map_prof.shape[:2]), map_prof.shape[-1]).value), axis=-1)#np.concatenate((np.atleast_3d(log_lik), map_prof.value), axis=-1)
     elif output == 'chisq':
         return chisq.value
     else:
@@ -735,18 +744,18 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     ctr = [0]
     def minfunc(prs):
         try:
-            like = sampler.log_prob_fn(prs)[0][0]
+            like = sampler.log_prob_fn(prs)[0][0]#[:,:,0]
         except:
-            like = sampler.lnprobfn(prs)[0][0]
+            like = sampler.lnprobfn(prs)[0][0]#[:,:,0]
         if ctr[0] % 1000 == 0 and not silent:
             print('%10i %10.1f' % (ctr[0], like))
         ctr[0] += 1
         return -like
-    thawedpars = [pars[name].val for name in fit_pars]
+    thawedpars = [[pars[i][name].val for name in fit_pars] for i in range(len(pars) if type(pars)==list else 1)]
     try:
-        lastlike = sampler.log_prob_fn(thawedpars)[0][0]
+        lastlike = list(map(lambda x: sampler.log_prob_fn(x)[0][0], thawedpars))#[:,:,0]
     except:
-        lastlike = sampler.lnprobfn(thawedpars)[0][0]
+        lastlike = sampler.lnprobfn(thawedpars)[0][0]#[:,:,0]
     fpars = thawedpars
     for i in range(maxiter):
         fitpars = minimize(minfunc, fpars, method='Nelder-Mead')
@@ -794,13 +803,13 @@ class MCMC:
         Generate initial set of parameters from fit
         -------------------------------------------
         '''
-        thawedpars = np.array([self.pars[name].val for name in self.fit_pars])
+        thawedpars = np.array([[self.pars[x][name].val for name in self.fit_pars] for x in range(len(self.pars) if type(self.pars)==list else 1)])
         assert np.all(np.isfinite(thawedpars))
         # create enough parameters with finite likelihoods
         p0 = []
         _ = 0
         try:
-            nw = self.sampler.nwalkers
+            nw = self.sampler.nwalkers/len(self.sampler.log_prob_fn.args[1])
             lfun = self.sampler.log_prob_fn
         except:
             nw = self.sampler.k
@@ -810,7 +819,7 @@ class MCMC:
                 _ += 1
                 np.random.seed(self.seed*_)
             p = thawedpars+np.random.normal(0, self.initspread, size=len(self.fit_pars))
-            if np.isfinite(lfun(p)[0][0]):
+            if np.sum([np.isfinite(float(lfun(p)[:,0][x])) for x in range(len(thawedpars))])==len(thawedpars):
                 p0.append(p)
         return p0
 
@@ -831,13 +840,14 @@ class MCMC:
             Return False if new minimum found and autorefit is set. Adapted from MBProj2
             ----------------------------------------------------------------------------
             '''
-            bestfit = None
-            starting_guess = [self.pars[name].val for name in self.fit_pars]
+            bestfit = np.array([None]*len(self.sampler.log_prob_fn.args[1])*self.sampler.ndim).reshape(len(self.sampler.log_prob_fn.args[1]), self.sampler.ndim)
+            starting_guess = np.array([[self.pars[x][name].val for name in self.fit_pars] for x in range(len(self.pars) if type(self.pars)==list else 1)])
             try:
-                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[0][0]
+                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[:,0]
             except:
-                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[0][0]
-            p0 = self._generateInitPars()
+                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[:,0]
+            p0 = np.array(self._generateInitPars())
+            p0 = p0.reshape(np.prod(p0.shape[:2]), p0.shape[-1])
             self.header['burn'] = nburn
             try:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nthin, storechain=False)):
@@ -858,11 +868,13 @@ class MCMC:
                 for i, result in enumerate(self.sampler.sample(p0, iterations=nburn, thin=nburn//2, progress=True)):
                     self.pos0 = result.coords
                     lnprob = result.log_prob
-                    if lnprob.max()-bestprob > minimprove:
-                        bestprob = lnprob.max()
-                        maxidx = lnprob.argmax()
-                        bestfit = self.pos0[maxidx]
-                    if (autorefit and i > nburn*minfrac and bestfit is not None ):
+                    newbest = lnprob.reshape(bestprob.size, int(lnprob.size/bestprob.size)).max(axis=-1)-bestprob > minimprove
+                    if np.any(newbest):
+                        nw = int(lnprob.size/bestprob.size)
+                        bestprob[newbest] = lnprob.reshape(bestprob.size, nw).max(axis=-1)[newbest]
+                        maxidx = (lnprob.reshape(bestprob.size, nw).argmax(axis=-1)+np.arange(0, lnprob.size, nw))[newbest]
+                        bestfit[newbest] = self.pos0[maxidx]
+                    if (autorefit and i > nburn*minfrac and np.any(bestfit != None)):
                         print('Restarting burn as new best fit has been found (%g > %g)' % (bestprob, initprob))
                         for name, i in zip(self.fit_pars, range(len(self.fit_pars))):
                             self.pars[name].val = bestfit[i] 
@@ -922,18 +934,15 @@ class MCMC:
             f['lastpos'] = self.sampler.chain[:, -1, :].astype(np.float32)
         print('Done')
 
-def print_summary(press, pmed, pstd, medsf, sz):
+def print_summary(press, pmed, pstd, sz):
     '''
     Prints as output a statistical summary of the posterior distribution
     --------------------------------------------------------------------
     press = pressure object of the class Pressure
     pmed = array of means of parameters sampled in the chain
     pstd = array of standard deviations of parameters sampled in the chain
-    medsf = median surface brightness profile 
     sz = class of SZ data
     '''
-    g = interp1d(sz.radius[sz.sep:], medsf, 'cubic', fill_value='extrapolate', axis=-1)
-    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*sz.flux_data[1].unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
     wid1 = len(max(press.fit_pars, key=len))
     wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
     wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
@@ -950,7 +959,7 @@ def print_summary(press, pmed, pstd, medsf, sz):
               ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e'))+
               ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
     print('-'*(wid1+21+max(wid2-6,0)+max(wid3-2,0)+max(wid4-4,0))+
-          '\nMedian profile Chi2 = %s with %s df' % ('{:.4f}'.format(chisq.value), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
+          '\nChi2 = %s with %s df' % ('{:.4f}'.format(log_lik(pmed, press, sz, output='chisq')[0]), sz.flux_data[1][~np.isnan(sz.flux_data[1])].size-len(press.fit_pars)))
 
 def save_summary(filename, press, pmed, pstd, ci):
     '''
