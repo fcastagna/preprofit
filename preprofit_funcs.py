@@ -214,18 +214,18 @@ def centdistmat(r, offset=0.):
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., scale=0.02, c=0.95):
+def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., scale=0.02, k=0.95):
     '''
     Read the transfer function data from the specified file
     -------------------------------------------------------
     approx = whether to approximate or not the tf to the normal cdf (boolean, default is False)
-    loc, scale, c = location, scale and normalization parameters for the normal cdf approximation
+    loc, scale, k = location, scale and normalization parameters for the normal cdf approximation
     ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     '''
     wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
     if approx:
-        tf = c*norm.cdf(wn, loc, scale)
+        tf = k*norm.cdf(wn, loc, scale)
     return wn, tf
 
 def dist(naxis):
