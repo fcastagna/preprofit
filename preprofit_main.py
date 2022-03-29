@@ -170,7 +170,7 @@ def main():
         filtering = np.abs(fft2(beam_2d))
     else:
         # Transfer function
-        wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, c=k) # wave number, transmission
+        wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep, eq_kpc_as) # transfer function matrix
         filtering = np.abs(fft2(beam_2d))*filt_tf # filtering matrix including both PSF and transfer function
 
