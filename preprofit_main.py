@@ -206,7 +206,6 @@ def main():
         except:
             raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
 
-    import sys; sys.exit()
     # Save objects
     with open('%s/press_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(press, f, -1)
