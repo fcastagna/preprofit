@@ -1,4 +1,6 @@
 import numpy as np
+import pymc3 as pm
+import pymc3_ext as pmx
 from astropy.io import fits
 from scipy.stats import norm
 from scipy.interpolate import interp1d
@@ -12,104 +14,19 @@ from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
-from itertools import chain
-
-class Param:
-    '''
-    Class for parameters
-    --------------------
-    val = value of the parameter
-    minval, maxval = minimum and maximum allowed values
-    frozen = whether the parameter is allowed to vary (True/False)
-    unit = parameter unit in astropy.units format
-    '''
-    def __init__(self, val, minval=-1e99, maxval=1e99, frozen=False, unit=u.Unit('')):
-        self.val = float(val)
-        self.minval = minval
-        self.maxval = maxval
-        self.frozen = frozen
-        self.unit = unit
-
-    def __repr__(self):
-        return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, unit=%s, frozen=%s>' % (self.val, self.minval, self.maxval, self.unit, self.frozen)
-
-    def prior(self):
-        '''
-        Checks accordance with parameter's prior distribution
-        -----------------------------------------------------
-        '''
-        if self.val < self.minval or self.val > self.maxval:
-            return -np.inf
-        return 0.
-
-class ParamGaussian(Param):
-    '''
-    Class for Gaussian parameters
-    -----------------------------
-    prior_mu = prior center
-    prior_sigma = prior width
-    '''
-    def __init__(self, val, prior_mu, prior_sigma, frozen=False, minval=-1e99, maxval=1e99, unit=u.Unit('')):
-        Param.__init__(self, val, frozen=frozen, minval=minval, maxval=maxval, unit=unit)
-        self.prior_mu = prior_mu
-        self.prior_sigma = prior_sigma
-
-    def __repr__(self):
-        return '<ParamGaussian: val=%.3g, prior_mu=%.3g, prior_sigma=%.3g, frozen=%s>' % (self.val, self.prior_mu, self.prior_sigma, self.frozen)
-
-    def prior(self):
-        '''
-        Checks accordance with parameter's prior distribution
-        -----------------------------------------------------
-        '''
-        if self.maxval is not None and self.val > self.maxval:
-            return -np.inf
-        if self.minval is not None and self.val < self.minval:
-            return -np.inf
-        if self.prior_sigma == 0:
-            return 0.
-        return np.log(norm.pdf(self.val, self.prior_mu, self.prior_sigma))
+import theano.tensor as tt
+from theano.compile.ops import as_op
+from theano import shared
 
 class Pressure:
     '''
     Class to parametrize the pressure profile
-    -----------------------------------------    
+    -----------------------------------------
+    eq_kpc_as = equation for switching between kpc and arcsec
     '''
-    def __init__(self):
-        self.pars = self.defPars()
+    def __init__(self, eq_kpc_as):
+        self.eq_kpc_as = eq_kpc_as
         
-    def defPars(self):
-        '''
-        Default parameter values
-        ------------------------
-        pedestal = baseline level (mJy/beam)
-        '''
-        self.pars = {
-            'pedestal': Param(0., minval=-1., maxval=1., unit=u.Unit('mJy beam-1'))
-             }
-        return self.pars
-
-    def update_vals(self, fit_pars, pars_val):
-        '''
-        Update the parameter values
-        ---------------------------
-        fit_pars = name of the parameters to update
-        pars_val = new parameter values
-        '''
-        for name, i in zip(fit_pars, range(len(fit_pars))):
-            self.pars[name].val = pars_val[i] 
-
-    def press_fun(self, r_kpc):
-        '''
-        Compute the gNFW pressure profile
-        ---------------------------------
-        r_kpc = radius (kpc)
-        '''
-        return self.functional_form(r_kpc)
-
-    def prior(self):
-        return 0.
-
 class Press_gNFW(Pressure):
     '''
     Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
@@ -118,222 +35,39 @@ class Press_gNFW(Pressure):
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        Pressure.__init__(self)
+    def __init__(self, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+        Pressure.__init__(self, eq_kpc_as)
         self.slope_prior = slope_prior
-        self.r_out = r_out
+        self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
 
-    def defPars(self):
-        '''
-        Default parameter values
-        ------------------------
-        P_0 = normalizing constant (keV cm-3)
-        a = rate of turnover between b and c
-        b = logarithmic slope at r/r_p >> 1
-        c = logarithmic slope at r/r_p << 1
-        r_p = characteristic radius (kpc)
-        '''
-        self.pars = Pressure.defPars(self)
-        self.pars.update({
-            'P_0': Param(0.4, minval=0., maxval=2., unit=u.Unit('keV cm-3')),
-            'a': Param(1.33, minval=0.1, maxval=20.),
-            'b': Param(4.13, minval=0.1, maxval=15.),
-            'c': Param(0.014, minval=0., maxval=3.),
-            'r_p': Param(300., minval=100., maxval=3000., unit=u.kpc)
-        })
-        return self.pars
-
-    def functional_form(self, r_kpc, logder=False):
-        '''
-        Functional form expression for pressure calculation
-        ---------------------------------------------------
-        r_kpc = radius (kpc)
-        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
-        '''
-        ped, P_0, a, b, c, r_p = [self.pars[x].val*self.pars[x].unit for x in ['pedestal', 'P_0', 'a', 'b', 'c', 'r_p']]
-        if logder == False:
-            return P_0/((r_kpc/r_p)**c*(1+(r_kpc/r_p)**a)**((b-c)/a))
-        else:
-            return (b-c)/(1+(r_kpc/r_p)**a)-b
-
-    def prior(self):
-        '''
-        Checks accordance with prior constrains
-        ---------------------------------------
-        '''
-        if self.slope_prior == True:
-            slope_out = self.functional_form(self.r_out, logder=True)
-            if slope_out > self.max_slopeout:
-                return -np.inf
-        return 0.
-
-    def set_universal_params(self, r500, cosmo, z):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        c500 = 1.177
-        self.pars['r_p'].val = r500.value/c500
-        self.pars['a'].val = 1.051
-        self.pars['b'].val = 5.4905
-        self.pars['c'].val = .3081
-        # Compute M500 from definition in terms of density and volume
-        M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to('cm')**3).to('Msun')
-        # Compute P500 according to the definition in Equation (5) from Arnaud's paper
-        hz = cosmo.H(z)/cosmo.H0
-        h70 = cosmo.H0/(70*cosmo.H0.unit)
-        P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
-        self.pars['P_0'].val = (8.403*h70**(-3/2)*P500).value
-
-class Press_cubspline(Pressure):
+def press_gnfw(r_kpc, P_0, a, b, c, r_p, logder=False):
     '''
-    Class to parametrize the pressure profile with a cubic spline model
-    -------------------------------------------------------------------
-    knots = spline knots
-    pr_knots = pressure values corresponding to spline knots
-    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
-    r_out = outer radius (serves for outer slope determination)
-    max_slopeout = maximum allowed value for the outer slope
+    Functional form expression for pressure calculation
+    ---------------------------------------------------
+    r_kpc = radius (kpc)
+    pars = set of pressure parameters
+    logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
     '''
-    def __init__(self, knots, pr_knots, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        self.knots = knots
-        self.pr_knots = pr_knots
-        Pressure.__init__(self)
-        self.slope_prior = slope_prior
-        self.r_out = r_out
-        self.max_slopeout = max_slopeout
-        
-    def defPars(self):
-        '''
-        Default parameter values
-        ------------------------
-        P_i = pressure values corresponding to spline knots (kev cm-3)
-        '''
-        self.pars = Pressure.defPars(self)
-        for i in range(self.knots.size):
-            self.pars.update({'P_'+str(i): Param(self.pr_knots[i].value, minval=0., maxval=1., unit=self.pr_knots.unit)})
-        return self.pars
+    if logder == False:
+        den1 = tt.power(tt.dot(r_kpc, 1/r_p), c)
+        den2 = tt.power(1+tt.power(tt.dot(r_kpc, 1/r_p), a), (b-c)/a)
+        return tt.mul(P_0, 1/tt.mul(den1, den2))
+    else:
+        den = 1+tt.power(tt.dot(r_kpc, 1/r_p), a)
+        return tt.mul(b-c, 1/den)-b
 
-    def functional_form(self, r_kpc, logder=False):
-        '''
-        Functional form expression for pressure calculation
-        ---------------------------------------------------
-        r_kpc = radius (kpc)
-        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
-        '''
-        p_params = [self.pars[x].val for x in ['P_'+str(x) for x in range(self.knots.size)]]
-        x = self.knots.to('kpc')
-        f = interp1d(np.log10(x.value), np.log10(p_params), kind='cubic', fill_value='extrapolate')
-        if logder == False:
-            return 10**f(np.log10(r_kpc.value))*self.pars['P_0'].unit
-        else:
-            return f._spline.derivative()(np.log10(r_kpc.value)).flatten()*u.Unit('')
-
-    def prior(self):
-        '''
-        Checks accordance with prior constrains
-        ---------------------------------------
-        '''
-        if self.slope_prior == True:
-            slope_out = self.functional_form(self.r_out, logder=True)
-            if slope_out > self.max_slopeout:
-                return -np.inf
-        return 0.
-
-    def set_universal_params(self, r500, cosmo, z):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        new_press = Press_gNFW()
-        self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.knots).value
-        self.pars = self.defPars()
-        for i in range(p_params.size):
-            self.pars['P_'+str(i)].val = p_params[i]
-        
-class Press_nonparam_plaw(Pressure):
+def prior_gnfw(press, pars):#P_0, a, b, c, r_p):
     '''
-    Class to parametrize the pressure profile with a non parametric power-law model
-    -------------------------------------------------------------------------------
-    rbins = radial bins
-    pbins = pressure values corresponding to radial bins
-    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
-    max_slopeout = maximum allowed value for the outer slope
+    Checks accordance with prior constrains
+    ---------------------------------------
+    pars = set of pressure parameters
     '''
-    def __init__(self, rbins, pbins, slope_prior=True, max_slopeout=-2.):
-        self.rbins = rbins
-        self.pbins = pbins
-        self.slope_prior = slope_prior
-        self.max_slopeout = max_slopeout
-        Pressure.__init__(self)
-        
-    def defPars(self):
-        '''
-        Default parameter values
-        ------------------------
-        P_i = pressure values corresponding to radial bins (kev cm-3)
-        '''
-        self.pars = Pressure.defPars(self)
-        for i in range(self.rbins.size):
-            self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
-        return self.pars
+    if press.slope_prior == True:
+        P_0, a, b, c, r_p = pars
+        slope_out = press_gnfw(press.r_out, P_0, a, b, c, r_p, logder=True)
+        return np.nansum([0., pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf]))])
 
-    def functional_form(self, r_kpc):
-        '''
-        Functional form expression for pressure calculation
-        ---------------------------------------------------
-        r_kpc = radius (kpc)
-        '''
-        index = np.digitize(r_kpc, self.rbins)
-        r_low = self.rbins[np.maximum(0, index-1)]
-        r_upp = self.rbins[np.minimum(self.rbins.size-1, index)]
-        pbins = [self.pars[x].val for x in list(self.pars)[1:]]*self.pars['P_0'].unit
-        p_low = pbins[np.maximum(0, index-1)]
-        p_upp = pbins[np.minimum(index, self.rbins.size-1)]
-        alpha = np.empty(index.shape)*u.Unit('')
-        centr = index % self.rbins.size != 0
-        alpha[centr] = (np.log(p_upp/p_low)[centr]/np.log(r_upp/r_low)[centr])
-        alpha[index==0] = alpha[index==1][0]
-        alpha[index==self.rbins.size] = alpha[index==self.rbins.size-1][0]
-        return p_low*(r_kpc/r_low)**alpha
-
-    def prior(self):
-        '''
-        Checks accordance with prior constrains
-        ---------------------------------------
-        '''
-        if self.slope_prior == True:
-            i = len(self.rbins)
-            slope_out = np.log(self.pars['P_'+str(i-1)].val/self.pars['P_'+str(i-2)].val)/np.log(self.rbins[i-1]/self.rbins[i-2])
-            if slope_out > self.max_slopeout:
-                return -np.inf
-        return 0.
-    
-    def set_universal_params(self, r500, cosmo, z):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        new_press = Press_gNFW()
-        self.pars = new_press.defPars()
-        new_press.set_universal_params(r500=r500, cosmo=cosmo, z=z)
-        p_params = new_press.press_fun(self.rbins).value
-        self.pars = self.defPars()
-        for i in range(p_params.size):
-            self.pars['P_'+str(i)].val = p_params[i]
-            
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
@@ -363,13 +97,11 @@ def read_data(filename, ncol=1, units=u.Unit('')):
     if len(dim) == 1:
         if ncol == 1:
             return data*units
-        else:
-            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
-    else:# len(dim) == 2:
+        return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
+    else:
         if dim[0] == dim[1]:
             return data*units
-        else:
-            return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
+        return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
 
 def read_beam(filename, ncol, units):
     '''
@@ -403,12 +135,13 @@ def get_central(mat, side):
     centre = mat.shape[0]//2
     return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
 
-def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, eq_kpc_as, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
     step = binning step
     maxr_data = highest radius in the data
+    eq_kpc_as = equation for switching between kpc and arcsec
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
     units = units in astropy.units format
@@ -426,35 +159,44 @@ def mybeam(step, maxr_data, approx=False, filename=None, units=[u.arcsec, u.beam
             inv_f = lambda x: f(x)-f(0.)/2
             fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
         except:
-            b = read_data(filename, ncol=1, units=units)
-    maxr = (maxr_data+3*fwhm_beam)//step*step
-    rad = np.arange(0., (maxr+step).value, step.value)*step.unit
+            b = read_data(filename, ncol=1, units=np.atleast_2d(units)[0][0])
+            r = np.arange(0., b.shape[0]//2*step.value, step.value)*step.unit
+            r = np.append(-r[:0:-1].value, r.value)*r.unit
+            # If matrix dimensions are even, turn them odd
+            if b.shape[0]%2 == 0:
+                posmax = np.unravel_index(b.argmax(), b.shape) # get index of maximum value
+                if posmax == (0, 0):
+                    b = ifftshift(fftshift(b)[1:,1:])
+                    b1d = fftshift(b[0,:])
+                elif posmax == (b.shape[0]/2, b.shape[0]/2):
+                    b = b[1:,1:]
+                    b1d = b[b.shape[0]//2,:]
+                elif posmax == (b.shape[0]/2-1, b.shape[0]/2-1):
+                    b = b[:-1,:-1]
+                    b1d = b[b.shape[0]//2,:]
+                else:
+                    raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
+            g = interp1d(r, b1d, 'cubic', bounds_error=False, fill_value=(0., 0.))
+            inv_g = lambda x: g(x)-g(0.)/2
+            fwhm_beam = 2*optimize.newton(inv_g, x0=50*step.value)*r.unit
+    maxr = (maxr_data+3*fwhm_beam.to(maxr_data.unit, equivalencies=eq_kpc_as))//step.to(maxr_data.unit, 
+                                                                                        equivalencies=eq_kpc_as)*step.to(maxr_data.unit, equivalencies=eq_kpc_as)
+    rad = np.arange(0., (maxr+step.to(maxr_data.unit, equivalencies=eq_kpc_as)).value, step.to(maxr_data.unit, equivalencies=eq_kpc_as).value)*maxr.unit
     rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
     beam_mat = centdistmat(rad)
     if approx:
-        sigma_beam = fwhm_beam.to('arcsec')/(2*np.sqrt(2*np.log(2)))
+        sigma_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)/(2*np.sqrt(2*np.log(2)))
         beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)*u.beam
     else:
         try:
             beam_2d = f(beam_mat)*u.beam
         except:
             beam_2d = b.copy()
-            # If matrix dimensions are even, turn them odd
-            if beam_2d.shape[0]%2 == 0:
-                posmax = np.unravel_index(beam_2d.argmax(), beam_2d.shape) # get index of maximum value
-                if posmax == (0, 0):
-                    beam_2d = ifftshift(fftshift(beam_2d)[1:,1:])
-                elif posmax == (beam_2d.shape[0]/2, beam_2d.shape[0]/2):
-                    beam_2d = beam_2d[1:,1:]
-                elif posmax == (beam_2d.shape[0]/2-1, beam_2d.shape[0]/2-1):
-                    beam_2d = beam_2d[:-1,:-1]
-                else:
-                    raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
     if crop_image:
         if beam_2d[0,0] > beam_2d[beam_2d.shape[0]//2, beam_2d.shape[0]//2]: # peak at the corner
             beam_2d = ifftshift(get_central(fftshift(beam_2d), cropped_side))
         else: # peak at the center
-            beam_2d = get_central(beam_2d, cropped_side)        
+            beam_2d = get_central(beam_2d, cropped_side)     
     if normalize:
         beam_2d /= beam_2d.sum()
         beam_2d *= u.beam
@@ -500,27 +242,28 @@ def dist(naxis):
     result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
-def filt_image(wn_as, tf, tf_source_team, side, step):
+def filt_image(wn_as, tf, tf_source_team, side, step, eq_kpc_as):
     '''
     Create the 2D filtering image from the transfer function data
     -------------------------------------------------------------
-    wn_as = vector of wave numbers in arcsec
+    wn_as = vector of wave numbers
     tf = transmission data
     tf_source_team = transfer function provenance ('NIKA', 'MUSTANG', or 'SPT')
     side = one side length for the output image
     step = binning step
+    eq_kpc_as = equation for switching between kpc and arcsec
     -------------------------------
     RETURN: the (side x side) image
     '''
     if not tf_source_team in ['NIKA', 'MUSTANG', 'SPT']:
         raise RuntimeError('Accepted values for tf_source_team are: NIKA, MUSTANG, SPT')
     f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
-    kmax = 1/step
+    kmax = 1/(step.to(wn_as.unit**-1, equivalencies=eq_kpc_as))
     karr = (dist(side)/side)*u.Unit('')
     if tf_source_team == 'NIKA':
         karr /= karr.max()
     karr *= kmax
-    return f(karr)
+    return f(karr)*tf.unit
 
 class abel_data:
     '''
@@ -543,7 +286,7 @@ class abel_data:
             ratio = r[1:]/r[:-1]
         self.acr = np.arccosh(ratio)
         self.corr = np.c_[np.diag(self.I_isqrt), np.diag(self.I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
-    
+ 
 def calc_abel(fr, r, abel_data):
     '''
     Calculation of the integral used in Abel transform. Adapted from PyAbel
@@ -552,30 +295,29 @@ def calc_abel(fr, r, abel_data):
     r = array of radii
     abel_data = collection of data required for Abel transform calculation
     '''
-    f = fr*2*r    
-    P = f*abel_data.I_isqrt  # set up the integral
-    out = np.trapz(P, axis=1, dx=abel_data.dx)  # take the integral
+    f = fr*2*r
+    P = f*abel_data.I_isqrt
+    out = np.trapz(P, axis=-1, dx=abel_data.dx)  # take the integral
     abel_data.corr[:,1] = np.append(P[abel_data.mask2][1::2], 0)
-    out = out-0.5*np.trapz(abel_data.corr[:,:2], dx=abel_data.dx, axis=1)*abel_data.corr[:,-1] # correct for the extra triangle at the start of the integral
+    out = out-0.5*np.trapz(abel_data.corr[:,:2], dx=abel_data.dx, axis=-1)*abel_data.corr[:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[1:]-f[:-1])/np.diff(r)
     out[:-1] += abel_data.isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
     return out
-    
+
 class distances:
     '''
     Class of data involving distances required in likelihood computation
     --------------------------------------------------------------------
     radius = array of radii in arcsec
-    kpc_as = kpc in arcsec
     sep = index of radius 0
     step = binning step
+    eq_kpc_as = equation for switching between kpc and arcsec
     '''
-    def __init__(self, radius, kpc_as, sep, step):
-        self.d_mat = centdistmat(radius*kpc_as) # matrix of distances (radially symmetric)
-        self.im2d = np.zeros((self.d_mat.shape)) # empty matrix for the output
+    def __init__(self, radius, sep, step, eq_kpc_as):
+        self.d_mat = centdistmat(radius.to(u.kpc, equivalencies=eq_kpc_as)) # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = self.d_mat[sep:,sep:][self.indices] # array of unique values within the matrix of distances
-        self.labels = np.rint(self.d_mat/kpc_as/step).astype(int) # labels indicating different annuli within the matrix of distances
+        self.labels = np.rint(self.d_mat.to(step.unit, equivalencies=eq_kpc_as)/step).astype(int) # labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
     '''
@@ -598,35 +340,63 @@ class SZ_data:
     Class for the SZ data required for the analysis
     -----------------------------------------------
     step = binning step
-    kpc_as = kpc in arcsec
+    eq_kpc_as = equation for switching between kpc and arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
-    flux_data = radius (arcsec), flux density, statistical error
+    flux_data = radius, flux density, statistical error
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
-    r_am = radius in arcmin used for the optional integrated Compton parameter calculation
-    d_mat = matrix of distances in kpc centered on 0 with given step
     filtering = transfer function matrix
     abel_data = collection of data required for Abel transform calculation
     calc_integ = whether to include integrated Compton parameter in the likelihood (boolean, default is False)
     integ_mu = if calc_integ == True, prior mean
     integ_sig = if calc_integ == True, prior sigma
     '''
-    def __init__(self, step, kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, d_mat, filtering, abel_data, calc_integ=False, integ_mu=None, integ_sig=None):
+    def __init__(self, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
         self.step = step
-        self.kpc_as = kpc_as
+        self.eq_kpc_as = eq_kpc_as
         self.conv_temp_sb = conv_temp_sb
         self.flux_data = flux_data
-        self.radius = radius
+        self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
-        self.r_pp = r_pp
+        self.r_pp = r_pp.to(u.kpc, equivalencies=eq_kpc_as)
         self.r_am = r_am
-        self.dist = distances(radius, kpc_as, sep, step)
+        self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
-        self.abel_data = abel_data
+        self.abel_data = abel_data(r_pp.value)
         self.calc_integ = calc_integ
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
+
+@as_op(itypes=[tt.dvector, tt.dvector, tt.Generic(), tt.dscalar, tt.Generic()], otypes=[tt.dvector])
+def myfunc(x, pp, sz, ped, output='ll'):
+    ab = calc_abel(pp, r=x, abel_data=sz.abel_data)
+    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab#value#.to('')
+    res = interp1d(np.append(-x, x), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)#tt.concatenate([-x, x]), tt.concatenate([y, y]))
+    y_2d = res(sz.dist.d_mat.value)
+    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
+    map_prof = mean(map_out, labels=sz.dist.labels.value, index=np.arange(sz.sep+1))*sz.conv_temp_sb.to(sz.flux_data[1].unit).value+ped#.to(sz.flux_data[1].unit)
+    if output == 'bright':
+        return map_prof
+    g = interp1d(sz.radius[sz.sep:].value, map_prof, 'cubic', fill_value='extrapolate')
+    return g(sz.flux_data[0])
+
+def mylog_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
+    pp = press_gnfw(r_kpc, P_0, a, b, c, r_p)
+    pars = P_0, a, b, c, r_p
+    p_pr = prior_gnfw(press, pars)
+    if pmx.eval_in_model(tt.isinf(p_pr)):
+        # print(p_pr); import sys; sys.exit()
+        if output == 'bright':
+            return None
+        return p_pr
+    fitted = myfunc(r_kpc, pp, shared(sz), ped, shared(output))
+    if output == 'bright':
+        return fitted
+    # chisq = pm.Normal(fitted, mu=sz.flux_data[1].value, sigma=sz.flux_data[2].value)
+    # chisq = np.nansum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2)
+    chi2 = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2)
+    return -chi2/2#pm.ChiSquared.dist(nu = sz.flux_data[1].size).logp(chi2)/2
 
 def log_lik(pars_val, press, sz, output='ll'):
     '''
@@ -644,43 +414,56 @@ def log_lik(pars_val, press, sz, output='ll'):
     -----------------------------------------------------------------------
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
-    # update pars
-    press.update_vals(press.fit_pars, pars_val)
-    # prior on parameters (-inf if at least one parameter value is out of the parameter space)
-    parprior = sum((press.pars[p].prior() for p in press.pars), press.prior())
-    if not np.isfinite(parprior):
-        return -np.inf, None
+    # prior on parameters
+    parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
+    parsprior = np.nansum(np.array([np.zeros(parsprior.shape), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+    # prior on pressure distribution
+    pressprior = press.prior(pars_val)
+    # overall prior
+    parprior = np.sum([parsprior, pressprior], axis=0)
+    # mask on infinite values
+    mask = np.isfinite(np.float64(parprior))
+    if mask.sum(axis=-1) == 0:
+        if output == 'll':
+            return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
+        return None
     # pressure profile
-    pp = press.press_fun(r_kpc=sz.r_pp)
+    pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[mask])
     if output == 'pp':
         return pp
     # abel transform
     ab = calc_abel(pp.value, r=sz.r_pp.value, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
-    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y), 'cubic', bounds_error=False, fill_value=(0., 0.))
+    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    f_arr = f(sz.dist.d_arr)
-    y_2d = interp_mat(sz.dist.im2d, sz.dist.indices, f_arr, sz.sep)*u.Unit('')
+    y_2d = f(sz.dist.d_mat)
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering)))
+    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = (mean(map_out, labels=sz.dist.labels, index=np.arange(sz.sep+1))*sz.conv_temp_sb).to(sz.flux_data[1].unit)+press.pars['pedestal'].val*press.pars['pedestal'].unit
+    map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
+    ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])
+    map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T*press.pars['pedestal'].unit
     if output == 'bright':
         return map_prof
-    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate')
+    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     # Log-likelihood calculation
-    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2)
-    log_lik = -chisq/2
+    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
+    log_lik = -chisq/2+parprior[mask]
     # Optional integrated Compton parameter calculation
     if sz.calc_integ:
-        cint = simps(np.concatenate((f(0.), y), axis=None)*sz.r_am, sz.r_am)*2*np.pi
-        new_chi = np.nansum(((cint-sz.integ_mu)/sz.integ_sig)**2)
+        cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
+        new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
         log_lik -= new_chi/2
         if output == 'integ':
             return cint.value
     if output == 'll':
-        return log_lik.value, map_prof.value
+        if np.any(~mask):
+            parprior[mask] = log_lik.value
+            newmap_prof = np.repeat(None, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
+            newmap_prof[mask] = map_prof.value
+            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
+        return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
     elif output == 'chisq':
         return chisq.value
     else:
@@ -700,18 +483,18 @@ def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     ctr = [0]
     def minfunc(prs):
         try:
-            like = sampler.log_prob_fn(prs)[0]
+            like = sampler.log_prob_fn(prs)[0][0]
         except:
-            like = sampler.lnprobfn(prs)[0]
+            like = sampler.lnprobfn(prs)[0][0]
         if ctr[0] % 1000 == 0 and not silent:
             print('%10i %10.1f' % (ctr[0], like))
         ctr[0] += 1
         return -like
     thawedpars = [pars[name].val for name in fit_pars]
     try:
-        lastlike = sampler.log_prob_fn(thawedpars)[0]
+        lastlike = sampler.log_prob_fn(thawedpars)[0][0]
     except:
-        lastlike = sampler.lnprobfn(thawedpars)[0]
+        lastlike = sampler.lnprobfn(thawedpars)[0][0]
     fpars = thawedpars
     for i in range(maxiter):
         fitpars = minimize(minfunc, fpars, method='Nelder-Mead')
@@ -775,7 +558,7 @@ class MCMC:
                 _ += 1
                 np.random.seed(self.seed*_)
             p = thawedpars+np.random.normal(0, self.initspread, size=len(self.fit_pars))
-            if np.isfinite(lfun(p)[0]):
+            if np.isfinite(lfun(p)[0][0]):
                 p0.append(p)
         return p0
 
@@ -799,9 +582,9 @@ class MCMC:
             bestfit = None
             starting_guess = [self.pars[name].val for name in self.fit_pars]
             try:
-                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[0]
+                bestprob = initprob = self.sampler.log_prob_fn(starting_guess)[0][0]
             except:
-                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[0]
+                bestprob = initprob = self.sampler.lnprobfn(starting_guess)[0][0]
             p0 = self._generateInitPars()
             self.header['burn'] = nburn
             try:
@@ -878,8 +661,7 @@ class MCMC:
             f['thawed_params'] = [x.encode('utf-8') for x in self.fit_pars]
             # output chain + surface brightness
             f.create_dataset('chain', data=self.sampler.chain.astype(np.float32), compression=True, shuffle=True)
-            cube_blobs = np.array([list(chain.from_iterable(x)) for x in zip(*self.sampler.blobs)])
-            f.create_dataset('bright', data=cube_blobs, compression=True, shuffle=True)
+            f.create_dataset('bright', data=self.sampler.blobs.astype(np.float32), compression=True, shuffle=True)
             # likelihoods for each walker, iteration
             f.create_dataset('likelihood', data=self.sampler.lnprobability.astype(np.float32), compression=True, shuffle=True)
             # acceptance fraction
@@ -944,8 +726,30 @@ def get_outer_slope(flatchain, press, r_out):
     for j in range(slopes.size):
         press.update_vals(press.fit_pars, flatchain[j])
         try:
-            slopes[j] = press.functional_form(r_out, logder=True)
+            slopes[j] = press.functional_form(r_out.to(u.kpc, equivalencies=press.eq_kpc_as), [press.pars[x].val for x in press.fit_pars], logder=True)
         except:
             i = len(press.rbins)
             slopes[j] = np.log(press.pars['P_'+str(i-1)].val/press.pars['P_'+str(i-2)].val)/np.log(press.rbins[i-1]/press.rbins[i-2])
     return slopes
+
+def update_new(self, old_state, new_state, accepted, subset=None):
+    '''
+    Updated version of the MBProj2 function
+    '''
+    if subset is None:
+        subset = np.ones(len(old_state.coords), dtype=bool)
+    m1 = subset & accepted
+    m2 = accepted[subset]
+    old_state.coords[m1] = new_state.coords[m2]
+    old_state.log_prob[m1] = new_state.log_prob[m2]
+
+    if np.sum(list(map(lambda x: new_state.blobs[x] is not None, 
+                       range(new_state.blobs.shape[0])))) > 0:
+        if old_state.blobs is None:
+            raise ValueError(
+                "If you start sampling with a given log_prob, "
+                "you also need to provide the current list of "
+                "blobs at that position."
+            )
+        old_state.blobs[m1] = new_state.blobs[m2]
+    return old_state
