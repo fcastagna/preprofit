@@ -92,14 +92,6 @@ max_slopeout = -2. # maximum value for the slope at r_out
 # Generalized Navarro Frenk and White
 press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
-with pm.Model() as model:
-    ped = pm.Uniform("ped", lower=-1, upper=1, testval=0.)
-    P_0 = pm.Uniform("p0", lower=0, upper=1, testval=.15)
-    a = pm.Uniform('a', lower=0.5, upper=5., testval=2.81)
-    b = pm.Uniform('b', lower=3, upper=7, testval=6.29)
-    c = .014#pm.Uniform('c', lower=0., upper=.2, testval=.014)
-    r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=380)
-
 # Cubic spline
 #knots = [100, 300, 500, 700]*u.kpc
 #press_knots = [1e-1, 2e-2, 5e-3, 1e-3]*u.Unit('keV/cm3')
@@ -111,12 +103,15 @@ with pm.Model() as model:
 #press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Parameters setup
-# name_pars = list(press.pars) # all parameters
-# To see the default parameter space extent, use: print(press.pars)
-
-# To exclude a parameter from the fit:
-#press.pars['P_0'].frozen = True
-# press.pars['c'].frozen = True
+with pm.Model() as model:
+    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as testval
+    # To exclude a parameter from the fit, just set it at a fixed value 
+    ped = pm.Uniform("ped", lower=-1, upper=1, testval=0.)
+    P_0 = pm.Uniform("p0", lower=0, upper=1, testval=.15)
+    a = pm.Uniform('a', lower=0.5, upper=5., testval=2.81)
+    b = pm.Uniform('b', lower=3, upper=7, testval=6.29)
+    c = .014
+    r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=380)
 
 # To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and
 # JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
