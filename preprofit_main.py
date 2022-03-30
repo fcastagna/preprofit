@@ -217,8 +217,8 @@ def main():
         # start = pm.find_MAP(model = model)
         # step = pm.Metropolis()
         # trace = pm.sample(1000, step = step,start=start, compute_convergence_checks=0)
-        trace = pm.sample(draws=1000, tune=200, chains=2)#,
-                          # compute_convergence_checks=0, return_inferencedata=True, idata_kwargs={"density_dist_obs": False})
+        trace = pm.sample(draws=1000, tune=200, chains=2, return_inferencedata=True)
+        
     pm.summary(trace)
     pm.traceplot(trace)
     samples = pm.trace_to_dataframe(trace)
