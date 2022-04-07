@@ -66,7 +66,8 @@ def prior_gnfw(press, pars):#P_0, a, b, c, r_p):
     if press.slope_prior == True:
         P_0, a, b, c, r_p = pars
         slope_out = press_gnfw(press.r_out, P_0, a, b, c, r_p, logder=True)
-        return np.nansum([0., pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf]))])
+        return np.nansum(pmx.eval_in_model(tt.prod([tt.zeros_like(slope_out), 
+                                                    tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0)], axis=0)))
 
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
