@@ -1,5 +1,4 @@
 mbproj2
-PyAbel
 numpy
 scipy
 astropy
