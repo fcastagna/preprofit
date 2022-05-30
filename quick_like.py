@@ -2,7 +2,7 @@ import cloudpickle
 import numpy as np
 import preprofit_funcs as pfuncs
 
-def main():
+def calc_lik():
     
     savedir = './data/'
     with open('%s/szdata_obj.pickle' % savedir, 'rb') as f:
@@ -21,5 +21,4 @@ def main():
     # params_2d = np.tile(params_2d, (100,1))
     return pfuncs.log_lik(params_2d, press, sz)[:,0]
 
-if __name__ == '__main__':
-    main()
+calc_lik()
