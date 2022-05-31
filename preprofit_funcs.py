@@ -474,23 +474,15 @@ def calc_abel(fr, r, abel_data):
     abel_data = collection of data required for Abel transform calculation
     '''
     f = fr*2*r
-    # print(f.type.ndim); import sys; sys.exit()
-    # P = np.array(list(map(lambda x: x*abel_data.I_isqrt, f)))
-    # out = np.trapz(P, axis=-1, dx=abel_data.dx)  # take the integral
-    # corr = np.array(list(map(lambda x: np.c_[np.zeros(r.size), np.append(x[abel_data.mask2][1::2], 0),
-    #                                          2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))], P))) # build up correction factors
-    # out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data.dx, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
-    # f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
-    # out[:,:-1] += np.array([abel_data.isqrt*f_r, abel_data.acr*(f[:,:-1]-f_r*r[:-1])]).sum(axis=0)
-    # return out
-    P = f*abel_data.I_isqrt
-    out = np.trapz(P, axis=-1, dx=abel_data.dx)  # take the integral
-    abel_data.corr[:,1] = np.append(P[abel_data.mask2][1::2], 0)
-    out = out-0.5*np.trapz(abel_data.corr[:,:2], dx=abel_data.dx, axis=-1)*abel_data.corr[:,-1] # correct for the extra triangle at the start of the integral
-    # f_r = (f[1:]-f[:-1])/np.diff(r)
-    # out[:-1] += abel_data.isqrt*f_r+abel_data.acr*(f[:-1]-f_r*r[:-1])
+    P = np.multiply(f[:,None,:], abel_data[0][None,:,:])
+    out = np.trapz(P, axis=-1, dx=abel_data[1]) # take the integral
+    c1 = np.zeros(fr.shape)
+    c2 = np.c_[P[:,abel_data[3]==1][:,1::2], np.zeros(a1.shape[0])]
+    c3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (a1.shape[0],1))
+    corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
+    out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data[1], axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
-    out[:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1])).flatten()
+    out[:,:-1] += (abel_data[4]*f_r+abel_data[5]*(f[:,:-1]-f_r*r[:-1]))
     return out
 
 class distances:
@@ -557,40 +549,10 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-def new_calc_abel(fr, r, abel_data):
-    # f = np.atleast_2d(fr.eval()*2*r.eval())
-    f = fr*2*r
-    P = np.multiply(f[:,None,:], abel_data[0][None,:,:])
-    # P = f*abel_data[0]#tt.dot(f, abel_data[0])
-    out = np.trapz(P, axis=-1, dx=abel_data[1])  # take the integral
-    # abel_data[2][:,1] = np.append(
-    # P[:,abel_data[3]==1][1::2]#, 0)
-    # abel_data[2][:,1]# = np.append(P[abel_data[3]==1][1::2], 0)
-    a1 = np.zeros(fr.shape)
-    a2 = np.c_[P[:,abel_data[3]==1][:,1::2], np.zeros(a1.shape[0])]
-    a3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (a1.shape[0],1))
-    corr = np.c_[a1[:,:,None], a2[:,:,None], a3[:,:,None]]
-    # print(corr.shape)
-    out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data[1], axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
-    f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
-    out[:,:-1] += (abel_data[4]*f_r+abel_data[5]*(f[:,:-1]-f_r*r[:-1]))#.flatten()
-    # import sys; sys.exit()
-    # print(out.shape)
-    return out
-
-@as_op(itypes=[tt.dvector, tt.dmatrix, tt.dmatrix, tt.bvector,
-               tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector,
-               tt.dmatrix, tt.dmatrix, tt.lmatrix, tt.lscalar, tt.dscalar,
-               tt.dvector, tt.dvector
-               #, tt.dmatrix, tt.Generic(), tt.dscalar, tt.Generic()
-               ], otypes=[tt.dmatrix])
-
-def myfunc(x, pp, ped, output, 
-           I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb,
-           radius, r_flux_data
-           # , pp, sz, ped, output='ll'
-           ):
-    ab = new_calc_abel(pp, r=x, abel_data=[I_isqrt, dx, corr, mask2, isqrt, acr])
+@as_op(itypes=[tt.dvector, tt.dmatrix, tt.dmatrix, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
+               tt.lmatrix, tt.lscalar, tt.dscalar, tt.dvector, tt.dvector], otypes=[tt.dmatrix])
+def myfunc(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb, radius, r_flux_data):
+    ab = calc_abel(pp, r=x, abel_data=[I_isqrt, dx, corr, mask2, isqrt, acr])
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab#value#.to('')
     res = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)#tt.concatenate([-x, x]), tt.concatenate([y, y]))
     y_2d = res(d_mat)
