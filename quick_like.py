@@ -11,7 +11,12 @@ def calc_lik():
         press = cloudpickle.load(f)
     
     # single set of paramters
-    params_1d = [press.pars[x].val for x in press.fit_pars]
+    ped = pm.Uniform("ped", lower=-1, upper=1, testval=0.)
+    P_0 = pm.Uniform("p0", lower=0, upper=1, testval=.15)
+    a = pm.Uniform('a', lower=0.5, upper=5., testval=2.81)
+    b = pm.Uniform('b', lower=3, upper=7, testval=6.29)
+    c = .014
+    r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=380)
     # return pfuncs.log_lik(params_1d, press, sz)[:,0]
 
     # multiple set of parameters
