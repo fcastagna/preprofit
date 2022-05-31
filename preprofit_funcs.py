@@ -66,7 +66,8 @@ def prior_gnfw(press, pars):
     if press.slope_prior == True:
         P_0, a, b, c, r_p = pars
         slope_out = press_gnfw(press.r_out, P_0, a, b, c, r_p, logder=True)
-        return np.nansum([tt.zeros_like(slope_out).eval(), tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0).eval()], axis=0)
+        return np.nansum([pmx.eval_in_model(tt.zeros_like(slope_out)), 
+                          pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0))], axis=0)
 
     # def set_universal_params(self, r500, cosmo, z):
     #     '''
@@ -476,8 +477,8 @@ def calc_abel(fr, r, abel_data):
     P = np.multiply(f[:,None,:], abel_data[0][None,:,:])
     out = np.trapz(P, axis=-1, dx=abel_data[1]) # take the integral
     c1 = np.zeros(fr.shape)
-    c2 = np.c_[P[:,abel_data[3]==1][:,1::2], np.zeros(a1.shape[0])]
-    c3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (a1.shape[0],1))
+    c2 = np.c_[P[:,abel_data[3]==1][:,1::2], np.zeros(c1.shape[0])]
+    c3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (c1.shape[0],1))
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
     out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data[1], axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
