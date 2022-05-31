@@ -14,7 +14,6 @@ PLEASE NOTE that the transfer function filtering method has been changed on Marc
 ### Requirements
 `preprofit` requires the following:
 - [mbproj2](https://github.com/jeremysanders/mbproj2)
-- [PyAbel](https://github.com/PyAbel/PyAbel)
 - [numpy](http://www.numpy.org/)
 - [scipy](http://www.scipy.org/)
 - [astropy](http://www.astropy.org/)
