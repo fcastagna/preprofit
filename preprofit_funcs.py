@@ -555,11 +555,16 @@ def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, fi
     Intermediate likelihood function
     --------------------------------
     '''
+    # abel transform
     ab = calc_abel(pp, r=x, abel_data=[I_isqrt, dx, corr, mask2, isqrt, acr])
+    # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     res = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
+    # Compton parameter 2D image
     y_2d = res(d_mat)
+    # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*filtering), axes=(-2, -1)))
+    # Conversion from Compton parameter to mJy/beam
     map_prof = list(map(lambda x: mean(x, labels=labels, index=np.arange(sep+1)), map_out))*conv_temp_sb
     map_prof = map_prof+np.array(ped).T
     output = bytearray(output).decode()
@@ -585,7 +590,6 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     -----------------------------------------------------------------------
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
-    pp = press_gnfw(r_kpc, P_0, a, b, c, r_p).T
     pars = P_0, a, b, c, r_p
     # prior on pressure distribution
     p_pr = prior_gnfw(press, pars)
@@ -593,42 +597,19 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
         if output == 'bright':
             return None
         return p_pr
+    # pressure profile
+    pp = press_gnfw(r_kpc, P_0, a, b, c, r_p).T
+    if output == 'pp':
+        return pp
     myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
     fitted = int_func(shared(r_kpc), pp, ped, myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), shared(sz.abel_data.mask2+0), 
                       shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), shared(sz.dist.labels), shared(sz.sep), 
                       shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), shared(sz.flux_data[0]))
     if output == 'bright':
         return fitted
-    chi2 = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2, axis=-1)
-    return -chi2/2
-
-    if mask.sum(axis=-1) == 0:
-        if output == 'll':
-            return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
-        return None
-    # pressure profile
-    pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[mask])
-    if output == 'pp':
-        return pp
-    # abel transform
-    ab = calc_abel(pp.value, r=sz.r_pp.value, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
-    # Compton parameter
-    y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
-    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
-    # Compton parameter 2D image
-    y_2d = f(sz.dist.d_mat)
-    # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
-    # Conversion from Compton parameter to mJy/beam
-    map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
-    ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])
-    map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T*press.pars['pedestal'].unit
-    if output == 'bright':
-        return map_prof
-    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     # Log-likelihood calculation
-    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
-    log_lik = -chisq/2+parprior[mask]
+    chisq = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2, axis=-1)
+    log_lik = -chisq/2
     # Optional integrated Compton parameter calculation
     if sz.calc_integ:
         cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
@@ -637,11 +618,6 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
         if output == 'integ':
             return cint.value
     if output == 'll':
-        if np.any(~mask):
-            parprior[mask] = log_lik.value
-            newmap_prof = np.repeat(None, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
-            newmap_prof[mask] = map_prof.value
-            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
         return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
     elif output == 'chisq':
         return chisq.value
