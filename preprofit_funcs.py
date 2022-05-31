@@ -18,62 +18,6 @@ import theano.tensor as tt
 from theano.compile.ops import as_op
 from theano import shared
 
-# class Param:
-#     '''
-#     Class for parameters
-#     --------------------
-#     val = value of the parameter
-#     minval, maxval = minimum and maximum allowed values
-#     frozen = whether the parameter is allowed to vary (True/False)
-#     unit = parameter unit in astropy.units format
-#     '''
-#     def __init__(self, val, minval=-1e99, maxval=1e99, frozen=False, unit=u.Unit('')):
-#         self.val = float(val)
-#         self.minval = minval
-#         self.maxval = maxval
-#         self.frozen = frozen
-#         self.unit = unit
-
-#     def __repr__(self):
-#         return '<Param: val=%.3g, minval=%.3g, maxval=%.3g, unit=%s, frozen=%s>' % (self.val, self.minval, self.maxval, self.unit, self.frozen)
-
-#     def prior(self):
-#         '''
-#         Checks accordance with parameter's prior distribution
-#         -----------------------------------------------------
-#         '''
-#         if self.val < self.minval or self.val > self.maxval:
-#             return -np.inf
-#         return 0.
-
-# class ParamGaussian(Param):
-#     '''
-#     Class for Gaussian parameters
-#     -----------------------------
-#     prior_mu = prior center
-#     prior_sigma = prior width
-#     '''
-#     def __init__(self, val, prior_mu, prior_sigma, frozen=False, minval=-1e99, maxval=1e99, unit=u.Unit('')):
-#         Param.__init__(self, val, frozen=frozen, minval=minval, maxval=maxval, unit=unit)
-#         self.prior_mu = prior_mu
-#         self.prior_sigma = prior_sigma
-
-#     def __repr__(self):
-#         return '<ParamGaussian: val=%.3g, prior_mu=%.3g, prior_sigma=%.3g, frozen=%s>' % (self.val, self.prior_mu, self.prior_sigma, self.frozen)
-
-#     def prior(self):
-#         '''
-#         Checks accordance with parameter's prior distribution
-#         -----------------------------------------------------
-#         '''
-#         if self.maxval is not None and self.val > self.maxval:
-#             return -np.inf
-#         if self.minval is not None and self.val < self.minval:
-#             return -np.inf
-#         if self.prior_sigma == 0:
-#             return 0.
-#         return np.log(norm.pdf(self.val, self.prior_mu, self.prior_sigma))
-
 class Pressure:
     '''
     Class to parametrize the pressure profile
@@ -82,36 +26,6 @@ class Pressure:
     '''
     def __init__(self, eq_kpc_as):
         self.eq_kpc_as = eq_kpc_as
-        
-#     def defPars(self):
-#         '''
-#         Default parameter values
-#         ------------------------
-#         pedestal = baseline level (mJy/beam)
-#         '''
-#         with pm.Model() as model:
-#             self.pars = {
-#                 'pedestal': pm.Uniform('pedestal', lower=-1., upper=1., testval=0.)
-#                  }
-#         return self.pars
-
-#     # def update_vals(self, fit_pars, pars_val):
-#     #     '''
-#     #     Update the parameter values
-#     #     ---------------------------
-#     #     fit_pars = name of the parameters to update
-#     #     pars_val = new parameter values
-#     #     '''
-#     #     for name, i in zip(fit_pars, range(len(fit_pars))):
-#     #         self.pars[name].val = pars_val[i] 
-
-#     def press_fun(self, r_kpc, pars):
-#         '''
-#         Compute the gNFW pressure profile
-#         ---------------------------------
-#         r_kpc = radius (kpc)
-#         '''
-#         return self.functional_form(r_kpc, pars)
 
 class Press_gNFW(Pressure):
     '''
@@ -127,47 +41,23 @@ class Press_gNFW(Pressure):
         self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
 
-#     def defPars(self):
-#         '''
-#         Default parameter values
-#         ------------------------
-#         P_0 = normalizing constant (keV cm-3)
-#         a = rate of turnover between b and c
-#         b = logarithmic slope at r/r_p >> 1
-#         c = logarithmic slope at r/r_p << 1
-#         r_p = characteristic radius (kpc)
-#         '''
-#         self.pars = Pressure.defPars(self)
-#         with pm.Model() as model:
-#             self.pars.update({
-#                 'P_0': pm.Uniform('P_0', lower=0., upper=2., testval=.4),
-#                 'a': pm.Uniform('a', lower=.1, upper=20., testval=1.33),
-#                 'b': pm.Uniform('b', lower=.1, upper=15., testval=4.13),
-#                 'c': pm.Uniform('c', lower=0., upper=3., testval=.014),
-#                 'r_p': pm.Uniform('r_p', lower=100., upper=3000., testval=300),
-#             })
-#         return self.pars
-
 def press_gnfw(r_kpc, P_0, a, b, c, r_p, logder=False):
     '''
     Functional form expression for pressure calculation
     ---------------------------------------------------
     r_kpc = radius (kpc)
-    pars = set of pressure parameters
+    P_0, a, b, c, r_p = set of pressure parameters
     logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
     '''
     if logder == False:
-        den1 = np.outer(r_kpc, 1/r_p).value**c#.T
+        den1 = np.outer(r_kpc, 1/r_p).value**c
         den2 = (1+np.outer(r_kpc, 1/r_p).value**a)**((b-c)/a)
-        # print(den2); import sys; sys.exit()
-        # P_0, a, b, c, r_p = [((pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
-        #                       else self.pars[x].val)*self.pars[x].unit for x in ['P_0', 'a', 'b', 'c', 'r_p']]
         return tt.mul(P_0, 1/tt.mul(den1, den2))
     else:
         den = 1+tt.power(tt.dot(r_kpc, 1/r_p), a)
         return tt.mul(b-c, 1/den)-b
 
-def prior_gnfw(press, pars):#P_0, a, b, c, r_p):
+def prior_gnfw(press, pars):
     '''
     Checks accordance with prior constrains
     ---------------------------------------
@@ -178,10 +68,6 @@ def prior_gnfw(press, pars):#P_0, a, b, c, r_p):
         slope_out = press_gnfw(press.r_out, P_0, a, b, c, r_p, logder=True)
         return np.nansum(pmx.eval_in_model(tt.prod([tt.zeros_like(slope_out), 
                                                     tt.prod([tt.gt(slope_out, press.max_slopeout), tt.ones_like(slope_out)*(-np.inf)], axis=0)], axis=0)))
-        # return np.nansum([0., pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf]))])
-        # if not tt.gt(press.max_slopeout, slope_out):
-        #     return -np.inf
-        # return 0.
     
     # def set_universal_params(self, r500, cosmo, z):
     #     '''
