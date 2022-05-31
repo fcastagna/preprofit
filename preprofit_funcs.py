@@ -66,9 +66,8 @@ def prior_gnfw(press, pars):
     if press.slope_prior == True:
         P_0, a, b, c, r_p = pars
         slope_out = press_gnfw(press.r_out, P_0, a, b, c, r_p, logder=True)
-        return np.nansum(pmx.eval_in_model(tt.prod([tt.zeros_like(slope_out), 
-                                                    tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0)], axis=0)))
-    
+        return np.nansum([tt.zeros_like(slope_out).eval(), tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0).eval()], axis=0)
+
     # def set_universal_params(self, r500, cosmo, z):
     #     '''
     #     Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
@@ -551,55 +550,30 @@ class SZ_data:
 
 @as_op(itypes=[tt.dvector, tt.dmatrix, tt.dmatrix, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
                tt.lmatrix, tt.lscalar, tt.dscalar, tt.dvector, tt.dvector], otypes=[tt.dmatrix])
-def myfunc(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb, radius, r_flux_data):
+def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb, radius, r_flux_data):
+    '''
+    Intermediate likelihood function
+    --------------------------------
+    '''
     ab = calc_abel(pp, r=x, abel_data=[I_isqrt, dx, corr, mask2, isqrt, acr])
-    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab#value#.to('')
-    res = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)#tt.concatenate([-x, x]), tt.concatenate([y, y]))
+    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
+    res = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     y_2d = res(d_mat)
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*filtering), axes=(-2, -1)))
-    # map_prof = mean(map_out, labels=labels, index=np.arange(sep+1))*conv_temp_sb
     map_prof = list(map(lambda x: mean(x, labels=labels, index=np.arange(sep+1)), map_out))*conv_temp_sb
-    # map_prof = np.sum([map_prof, ped.T], axis=0)
-    map_prof = map_prof+np.array(ped).T#*press.pars['pedestal'].unit
+    map_prof = map_prof+np.array(ped).T
     output = bytearray(output).decode()
     if output == 'bright':
         return np.atleast_2d(map_prof)
     g = interp1d(radius[sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    # print(map_prof.shape); import sys; sys.exit()
     return g(np.atleast_2d(r_flux_data))[:,0,:]
 
-def mylog_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
-    # r_kpc_2d = shared(np.atleast_2d(r_kpc)).dimshuffle(1,0)
-    pp = press_gnfw(r_kpc, P_0, a, b, c, r_p).T
-    pars = P_0, a, b, c, r_p
-    p_pr = prior_gnfw(press, pars)
-    if tt.isinf(p_pr).eval():#pmx.eval_in_model(tt.isinf(p_pr)):
-        # print(p_pr); import sys; sys.exit()
-        if output == 'bright':
-            return None
-        return p_pr
-    myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
-    fitted = myfunc(shared(r_kpc), pp, ped, myout, 
-                    shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), 
-                    shared(sz.abel_data.mask2+0), shared(sz.abel_data.isqrt), shared(sz.abel_data.acr),
-                    shared(sz.dist.d_mat), shared(sz.filtering), shared(sz.dist.labels), shared(sz.sep),
-                    shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), 
-                    shared(sz.radius), shared(sz.flux_data[0])
-                    #, pp, shared(sz), ped, shared(output)
-                    )
-    # print(fitted.eval().shape); import sys; sys.exit()
-    if output == 'bright':
-        return fitted
-    # chisq = pm.Normal(fitted, mu=sz.flux_data[1].value, sigma=sz.flux_data[2].value)
-    # chisq = np.nansum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2)
-    chi2 = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2, axis=-1)
-    return -chi2/2#pm.ChiSquared.dist(nu = sz.flux_data[1].size).logp(chi2)/2
-
-def log_lik(pars_val, press, sz, output='ll'):
+def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
-    pars_val = array of free parameters
+    r_kpc = radius (kpc)
+    P_0, a, b, c, r_p, ped = set of pressure parameters
     press = pressure object of the class Pressure
     sz = class of SZ data
     output = desired output
@@ -611,15 +585,23 @@ def log_lik(pars_val, press, sz, output='ll'):
     -----------------------------------------------------------------------
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
-    # prior on parameters
-    parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
-    parsprior = np.nansum(np.array([np.zeros(parsprior.shape), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+    pp = press_gnfw(r_kpc, P_0, a, b, c, r_p).T
+    pars = P_0, a, b, c, r_p
     # prior on pressure distribution
-    pressprior = press.prior(pars_val)
-    # overall prior
-    parprior = np.sum([parsprior, pressprior], axis=0)
-    # mask on infinite values
-    mask = np.isfinite(np.float64(parprior))
+    p_pr = prior_gnfw(press, pars)
+    if tt.isinf(p_pr).eval():
+        if output == 'bright':
+            return None
+        return p_pr
+    myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
+    fitted = int_func(shared(r_kpc), pp, ped, myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), shared(sz.abel_data.mask2+0), 
+                      shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), shared(sz.dist.labels), shared(sz.sep), 
+                      shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), shared(sz.flux_data[0]))
+    if output == 'bright':
+        return fitted
+    chi2 = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2, axis=-1)
+    return -chi2/2
+
     if mask.sum(axis=-1) == 0:
         if output == 'll':
             return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
