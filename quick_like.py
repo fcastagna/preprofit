@@ -1,6 +1,7 @@
 import cloudpickle
 import numpy as np
 import preprofit_funcs as pfuncs
+import pymc3 as pm
 
 def calc_lik():
     
