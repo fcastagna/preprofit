@@ -594,10 +594,10 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     pars = P_0, a, b, c, r_p
     # prior on pressure distribution
     p_pr = prior_gnfw(press, pars)
-    if tt.isinf(p_pr).eval():
-        if output == 'bright':
-            return None
-        return p_pr
+    #if tt.isinf(p_pr).eval().sum(axis=-1) == 0:
+    #    if output == 'bright':
+    #        return None
+    #    return p_pr
     # pressure profile
     pp = press_gnfw(r_kpc, P_0, a, b, c, r_p).T
     if output == 'pp':
