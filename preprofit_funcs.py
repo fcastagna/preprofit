@@ -550,7 +550,7 @@ class SZ_data:
         self.integ_sig = integ_sig
 
 @as_op(itypes=[tt.dvector, tt.dmatrix, tt.dmatrix, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
-               tt.lmatrix, tt.lscalar, tt.dscalar, tt.dvector, tt.dvector], otypes=[tt.dmatrix])
+               tt.lmatrix, tt.lscalar, tt.dscalar, tt.dvector, tt.dvector], otypes=[tt.dmatrix, tt.dmatrix])
 def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb, radius, r_flux_data):
     '''
     Intermediate likelihood function
@@ -572,7 +572,7 @@ def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, fi
     if output == 'bright':
         return np.atleast_2d(map_prof)
     g = interp1d(radius[sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    return g(np.atleast_2d(r_flux_data))[:,0,:]
+    return map_prof, g(np.atleast_2d(r_flux_data))[:,0,:]
 
 def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     '''
@@ -603,9 +603,10 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     if output == 'pp':
         return pp
     myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
-    fitted = int_func(shared(r_kpc), pp, ped, myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), shared(sz.abel_data.mask2+0), 
-                      shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), shared(sz.dist.labels), shared(sz.sep), 
-                      shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), shared(sz.flux_data[0]))
+    map_prof, fitted = int_func(shared(r_kpc), pp, shared(ped), myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), 
+                                shared(sz.abel_data.mask2+0), shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), 
+                                shared(sz.dist.labels), shared(sz.sep), shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), 
+                                shared(sz.flux_data[0]))
     if output == 'bright':
         return fitted
     # Log-likelihood calculation
@@ -619,7 +620,7 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
         if output == 'integ':
             return cint.value
     if output == 'll':
-        return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
+        return np.concatenate((np.atleast_2d(log_lik.eval()).T, map_prof.eval()), axis=-1)
     elif output == 'chisq':
         return chisq.value
     else:
