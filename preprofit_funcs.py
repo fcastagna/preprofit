@@ -600,11 +600,13 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     #    return p_pr
     # pressure profile
     pp = press_gnfw(sz.r_pp, P_0, a, b, c, r_p).T
-    #print(p_pr); import sys; sys.exit()
     if output == 'pp':
         return pp
     myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
-    map_prof, fitted = int_func(shared(sz.r_pp), pp, ped, myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), shared(sz.abel_data.mask2+0), shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), shared(sz.dist.labels), shared(sz.sep), shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), shared(sz.flux_data[0]))
+    map_prof, fitted = int_func(shared(sz.r_pp), pp, ped, myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), 
+                                shared(sz.abel_data.mask2+0), shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), 
+                                shared(sz.dist.labels), shared(sz.sep), shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), 
+                                shared(sz.flux_data[0]))
     if output == 'bright':
         return fitted
     # Log-likelihood calculation
