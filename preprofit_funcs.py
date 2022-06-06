@@ -50,12 +50,13 @@ def press_gnfw(r_kpc, P_0, a, b, c, r_p, logder=False):
     logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
     '''
     if logder == False:
-        den1 = np.outer(r_kpc, 1/r_p).value**c
-        den2 = (1+np.outer(r_kpc, 1/r_p).value**a)**((b-c)/a)
-        return tt.mul(P_0, 1/tt.mul(den1, den2))
+        den1 = tt.outer(r_kpc, 1/r_p)**c
+        den2 = (1+tt.outer(r_kpc, 1/r_p)**a)**((b-c)/a)
+        return P_0/(den1*den2)
     else:
-        den = 1+tt.power(tt.dot(r_kpc, 1/r_p), a)
-        return tt.mul(b-c, 1/den)-b
+        den = 1+tt.outer(r_kpc, 1/r_p)**a
+        return (b-c)/den-b
+
 
 def prior_gnfw(press, pars):
     '''
@@ -65,9 +66,8 @@ def prior_gnfw(press, pars):
     '''
     if press.slope_prior == True:
         P_0, a, b, c, r_p = pars
-        slope_out = press_gnfw(press.r_out, P_0, a, b, c, r_p, logder=True)
-        return np.nansum([pmx.eval_in_model(tt.zeros_like(slope_out)), 
-                          pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0))], axis=0)
+        slope_out = press_gnfw(shared(press.r_out), P_0, a, b, c, r_p, logder=True)
+        return np.nansum([pmx.eval_in_model(tt.zeros_like(slope_out)), pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0))], axis=0)
 
     # def set_universal_params(self, r500, cosmo, z):
     #     '''
@@ -473,10 +473,10 @@ def calc_abel(fr, r, abel_data):
     r = array of radii
     abel_data = collection of data required for Abel transform calculation
     '''
-    f = fr*2*r
+    f = np.atleast_2d(fr*2*r)
     P = np.multiply(f[:,None,:], abel_data[0][None,:,:])
     out = np.trapz(P, axis=-1, dx=abel_data[1]) # take the integral
-    c1 = np.zeros(fr.shape)
+    c1 = np.zeros(f.shape)
     c2 = np.c_[P[:,abel_data[3]==1][:,1::2], np.zeros(c1.shape[0])]
     c3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (c1.shape[0],1))
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
@@ -549,7 +549,7 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-@as_op(itypes=[tt.dvector, tt.dmatrix, tt.dmatrix, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
+@as_op(itypes=[tt.dvector, tt.dmatrix, tt.dvector, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
                tt.lmatrix, tt.lscalar, tt.dscalar, tt.dvector, tt.dvector], otypes=[tt.dmatrix, tt.dmatrix])
 def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb, radius, r_flux_data):
     '''
@@ -560,25 +560,24 @@ def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, fi
     ab = calc_abel(pp, r=x, abel_data=[I_isqrt, dx, corr, mask2, isqrt, acr])
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
-    res = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
+    f = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = res(d_mat)
+    y_2d = f(d_mat)
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = list(map(lambda x: mean(x, labels=labels, index=np.arange(sep+1)), map_out))*conv_temp_sb
-    map_prof = map_prof+np.array(ped).T
+    map_prof = map_prof+np.atleast_2d(ped).T
     output = bytearray(output).decode()
     if output == 'bright':
         return np.atleast_2d(map_prof)
     g = interp1d(radius[sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return map_prof, g(np.atleast_2d(r_flux_data))[:,0,:]
 
-def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
+def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
-    r_kpc = radius (kpc)
     P_0, a, b, c, r_p, ped = set of pressure parameters
     press = pressure object of the class Pressure
     sz = class of SZ data
@@ -594,19 +593,18 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     pars = P_0, a, b, c, r_p
     # prior on pressure distribution
     p_pr = prior_gnfw(press, pars)
-    #if tt.isinf(p_pr).eval().sum(axis=-1) == 0:
+    #return tt.isinf(p_pr).eval().sum(axis=-1)
+    #if tt.isinf(p_pr).eval():
     #    if output == 'bright':
     #        return None
     #    return p_pr
     # pressure profile
-    pp = press_gnfw(r_kpc, P_0, a, b, c, r_p).T
+    pp = press_gnfw(sz.r_pp, P_0, a, b, c, r_p).T
+    #print(p_pr); import sys; sys.exit()
     if output == 'pp':
         return pp
     myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
-    map_prof, fitted = int_func(shared(r_kpc), pp, shared(ped), myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), 
-                                shared(sz.abel_data.mask2+0), shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), 
-                                shared(sz.dist.labels), shared(sz.sep), shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), 
-                                shared(sz.flux_data[0]))
+    map_prof, fitted = int_func(shared(sz.r_pp), pp, ped, myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), shared(sz.abel_data.mask2+0), shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), shared(sz.dist.labels), shared(sz.sep), shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), shared(sz.flux_data[0]))
     if output == 'bright':
         return fitted
     # Log-likelihood calculation
