@@ -594,7 +594,6 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     pars = P_0, a, b, c, r_p
     # prior on pressure distribution
     p_pr = prior_gnfw(press, pars)
-    #return tt.isinf(p_pr).eval().sum(axis=-1)
     #if tt.isinf(p_pr).eval():
     #    if output == 'bright':
     #        return None
