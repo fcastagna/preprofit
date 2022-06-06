@@ -67,7 +67,8 @@ def prior_gnfw(press, pars):
     if press.slope_prior == True:
         P_0, a, b, c, r_p = pars
         slope_out = press_gnfw(shared(press.r_out), P_0, a, b, c, r_p, logder=True)
-        return np.nansum([pmx.eval_in_model(tt.zeros_like(slope_out)), pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0))], axis=0)
+        return np.nansum([pmx.eval_in_model(tt.zeros_like(slope_out)), 
+                          pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0))], axis=0)
 
     # def set_universal_params(self, r500, cosmo, z):
     #     '''
