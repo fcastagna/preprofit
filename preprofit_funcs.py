@@ -620,7 +620,7 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
         if output == 'integ':
             return cint.value
     if output == 'll':
-        return np.concatenate((np.atleast_2d(log_lik.eval()).T, map_prof.eval()), axis=-1)
+        return np.concatenate((np.atleast_2d(pmx.eval_in_model(log_lik)).T, pmx.eval_in_model(map_prof)), axis=-1)
     elif output == 'chisq':
         return chisq.value
     else:
