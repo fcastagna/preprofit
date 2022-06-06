@@ -599,7 +599,7 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     #        return None
     #    return p_pr
     # pressure profile
-    pp = press_gnfw(sz.r_pp, P_0, a, b, c, r_p).T
+    pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
     if output == 'pp':
         return pp
     myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
