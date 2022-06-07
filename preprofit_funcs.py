@@ -550,7 +550,7 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-@as_op(itypes=[tt.dvector, tt.dmatrix, tt.dvector, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
+@as_op(itypes=[tt.dvector, tt.dmatrix, tt.dscalar, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
                tt.lmatrix, tt.lscalar, tt.dscalar, tt.dvector, tt.dvector], otypes=[tt.dmatrix, tt.dmatrix])
 def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb, radius, r_flux_data):
     '''
@@ -600,6 +600,8 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     #    return p_pr
     # pressure profile
     pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
+    pp = shared(np.atleast_2d(pmx.eval_in_model(pp)))
+    ped = shared(pmx.eval_in_model(ped))
     if output == 'pp':
         return pp
     myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
@@ -612,6 +614,9 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     # Log-likelihood calculation
     chisq = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2, axis=-1)
     log_lik = -chisq/2
+    #print(pmx.eval_in_model(log_lik));
+    #print(pmx.eval_in_model(map_prof)[:2,:2])
+    #import sys; sys.exit()
     # Optional integrated Compton parameter calculation
     if sz.calc_integ:
         cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
@@ -620,7 +625,7 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
         if output == 'integ':
             return cint.value
     if output == 'll':
-        return np.concatenate((np.atleast_2d(pmx.eval_in_model(log_lik)).T, pmx.eval_in_model(map_prof)), axis=-1)
+        return log_lik#shared(np.concatenate((np.atleast_2d(pmx.eval_in_model(log_lik)).T, pmx.eval_in_model(map_prof)), axis=-1))
     elif output == 'chisq':
         return chisq.value
     else:
