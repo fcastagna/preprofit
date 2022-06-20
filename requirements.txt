@@ -1,8 +1,7 @@
-mbproj2
 numpy
 scipy
 astropy
-emcee
-six
+pymc3
+theano
 matplotlib
 corner
