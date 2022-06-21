@@ -2,6 +2,10 @@ import cloudpickle
 import numpy as np
 import preprofit_funcs as pfuncs
 import pymc3 as pm
+import pymc3_ext as pmx
+
+with pm.Model() as model:
+    pass
 
 def calc_lik():
 
@@ -13,13 +17,14 @@ def calc_lik():
 
     # define how many set of parameters
     shape = 2
-    with pm.Model() as model:
+    with model:
         ped = pm.Uniform("ped", lower=-1, upper=1, shape=shape)
         P_0 = pm.Uniform("p0", lower=0, upper=1, shape=shape)
         a = pm.Uniform('a', lower=0.5, upper=5., shape=shape)
         b = pm.Uniform('b', lower=1, upper=17, shape=shape)
         c = .014
         r_p = pm.Uniform('r_p', lower=100., upper=1000., shape=shape)
-        return pfuncs.log_lik(P_0, a, b, c, r_p, ped, press, sz)[:,0]
+        return pfuncs.log_lik(P_0, a, b, c, r_p, ped, press, sz)
 
-print(calc_lik())
+with model:
+    print(pmx.eval_in_model(calc_lik()))
