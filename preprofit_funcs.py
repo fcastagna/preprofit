@@ -9,7 +9,8 @@ from astropy import constants as const
 import warnings
 from scipy import optimize
 from scipy.integrate import simps
-sz.from scipy.ndimage import mean
+from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
+from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
