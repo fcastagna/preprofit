@@ -15,15 +15,24 @@ def calc_lik():
     with open('%s/press_obj.pickle' % savedir, 'rb') as f:
         press = cloudpickle.load(f)
 
+    testval = np.array([
+        [0., .5], # ped
+        [.15, .5], # P_0
+        [2.81, 4], # a
+        [6.29, 3.5], # b
+        [380, 700] # r_p
+        ])
+
     # define how many set of parameters
     shape = 2
+
     with model:
-        ped = pm.Uniform("ped", lower=-1, upper=1, shape=shape)
-        P_0 = pm.Uniform("p0", lower=0, upper=1, shape=shape)
-        a = pm.Uniform('a', lower=0.5, upper=5., shape=shape)
-        b = pm.Uniform('b', lower=1, upper=17, shape=shape)
+        ped = pm.Uniform("ped", lower=-1, upper=1, shape=shape, testval=testval[0,:shape])
+        P_0 = pm.Uniform("p0", lower=0, upper=1, shape=shape, testval=testval[1,:shape])
+        a = pm.Uniform('a', lower=0.5, upper=5., shape=shape, testval=testval[2,:shape])
+        b = pm.Uniform('b', lower=1, upper=17, shape=shape, testval=testval[3,:shape])
         c = .014
-        r_p = pm.Uniform('r_p', lower=100., upper=1000., shape=shape)
+        r_p = pm.Uniform('r_p', lower=100., upper=1000., shape=shape, testval=testval[4,:shape])
         return pfuncs.log_lik(P_0, a, b, c, r_p, ped, press, sz)
 
 with model:
