@@ -613,7 +613,7 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     if output == 'pp':
         return pp
     int_prof = int_func_1(sz.r_pp, pp, shared(sz), ped, shared(output))
-    int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=2))
+    int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=mask.ndim))
     map_prof = int_func_2(int_prof, shared(sz))
     if output == 'bright':
         return map_prof
