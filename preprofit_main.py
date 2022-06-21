@@ -216,28 +216,15 @@ def main():
         cloudpickle.dump(sz, f, -1)
     #print(model.test_point); import sys; sys.exit() 
     with model:
-        like = pm.Potential('like', pfuncs.mylog_lik(shared(r_pp), P_0, a, b, c, r_p, ped, press, sz))
-        # print(pmx.eval_in_model(a))#pfuncs.mylog_lik(shared(r_pp), P_0, a, b, c, r_p, ped, press, sz)))
+        like = pm.Potential('like', pfuncs.log_lik(P_0, a, b, c, r_p, ped, press, sz))
         start = pm.find_MAP(model = model)
-        # print(start)
-        # import sys; sys.exit()
-        # trace = pm.sample(1000, step = step,start=start, compute_convergence_checks=0)
         trace = pm.sample(draws=300, tune=100, chains=2, return_inferencedata=True, start=start, step=pm.Slice())
     
     pm.summary(trace)        
-    # import matplotlib.pyplot as plt
-    # from matplotlib.backends.backend_pdf import PdfPages
-    # plt.clf()
-    # pdf = PdfPages('starting_guess.pdf')
     import arviz as az
     axes = az.plot_trace(trace)
     fig = axes.ravel()[0].figure
     fig.savefig('tp.pdf')
-    # pdf.savefig()
-    # pdf.close()
-
-    # samples = pm.trace_to_dataframe(trace)
-    # np.savetxt('mysample.txt', samples)
     corner.corner(trace)
     mean_prof = pfuncs.mylog_lik(np.array(trace.mean(axis=0)), press, sz, output='bright')
     pplots.plot_guess(mean_prof, sz, plotdir=plotdir)
