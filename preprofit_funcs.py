@@ -583,7 +583,7 @@ def int_func_2(map_prof, sz):
     g = interp1d(sz.radius[sz.sep:].value, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(sz.flux_data[0])
 
-def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
+def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -612,7 +612,7 @@ def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
     if output == 'pp':
         return pp
-    int_prof = int_func_1(r_kpc, pp, shared(sz), ped, shared(output))
+    int_prof = int_func_1(sz.r_pp, pp, shared(sz), ped, shared(output))
     int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=2))
     map_prof = int_func_2(int_prof, shared(sz))
     if output == 'bright':
