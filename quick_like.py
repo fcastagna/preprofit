@@ -11,15 +11,15 @@ def calc_lik():
     with open('%s/press_obj.pickle' % savedir, 'rb') as f:
         press = cloudpickle.load(f)
 
-    # define how many set of paramters
+    # define how many set of parameters
     shape = 2
     with pm.Model() as model:
-        ped = pm.Uniform("ped", lower=-1, upper=1, shape=shape).random()
-        P_0 = pm.Uniform("p0", lower=0, upper=1, shape=shape).random()
-        a = pm.Uniform('a', lower=0.5, upper=5., shape=shape).random()
-        b = pm.Uniform('b', lower=1, upper=17, shape=shape).random()
+        ped = pm.Uniform("ped", lower=-1, upper=1, shape=shape)
+        P_0 = pm.Uniform("p0", lower=0, upper=1, shape=shape)
+        a = pm.Uniform('a', lower=0.5, upper=5., shape=shape)
+        b = pm.Uniform('b', lower=1, upper=17, shape=shape)
         c = .014
-        r_p = pm.Uniform('r_p', lower=100., upper=1000., shape=shape).random()
+        r_p = pm.Uniform('r_p', lower=100., upper=1000., shape=shape)
         return pfuncs.log_lik(P_0, a, b, c, r_p, ped, press, sz)[:,0]
 
 print(calc_lik())
