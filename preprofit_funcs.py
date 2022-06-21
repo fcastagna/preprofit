@@ -474,9 +474,9 @@ def calc_abel(fr, r, abel_data):
     abel_data = collection of data required for Abel transform calculation
     '''
     f = np.atleast_2d(fr*2*r)
-    P = np.multiply(f[:,None,:], abel_data.I_isqrt[None,:,:])
+    P = np.multiply(f[:,None,:], abel_data.I_isqrt[None,:,:]) # set up the integral
     out = np.trapz(P, axis=-1, dx=abel_data.dx) # take the integral
-    c1 = np.zeros(f.shape)
+    c1 = np.zeros(f.shape) # build up correction factors
     c2 = np.c_[P[:,abel_data.mask2==1][:,1::2], np.zeros(c1.shape[0])]
     c3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (c1.shape[0],1))
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
