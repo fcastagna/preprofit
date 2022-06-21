@@ -9,8 +9,7 @@ from astropy import constants as const
 import warnings
 from scipy import optimize
 from scipy.integrate import simps
-from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
-from scipy.ndimage import mean
+sz.from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
@@ -563,7 +562,7 @@ def int_func_1(r, pp, sz, ped, output):
     ab = calc_abel(pp, r=r, abel_data=sz.abel_data)
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
-    f = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
+    f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
     y_2d = f(sz.dist.d_mat.value)
     # Convolution with the beam and the transfer function at the same time
@@ -612,7 +611,7 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
     if output == 'pp':
         return pp
-    int_prof = int_func_1(sz.r_pp, pp, shared(sz), ped, shared(output))
+    int_prof = int_func_1(shared(sz.r_pp), pp, shared(sz), ped, shared(output))
     int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=mask.ndim))
     map_prof = int_func_2(int_prof, shared(sz))
     if output == 'bright':
