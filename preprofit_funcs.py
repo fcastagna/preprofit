@@ -26,7 +26,7 @@ class Pressure:
     '''
     def __init__(self, eq_kpc_as):
         self.eq_kpc_as = eq_kpc_as
-        
+
 class Press_gNFW(Pressure):
     '''
     Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
@@ -46,7 +46,7 @@ def press_gnfw(r_kpc, P_0, a, b, c, r_p, logder=False):
     Functional form expression for pressure calculation
     ---------------------------------------------------
     r_kpc = radius (kpc)
-    pars = set of pressure parameters
+    P_0, a, b, c, r_p = set of pressure parameters
     logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
     '''
     if logder == False:
@@ -56,8 +56,8 @@ def press_gnfw(r_kpc, P_0, a, b, c, r_p, logder=False):
     else:
         den = 1+tt.outer(r_kpc, 1/r_p)**a
         return (b-c)/den-b
-    
-def prior_gnfw(press, pars):#P_0, a, b, c, r_p):
+
+def prior_gnfw(press, pars):
     '''
     Checks accordance with prior constrains
     ---------------------------------------
@@ -69,6 +69,183 @@ def prior_gnfw(press, pars):#P_0, a, b, c, r_p):
         return np.nansum([pmx.eval_in_model(tt.zeros_like(slope_out)), 
                           pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0))], axis=0)
     
+    # def set_universal_params(self, r500, cosmo, z):
+    #     '''
+    #     Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+    #     -----------------------------------------------------------------------------------------------------------------
+    #     r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+    #     cosmo = cosmology object
+    #     z = redshift
+    #     '''
+    #     raise('Have a look')
+    #     c500 = 1.177
+    #     self.pars['r_p'].val = r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500
+    #     self.pars['a'].val = 1.051
+    #     self.pars['b'].val = 5.4905
+    #     self.pars['c'].val = .3081
+    #     # Compute M500 from definition in terms of density and volume
+    #     M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to(u.cm)**3).to(u.Msun)
+    #     # Compute P500 according to the definition in Equation (5) from Arnaud's paper
+    #     hz = cosmo.H(z)/cosmo.H0
+    #     h70 = cosmo.H0/(70*cosmo.H0.unit)
+    #     P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
+    #     self.pars['P_0'].val = (8.403*h70**(-3/2)*P500).value
+
+# class Press_cubspline(Pressure):
+#     '''
+#     Class to parametrize the pressure profile with a cubic spline model
+#     -------------------------------------------------------------------
+#     knots = spline knots
+#     pr_knots = pressure values corresponding to spline knots
+#     slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+#     r_out = outer radius (serves for outer slope determination)
+#     max_slopeout = maximum allowed value for the outer slope
+#     '''
+#     def __init__(self, knots, pr_knots, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+#         self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
+#         self.pr_knots = pr_knots
+#         Pressure.__init__(self, eq_kpc_as)
+#         self.slope_prior = slope_prior
+#         self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
+#         self.max_slopeout = max_slopeout
+
+#     def defPars(self):
+#         '''
+#         Default parameter values
+#         ------------------------
+#         P_i = pressure values corresponding to spline knots (kev cm-3)
+#         '''
+#         self.pars = Pressure.defPars(self)
+#         for i in range(self.knots.size):
+#             self.pars.update({'P_'+str(i): Param(self.pr_knots[i].value, minval=0., maxval=1., unit=self.pr_knots.unit)})
+#         return self.pars
+
+#     def functional_form(self, r_kpc, pars, logder=False):
+#         '''
+#         Functional form expression for pressure calculation
+#         ---------------------------------------------------
+#         r_kpc = radius (kpc)
+#         pars = set of pressure parameters
+#         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
+#         '''
+#         p_params = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars else self.pars[x].val for x in ['P_'+str(i) for i in range(self.knots.size)]])
+#         mask = np.any(p_params <= 0, axis=0)
+#         if np.all(mask == True):
+#             return np.array(np.inf)
+#         try:
+#             f = interp1d(np.log10(self.knots.value), np.log10(p_params[:,~mask]).T, kind='cubic', fill_value='extrapolate')
+#         except:
+#             if self.knots.size < 4: raise RuntimeError('A minimum of 4 knots is required for a cubic spline model')
+#         if logder == False:
+#             out = np.nan*np.ones((mask.size, r_kpc.size))
+#             out[~mask,:] = 10**f(np.log10(r_kpc.value))
+#             return out*self.pars['P_0'].unit
+#         out = np.inf*np.ones(mask.size)
+#         out[~mask] = f._spline.derivative()(np.log10(r_kpc.value))
+#         return out*u.Unit('')
+
+#     def prior(self, pars):
+#         '''
+#         Checks accordance with prior constrains
+#         ---------------------------------------
+#         pars = set of pressure parameters
+#         '''
+#         if self.slope_prior == True:
+#             slope_out = self.functional_form(self.r_out, pars, logder=True)
+#             return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+#         return [0.]
+
+#     def set_universal_params(self, r500, cosmo, z):
+#         '''
+#         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+#         -----------------------------------------------------------------------------------------------------------------
+#         r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+#         cosmo = cosmology object
+#         z = redshift
+#         '''
+#         new_press = Press_gNFW(self.eq_kpc_as)
+#         new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=self.eq_kpc_as), cosmo=cosmo, z=z)
+#         new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
+#         new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
+#         p_params = new_press.press_fun(self.knots, [new_press.pars[x].val for x in new_press.fit_pars]).value
+#         for i in range(p_params.size):
+#             self.pars['P_'+str(i)].val = p_params[0][i]
+
+# class Press_nonparam_plaw(Pressure):
+#     '''
+#     Class to parametrize the pressure profile with a non parametric power-law model
+#     -------------------------------------------------------------------------------
+#     rbins = radial bins
+#     pbins = pressure values corresponding to radial bins
+#     slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+#     max_slopeout = maximum allowed value for the outer slope
+#     '''
+#     def __init__(self, rbins, pbins, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
+#         self.rbins = rbins.to(u.kpc, equivalencies=eq_kpc_as)
+#         self.pbins = pbins
+#         self.slope_prior = slope_prior
+#         self.max_slopeout = max_slopeout
+#         Pressure.__init__(self, eq_kpc_as)
+#         self.alpha = np.atleast_2d(np.ones_like(self.rbins))*u.Unit('')
+#         self.alpha_den = np.atleast_2d(np.log(self.rbins[:-1]/self.rbins[1:])) # denominator for alpha
+
+#     def defPars(self):
+#         '''
+#         Default parameter values
+#         ------------------------
+#         P_i = pressure values corresponding to radial bins (kev cm-3)
+#         '''
+#         self.pars = Pressure.defPars(self)
+#         for i in range(self.rbins.size):
+#             self.pars.update({'P_'+str(i): Param(self.pbins[i].value, minval=0., maxval=1., unit=self.pbins.unit)})
+#         return self.pars
+
+#     def functional_form(self, r_kpc, pars):
+#         '''
+#         Functional form expression for pressure calculation
+#         ---------------------------------------------------
+#         r_kpc = radius (kpc)
+#         pars = set of pressure parameters
+#         '''
+#         ind_low = np.maximum(0, np.digitize(r_kpc, self.rbins)-1) # lower bins indexes
+#         r_low = self.rbins[ind_low] # lower radial bins
+#         alpha_ind = np.minimum(ind_low, len(self.rbins)-2) # alpha indexes
+#         pbins = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
+#                           else self.pars[x].val for x in ['P_'+str(i) for i in range(self.pbins.size)]])*self.pars['P_0'].unit
+#         p_low = pbins[ind_low]
+#         self.alpha = (np.log(pbins[:-1]/pbins[1:]).T/self.alpha_den)[:,alpha_ind]
+#         return p_low.T*(r_kpc/r_low)**self.alpha
+
+#     def prior(self, pars):
+#         '''
+#         Checks accordance with prior constrains
+#         ---------------------------------------
+#         pars = set of pressure parameters
+#         '''
+#         if self.slope_prior == True:
+#             i = len(self.rbins)
+#             P_n_1, P_n = np.array([(pars*self.indexes['ind_'+x]).sum(axis=-1) if x in self.fit_pars 
+#                                    else self.pars[x].val for x in ['P_'+str(i) for i in range(self.rbins.size-2, self.rbins.size)]])
+#             slope_out = np.log(P_n/P_n_1)/np.log(self.rbins[i-1]/self.rbins[i-2])
+#             return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+#         return [0.]
+
+#     def set_universal_params(self, r500, cosmo, z):
+#         '''
+#         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+#         -----------------------------------------------------------------------------------------------------------------
+#         r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+#         cosmo = cosmology object
+#         z = redshift
+#         '''
+#         new_press = Press_gNFW(self.eq_kpc_as)
+#         new_press.set_universal_params(r500=r500.to(u.kpc, equivalencies=self.eq_kpc_as), cosmo=cosmo, z=z)
+#         new_press.fit_pars =  [x for x in new_press.pars if not new_press.pars[x].frozen]
+#         new_press.indexes = {'ind_'+x: np.array(new_press.fit_pars) == x if x in new_press.fit_pars else new_press.pars[x].val for x in list(new_press.pars)}
+#         p_params = new_press.press_fun(self.rbins, [new_press.pars[x].val for x in new_press.fit_pars]).value
+#         for i in range(p_params.size):
+#             self.pars['P_'+str(i)].val = p_params[0][i]
+
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
@@ -373,17 +550,36 @@ class SZ_data:
         self.integ_sig = integ_sig
 
 @as_op(itypes=[tt.dvector, tt.dmatrix, tt.Generic(), tt.dvector, tt.Generic()], otypes=[tt.dmatrix])
-def myfunc(x, pp, sz, ped, output='ll'):
-    ab = calc_abel(pp, r=x, abel_data=sz.abel_data)
+def int_func_1(r, pp, sz, ped, output):
+    '''
+    First intermediate likelihood function
+    --------------------------------------
+    r = array of radii
+    pp = pressure profile
+    sz = class of SZ data
+    output = desired output
+    '''
+    # abel transform
+    ab = calc_abel(pp, r=r, abel_data=sz.abel_data)
+    # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab#value#.to('')
     res = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
+    # Compton parameter 2D image
     y_2d = res(sz.dist.d_mat.value)
+    # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
+    # Conversion from Compton parameter to mJy/beam
     map_prof = list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb.to(sz.flux_data[1].unit)
     return map_prof
 
 @as_op(itypes=[tt.dmatrix, tt.Generic()], otypes=[tt.dmatrix])
-def func2(map_prof, sz):
+def int_func_2(map_prof, sz):
+    '''
+    Second intermediate likelihood function
+    ---------------------------------------
+    map_prof = fitted profile
+    sz = class of SZ data
+    '''
     g = interp1d(sz.radius[sz.sep:].value, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(sz.flux_data[0])
 
@@ -397,11 +593,11 @@ def mylog_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
         return None
     pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
     # pp_sp = tt.split(pp, [mask.sum(axis=-1).sum(), mask.ndim-mask.sum(axis=-1).sum()], 2, axis=0)
-    map_prof = myfunc(r_kpc, pp, shared(sz), ped, shared(output))
+    map_prof = int_func_1(r_kpc, pp, shared(sz), ped, shared(output))
     # ped = shared(pmx.eval_in_model(ped))
     map_prof = map_prof+tt.transpose(tt.as_tensor(ped, ndim=2))
     # print(pmx.eval_in_model(map_prof).shape); import sys; sys.exit()
-    fitted = func2(map_prof, shared(sz))
+    fitted = int_func_2(map_prof, shared(sz))
     if output == 'bright':
         return fitted
     # chisq = pm.Normal(fitted, mu=sz.flux_data[1].value, sigma=sz.flux_data[2].value)
