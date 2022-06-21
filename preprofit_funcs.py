@@ -57,7 +57,6 @@ def press_gnfw(r_kpc, P_0, a, b, c, r_p, logder=False):
         den = 1+tt.outer(r_kpc, 1/r_p)**a
         return (b-c)/den-b
 
-
 def prior_gnfw(press, pars):
     '''
     Checks accordance with prior constrains
@@ -109,7 +108,7 @@ def prior_gnfw(press, pars):
 #         self.slope_prior = slope_prior
 #         self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
 #         self.max_slopeout = max_slopeout
-        
+
 #     def defPars(self):
 #         '''
 #         Default parameter values
@@ -155,7 +154,7 @@ def prior_gnfw(press, pars):
 #             slope_out = self.functional_form(self.r_out, pars, logder=True)
 #             return np.nansum(np.array([np.zeros(slope_out.shape), np.array([slope_out > self.max_slopeout, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
 #         return [0.]
-    
+
 #     def set_universal_params(self, r500, cosmo, z):
 #         '''
 #         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
@@ -189,7 +188,7 @@ def prior_gnfw(press, pars):
 #         Pressure.__init__(self, eq_kpc_as)
 #         self.alpha = np.atleast_2d(np.ones_like(self.rbins))*u.Unit('')
 #         self.alpha_den = np.atleast_2d(np.log(self.rbins[:-1]/self.rbins[1:])) # denominator for alpha
-        
+
 #     def defPars(self):
 #         '''
 #         Default parameter values
@@ -475,15 +474,15 @@ def calc_abel(fr, r, abel_data):
     abel_data = collection of data required for Abel transform calculation
     '''
     f = np.atleast_2d(fr*2*r)
-    P = np.multiply(f[:,None,:], abel_data[0][None,:,:])
-    out = np.trapz(P, axis=-1, dx=abel_data[1]) # take the integral
+    P = np.multiply(f[:,None,:], abel_data.I_isqrt[None,:,:])
+    out = np.trapz(P, axis=-1, dx=abel_data.dx) # take the integral
     c1 = np.zeros(f.shape)
-    c2 = np.c_[P[:,abel_data[3]==1][:,1::2], np.zeros(c1.shape[0])]
+    c2 = np.c_[P[:,abel_data.mask2==1][:,1::2], np.zeros(c1.shape[0])]
     c3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (c1.shape[0],1))
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
-    out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data[1], axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
+    out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data.dx, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
-    out[:,:-1] += (abel_data[4]*f_r+abel_data[5]*(f[:,:-1]-f_r*r[:-1]))
+    out[:,:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1]))
     return out
 
 class distances:
@@ -550,30 +549,39 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-@as_op(itypes=[tt.dvector, tt.dmatrix, tt.dvector, tt.bvector, tt.dmatrix, tt.dscalar, tt.dmatrix, tt.lmatrix, tt.dvector, tt.dvector, tt.dmatrix, tt.dmatrix, 
-               tt.lmatrix, tt.lscalar, tt.dscalar, tt.dvector, tt.dvector], otypes=[tt.dmatrix, tt.dmatrix])
-def int_func(x, pp, ped, output, I_isqrt, dx, corr, mask2, isqrt, acr, d_mat, filtering, labels, sep, conv_temp_sb, radius, r_flux_data):
+@as_op(itypes=[tt.dvector, tt.dmatrix, tt.Generic(), tt.dvector, tt.Generic()], otypes=[tt.dmatrix])
+def int_func_1(r, pp, sz, ped, output):
     '''
-    Intermediate likelihood function
-    --------------------------------
+    First intermediate likelihood function
+    --------------------------------------
+    r = array of radii
+    pp = pressure profile
+    sz = class of SZ data
+    output = desired output
     '''
     # abel transform
-    ab = calc_abel(pp, r=x, abel_data=[I_isqrt, dx, corr, mask2, isqrt, acr])
+    ab = calc_abel(pp, r=r, abel_data=sz.abel_data)
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     f = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = f(d_mat)
+    y_2d = f(sz.dist.d_mat.value)
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*filtering), axes=(-2, -1)))
+    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = list(map(lambda x: mean(x, labels=labels, index=np.arange(sep+1)), map_out))*conv_temp_sb
-    map_prof = map_prof+np.atleast_2d(ped).T
-    output = bytearray(output).decode()
-    if output == 'bright':
-        return np.atleast_2d(map_prof)
-    g = interp1d(radius[sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    return map_prof, g(np.atleast_2d(r_flux_data))[:,0,:]
+    map_prof = list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb.to(sz.flux_data[1].unit)
+    return map_prof
+
+@as_op(itypes=[tt.dmatrix, tt.Generic()], otypes=[tt.dmatrix])
+def int_func_2(map_prof, sz):
+    '''
+    Second intermediate likelihood function
+    ---------------------------------------
+    map_prof = fitted profile
+    sz = class of SZ data
+    '''
+    g = interp1d(sz.radius[sz.sep:].value, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
+    return g(sz.flux_data[0])
 
 def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     '''
@@ -594,42 +602,44 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     pars = P_0, a, b, c, r_p
     # prior on pressure distribution
     p_pr = prior_gnfw(press, pars)
-    #if tt.isinf(p_pr).eval():
-    #    if output == 'bright':
-    #        return None
-    #    return p_pr
+    # mask on infinite values
+    mask = tt.isinf(p_pr)
+    if tt.eq(mask.sum(axis=-1), mask.ndim).eval()[0]:
+        if output == 'll':
+            return shared(p_pr)
+        return None
     # pressure profile
     pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
-    pp = shared(np.atleast_2d(pmx.eval_in_model(pp)))
-    ped = shared(pmx.eval_in_model(ped))
     if output == 'pp':
         return pp
-    myout = tt.as_tensor_variable(np.array(bytearray(output, encoding='utf'), dtype=np.byte))
-    map_prof, fitted = int_func(shared(sz.r_pp), pp, ped, myout, shared(sz.abel_data.I_isqrt), shared(sz.abel_data.dx), shared(sz.abel_data.corr), 
-                                shared(sz.abel_data.mask2+0), shared(sz.abel_data.isqrt), shared(sz.abel_data.acr), shared(sz.dist.d_mat), shared(sz.filtering), 
-                                shared(sz.dist.labels), shared(sz.sep), shared(sz.conv_temp_sb.to(sz.flux_data[1].unit).value), shared(sz.radius), 
-                                shared(sz.flux_data[0]))
+    int_prof = int_func_1(sz.r_pp, pp, shared(sz), ped, shared(output))
+    int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=mask.ndim))
+    map_prof = int_func_2(int_prof, shared(sz))
     if output == 'bright':
-        return fitted
+        return map_prof
     # Log-likelihood calculation
-    chisq = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2, axis=-1)
+    chisq = tt.sum(((sz.flux_data[1].value-map_prof)/sz.flux_data[2].value)**2, axis=-1)
     log_lik = -chisq/2
-    #print(pmx.eval_in_model(log_lik));
-    #print(pmx.eval_in_model(map_prof)[:2,:2])
-    #import sys; sys.exit()
-    # Optional integrated Compton parameter calculation
-    if sz.calc_integ:
-        cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
-        new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
-        log_lik -= new_chi/2
-        if output == 'integ':
-            return cint.value
-    if output == 'll':
-        return log_lik#shared(np.concatenate((np.atleast_2d(pmx.eval_in_model(log_lik)).T, pmx.eval_in_model(map_prof)), axis=-1))
-    elif output == 'chisq':
-        return chisq.value
-    else:
-        raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
+    log_lik = tt.switch(mask, -np.inf*tt.ones_like(mask), log_lik)
+    return log_lik
+    # # Optional integrated Compton parameter calculation
+    # if sz.calc_integ:
+    #     cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
+    #     new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
+    #     log_lik -= new_chi/2
+    #     if output == 'integ':
+    #         return cint.value
+    # if output == 'll':
+    #     if np.any(~mask):
+    #         parprior[mask] = log_lik.value
+    #         newmap_prof = np.repeat(None, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
+    #         newmap_prof[mask] = map_prof.value
+    #         return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
+    #     return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
+    # elif output == 'chisq':
+    #     return chisq.value
+    # else:
+    #     raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
 
 def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     '''
