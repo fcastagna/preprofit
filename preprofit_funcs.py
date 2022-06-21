@@ -68,7 +68,7 @@ def prior_gnfw(press, pars):
         slope_out = press_gnfw(shared(press.r_out), P_0, a, b, c, r_p, logder=True)
         return np.nansum([pmx.eval_in_model(tt.zeros_like(slope_out)), 
                           pmx.eval_in_model(tt.prod([tt.gt(slope_out, press.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0))], axis=0)
-    
+
     # def set_universal_params(self, r500, cosmo, z):
     #     '''
     #     Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
@@ -562,7 +562,7 @@ def int_func_1(r, pp, sz, ped, output):
     # abel transform
     ab = calc_abel(pp, r=r, abel_data=sz.abel_data)
     # Compton parameter
-    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab#value#.to('')
+    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     res = interp1d(np.append(-x, x), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
     y_2d = res(sz.dist.d_mat.value)
@@ -583,36 +583,11 @@ def int_func_2(map_prof, sz):
     g = interp1d(sz.radius[sz.sep:].value, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(sz.flux_data[0])
 
-def mylog_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
-    pars = P_0, a, b, c, r_p
-    p_pr = prior_gnfw(press, pars)
-    mask = tt.isinf(p_pr)
-    if tt.eq(mask.sum(axis=-1), mask.ndim).eval()[0]:
-        if output == 'll':
-            return shared(p_pr)
-        return None
-    pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
-    # pp_sp = tt.split(pp, [mask.sum(axis=-1).sum(), mask.ndim-mask.sum(axis=-1).sum()], 2, axis=0)
-    map_prof = int_func_1(r_kpc, pp, shared(sz), ped, shared(output))
-    # ped = shared(pmx.eval_in_model(ped))
-    map_prof = map_prof+tt.transpose(tt.as_tensor(ped, ndim=2))
-    # print(pmx.eval_in_model(map_prof).shape); import sys; sys.exit()
-    fitted = int_func_2(map_prof, shared(sz))
-    if output == 'bright':
-        return fitted
-    # chisq = pm.Normal(fitted, mu=sz.flux_data[1].value, sigma=sz.flux_data[2].value)
-    # chisq = np.nansum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2)
-    chi2 = tt.sum(((sz.flux_data[1].value-fitted)/sz.flux_data[2].value)**2, axis=-1)
-    # print(pmx.eval_in_model(chi2).shape); import sys; sys.exit()
-    log_lik = -chi2/2
-    log_lik = tt.switch(mask, -np.inf*tt.ones_like(mask), log_lik)
-    return log_lik#pm.ChiSquared.dist(nu = sz.flux_data[1].size).logp(chi2)/2
-
-def log_lik(pars_val, press, sz, output='ll'):
+def log_lik(r_kpc, P_0, a, b, c, r_p, ped, press, sz, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
-    pars_val = array of free parameters
+    P_0, a, b, c, r_p, ped = set of pressure parameters
     press = pressure object of the class Pressure
     sz = class of SZ data
     output = desired output
@@ -624,60 +599,48 @@ def log_lik(pars_val, press, sz, output='ll'):
     -----------------------------------------------------------------------
     RETURN: desired output or -inf when theta is out of the parameter space
     '''
-    # prior on parameters
-    parsprior = np.any([np.array(pars_val) <= press.min_val, np.array(pars_val) >= press.max_val], axis=0).sum(axis=-1)
-    parsprior = np.nansum(np.array([np.zeros(parsprior.shape), np.array([parsprior, -np.inf], dtype='O').prod(axis=0)], dtype='O'), axis=0)
+    pars = P_0, a, b, c, r_p
     # prior on pressure distribution
-    pressprior = press.prior(pars_val)
-    # overall prior
-    parprior = np.sum([parsprior, pressprior], axis=0)
+    p_pr = prior_gnfw(press, pars)
     # mask on infinite values
-    mask = np.isfinite(np.float64(parprior))
-    if mask.sum(axis=-1) == 0:
+    mask = tt.isinf(p_pr)
+    if tt.eq(mask.sum(axis=-1), mask.ndim).eval()[0]:
         if output == 'll':
-            return np.concatenate((np.atleast_2d(parprior).T, np.array([[None]]*parprior.size)), axis=-1)
+            return shared(p_pr)
         return None
     # pressure profile
-    pp = press.press_fun(r_kpc=sz.r_pp, pars=np.array(pars_val)[mask])
+    pp = press_gnfw(shared(sz.r_pp), P_0, a, b, c, r_p).T
     if output == 'pp':
         return pp
-    # abel transform
-    ab = calc_abel(pp.value, r=sz.r_pp.value, abel_data=sz.abel_data)*pp.unit*sz.r_pp.unit
-    # Compton parameter
-    y = (const.sigma_T/(const.m_e*const.c**2)*ab).to('')
-    f = interp1d(np.append(-sz.r_pp, sz.r_pp), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
-    # Compton parameter 2D image
-    y_2d = f(sz.dist.d_mat)
-    # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
-    # Conversion from Compton parameter to mJy/beam
-    map_prof = (list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb).to(sz.flux_data[1].unit)
-    ped = np.array([(pars_val*press.indexes['ind_pedestal']).sum(axis=-1) if 'pedestal' in press.fit_pars else press.pars['pedestal'].val])
-    map_prof = map_prof+np.array([ped[0][mask] if 'pedestal' in press.fit_pars else ped]).T*press.pars['pedestal'].unit
+    int_prof = int_func_1(r_kpc, pp, shared(sz), ped, shared(output))
+    int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=2))
+    map_prof = int_func_2(int_prof, shared(sz))
     if output == 'bright':
         return map_prof
-    g = interp1d(sz.radius[sz.sep:], map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     # Log-likelihood calculation
-    chisq = np.nansum(((sz.flux_data[1]-(g(sz.flux_data[0])*map_prof.unit).to(sz.flux_data[1].unit))/sz.flux_data[2])**2, axis=-1)
-    log_lik = -chisq/2+parprior[mask]
-    # Optional integrated Compton parameter calculation
-    if sz.calc_integ:
-        cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
-        new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
-        log_lik -= new_chi/2
-        if output == 'integ':
-            return cint.value
-    if output == 'll':
-        if np.any(~mask):
-            parprior[mask] = log_lik.value
-            newmap_prof = np.repeat(None, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
-            newmap_prof[mask] = map_prof.value
-            return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
-        return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
-    elif output == 'chisq':
-        return chisq.value
-    else:
-        raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
+    chisq = tt.sum(((sz.flux_data[1].value-map_prof)/sz.flux_data[2].value)**2, axis=-1)
+    # print(pmx.eval_in_model(chi2).shape); import sys; sys.exit()
+    log_lik = -chisq/2
+    log_lik = tt.switch(mask, -np.inf*tt.ones_like(mask), log_lik)
+    return log_lik
+    # # Optional integrated Compton parameter calculation
+    # if sz.calc_integ:
+    #     cint = simps(np.concatenate((np.atleast_2d(f(0.)).T, y), axis=-1)*sz.r_am, sz.r_am, axis=-1)*2*np.pi
+    #     new_chi = ((cint-sz.integ_mu)/sz.integ_sig)**2
+    #     log_lik -= new_chi/2
+    #     if output == 'integ':
+    #         return cint.value
+    # if output == 'll':
+    #     if np.any(~mask):
+    #         parprior[mask] = log_lik.value
+    #         newmap_prof = np.repeat(None, parsprior.size*map_prof.shape[1]).reshape(parsprior.size, map_prof.shape[1])
+    #         newmap_prof[mask] = map_prof.value
+    #         return np.concatenate((np.atleast_2d(parprior).T, newmap_prof), axis=-1)
+    #     return np.concatenate((np.atleast_2d(log_lik.value).T, map_prof.value), axis=-1)
+    # elif output == 'chisq':
+    #     return chisq.value
+    # else:
+    #     raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
 
 def prelim_fit(sampler, pars, fit_pars, silent=False, maxiter=10):
     '''
