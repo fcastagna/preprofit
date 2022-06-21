@@ -619,7 +619,6 @@ def log_lik(P_0, a, b, c, r_p, ped, press, sz, output='ll'):
         return map_prof
     # Log-likelihood calculation
     chisq = tt.sum(((sz.flux_data[1].value-map_prof)/sz.flux_data[2].value)**2, axis=-1)
-    # print(pmx.eval_in_model(chi2).shape); import sys; sys.exit()
     log_lik = -chisq/2
     log_lik = tt.switch(mask, -np.inf*tt.ones_like(mask), log_lik)
     return log_lik
