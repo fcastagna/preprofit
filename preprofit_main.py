@@ -56,7 +56,8 @@ convert_filename = '%s/Compton_to_Jy_per_beam.dat' %files_dir # conversion Compt
 # Temperature used for the conversion factor above
 t_const = 12*u.keV # if conversion is not required, preprofit ignores it
 
-# Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single measure in the file)
+# Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single 
+# measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
 beam_units = [u.arcsec, u.beam] # beam units
@@ -178,7 +179,8 @@ def main():
     # Radius definition
     mymaxr = [beam_2d.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
               mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)][0] # max radius needed
-    radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as)).value, mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
+    radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as)).value, 
+                       mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     r_pp = np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as).value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)).value,
@@ -195,8 +197,8 @@ def main():
         conv_temp_sb = 1*u.Unit('')
     
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, filtering=filtering,
-                        calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
+    sz = pfuncs.SZ_data(step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, 
+                        filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
     
     # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
     # with model:
