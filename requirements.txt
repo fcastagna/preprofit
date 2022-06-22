@@ -8,3 +8,4 @@ cloudpickle
 matplotlib
 arviz
 corner
+h5py
