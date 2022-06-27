@@ -3,7 +3,6 @@ scipy
 astropy
 pymc3
 pymc3_ext
-theano
 cloudpickle
 matplotlib
 arviz
