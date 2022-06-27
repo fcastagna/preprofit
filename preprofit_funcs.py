@@ -570,7 +570,7 @@ def int_func_1(r, pp, sz, ped, output):
     map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
     map_prof = list(map(lambda x: mean(x, labels=sz.dist.labels, index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb.to(sz.flux_data[1].unit)
-    return map_prof.value
+    return map_prof
 
 @as_op(itypes=[tt.dmatrix, tt.Generic()], otypes=[tt.dmatrix])
 def int_func_2(map_prof, sz):
