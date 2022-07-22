@@ -108,12 +108,13 @@ with pm.Model() as model:
     # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as testval
     # To exclude a parameter from the fit, just set it at a fixed value 
     shape = 2
-    ped = pm.Uniform("ped", lower=-1, upper=1, testval=[0., .5], shape=shape)
-    P_0 = pm.Uniform("p0", lower=0, upper=1, testval=[.15, .5], shape=shape)
-    a = pm.Uniform('a', lower=0.5, upper=5., testval=[2.81, 4], shape=shape)
-    b = pm.Uniform('b', lower=3, upper=7, testval=[6.29, 3.5], shape=shape)
+    testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
+    ped = pm.Uniform("ped", lower=-1, upper=1, testval=testval[0,:shape], shape=shape)
+    P_0 = pm.Uniform("p0", lower=0, upper=1, testval=testval[1,:shape], shape=shape)
+    a = pm.Uniform('a', lower=0.5, upper=5., testval=testval[2,:shape], shape=shape)
+    b = pm.Uniform('b', lower=3, upper=7, testval=testval[3,:shape], shape=shape)
     c = .014
-    r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=[380, 700], shape=shape)
+    r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=testval[4,:shape], shape=shape)
 
 # To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and
 # JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
