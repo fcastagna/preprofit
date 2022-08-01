@@ -218,7 +218,7 @@ def main():
     #print(model.test_point); import sys; sys.exit() 
     with model:
         like = pm.Potential('like', pfuncs.log_lik(P_0, a, b, c, r_p, ped, press, sz))
-        start = pm.find_MAP(model = model)
+        start = pm.find_MAP(model=model, start=model.test_point)
         trace = pm.sample(draws=300, tune=100, chains=2, return_inferencedata=True, start=start, step=pm.Slice())
     
     pm.summary(trace)        
