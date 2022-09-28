@@ -139,7 +139,7 @@ pars = [[Ps[i],#model["P_"+str(i+1)],
          r_p[i],
          model["ped"+str(i+1)]] for i in range(nc)]
 
-
+'''
 # Cubic spline
 knots = [100, 300, 600, 1000, 2000]*u.kpc
 press_knots = [9e-1, 8e-1, 2e-1, 5e-2, 5e-3]*u.Unit('keV/cm3')
@@ -165,7 +165,7 @@ with pm.Model() as model:
         pm.Uniform("ped"+str(i+1), lower=-1, upper=1, testval=0., shape=shape)
 pars = [[model['P'+str(i)+'s'][j] for i in range(len(press_knots))] for j in range(nc)]
 [p.append(model['ped'+str(i+1)]) for i, p in enumerate(pars)]
-
+'''
 # To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and
 # JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
 # NOTE: this option is available for both parametric and non parametric pressure models
