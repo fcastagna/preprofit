@@ -637,11 +637,11 @@ def log_lik_press(pars, press, model, sz, i, output='ll'):
         return None
     # pressure profile
     # gnfw
-    # pp = press.functional_form(shared(sz.r_pp[i]), pars).T# for r in sz.r_pp]
+    pp = press.functional_form(shared(sz.r_pp[i]), pars).T# for r in sz.r_pp]
     # cubspline
     # pp = press.functional_form(shared(press), shared(sz.r_pp[i]), shared(pars)).T# for r in sz.r_pp]
     # nonparam
-    pp = press.functional_form(shared(sz.r_pp[i]), pars, i)#.T# for r in sz.r_pp]
+    # pp = press.functional_form(shared(sz.r_pp[i]), pars, i)#.T# for r in sz.r_pp]
     # print(pp.type); import sys; sys.exit()
     return pp
 
