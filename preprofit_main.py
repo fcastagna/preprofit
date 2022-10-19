@@ -89,8 +89,8 @@ R_b = 5000*u.kpc
 
 # Name for outputs
 name = 'preprofit'
-plotdir = './multi/nonparamlaw/' # directory for the plots
-savedir = '%s/save/' % plotdir # directory for saved files
+plotdir = './' # directory for the plots
+savedir = './'  # directory for saved files
 
 ## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
@@ -130,7 +130,7 @@ with pm.Model() as model:
     r_p = r500.value/c500
     for i in range(nc):
         # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
-        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0., shape=shape)
+        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0.)#, shape=shape)
 
 pars = [[Ps[i],#model["P_"+str(i+1)],
          a,
