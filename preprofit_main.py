@@ -290,7 +290,7 @@ def main():
     pplots.plot_guess(start_guess, sz, plotdir=plotdir)
     # import sys; sys.exit()
     with model:
-        start = pm.find_MAP(start=model.test_point, model = model)
+        start = pm.find_MAP(start=model.initial_point, model = model)
         trace = pm.sample(draws=1000
                           , tune=300
                           , chains=4, return_inferencedata=True, step=pm.Slice(), start=start)
