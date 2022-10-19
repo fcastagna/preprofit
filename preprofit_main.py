@@ -284,7 +284,7 @@ def main():
         # map_prof = pm.Potential('br', pfuncs.log_lik_prof(pars, pp, shape, sz))
         # map_prof2 = [pm.Deterministic('br'+str(i), pfuncs.log_lik_prof2(m, sz, i)) for i, m in enumerate(map_prof)]
         like = pm.Potential('like', pfuncs.log_lik_final(map_prof, sz))
-        ll = pm.Deterministic('loglik', model.logpt)
+        ll = pm.Deterministic('loglik', model.logpt())
         start_guess = [m.eval() for m in map_prof]
         # print(start_guess[:3])
     pplots.plot_guess(start_guess, sz, plotdir=plotdir)
