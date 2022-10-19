@@ -74,7 +74,7 @@ class Press_gNFW(Pressure):
         if self.slope_prior == True:
             slope_out = self.functional_form(self.r_out, pars, logder=True)
             return np.nansum([tt.zeros_like(slope_out).eval(), 
-                              tt.prod([tt.gt(slope_out, self.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0)).eval()], axis=0)
+                              tt.prod([tt.gt(slope_out, self.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0).eval()], axis=0)
         return np.atleast_2d(np.zeros(shape))
     # def set_universal_params(self, r500, cosmo, z):
     #     '''
@@ -164,7 +164,7 @@ class Press_cubspline(Pressure):
         if self.slope_prior == True:
             slope_out = self.fun(shared(self), shared(np.at_least_1d(self.r_out)), shared(pars), shared(1))
             return np.nansum([tt.zeros_like(slope_out).eval(), 
-                              tt.prod([tt.gt(slope_out, self.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0)).eval()], axis=0)
+                              tt.prod([tt.gt(slope_out, self.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0).eval()], axis=0)
         return np.atleast_2d(np.zeros(shape))
 
 #     def set_universal_params(self, r500, cosmo, z):
@@ -236,7 +236,7 @@ class Press_nonparam_plaw(Pressure):
             P_n_1, P_n = pars[-2:]
             slope_out = np.log(P_n/P_n_1)/np.log(self.rbins[i-1]/self.rbins[i-2])
             return np.atleast_2d(np.nansum([tt.zeros_like(slope_out).eval(), 
-                                            tt.prod([tt.gt(slope_out, self.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0)).eval()], axis=0))
+                                            tt.prod([tt.gt(slope_out, self.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0).eval()], axis=0))
         return np.atleast_2d([0.])
 
 #     def set_universal_params(self, r500, cosmo, z):
