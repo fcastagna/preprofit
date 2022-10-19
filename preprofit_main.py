@@ -8,9 +8,8 @@ from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
 import h5py
 import cloudpickle
-import pymc3 as pm
-import pymc3_ext as pmx
-from theano import shared
+import pymc as pm
+from aesara import shared
 import arviz as az
 
 ### Global and local variables
@@ -116,21 +115,22 @@ P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**
 univpars = [[(8.403*h70**(-3/2)*P500).value[i], 1.051, 5.4905, 0.3081, 
              (r500.to(u.kpc, equivalencies=eq_kpc_as).value/c500)[i]] for i in range(nc)]
 with pm.Model() as model:
-    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as testval
+    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as initval
     # To exclude a parameter from the fit, just set it at a fixed value 
     shape = 1
     # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
-    testval = np.array([[0., -4.74017024e-05], [5.26077081e-01, .5], [4.25946548e+00, 4], [5.48547959e+00, 5.5],  [8.47405222e+02, 800]])
-    # P_0 = pm.Uniform("P_0", lower=0, upper=1, testval=testval[1,:shape], shape=shape)
-    Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, testval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598])) #np.array([u[0] for u in univpars])/10))#np.array([1.01714532, 1.82576668, 1.20201582, 0.5638314, 0.2233534, 0.16041357, 0.83527021, 0.36059494, 1.00501252, 0.44485807])/25))
-    a = 1.051#pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), testval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., testval=testval[2,:shape], shape=shape)
-    b = 5.4905#pm.Normal('b', mu=np.log(80), sigma=np.log(150/80), testval=np.log(80))#pm.Uniform('b', lower=3, upper=70, testval=testval[3,:shape], shape=shape)
-    c = 0.3081#pm.Normal('c', mu=np.log(2.5), sigma=np.log(3/2.5), testval=np.log(2.5))
-    # r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=testval[4,:shape], shape=shape)
+    initval = np.array([[0., -4.74017024e-05], [5.26077081e-01, .5], [4.25946548e+00, 4], [5.48547959e+00, 5.5],  [8.47405222e+02, 800]])
+    # P_0 = pm.Uniform("P_0", lower=0, upper=1, initval=initval[1,:shape], shape=shape)
+    Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, initval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 
+                                                                                         0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598]))
+    a = 1.051#pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), initval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., initval=initval[2,:shape], shape=shape)
+    b = 5.4905#pm.Normal('b', mu=np.log(80), sigma=np.log(150/80), initval=np.log(80))#pm.Uniform('b', lower=3, upper=70, initval=initval[3,:shape], shape=shape)
+    c = 0.3081#pm.Normal('c', mu=np.log(2.5), sigma=np.log(3/2.5), initval=np.log(2.5))
+    # r_p = pm.Uniform('r_p', lower=100., upper=1000., initval=initval[4,:shape], shape=shape)
     r_p = r500.value/c500
     for i in range(nc):
-        # pm.Uniform("P_"+str(i+1), lower=0, upper=1, testval=.5, shape=shape)
-        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, testval=0., shape=shape)
+        # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
+        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0., shape=shape)
 
 pars = [[Ps[i],#model["P_"+str(i+1)],
          a,
@@ -153,14 +153,15 @@ press_knots = np.array([8.72610158e-01, 9.61980539e-01, 3.72659125e-01, 1.985993
 
 # ## Parameters setup
 with pm.Model() as model:
-    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as testval
+    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as initval
     # To exclude a parameter from the fit, just set it at a fixed value 
     shape = 1
     # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
     testval = np.tile(press_knots, (shape,1)) if shape > 1 else press_knots
     for i in range(len(press_knots)):
         # pm.Uniform("P_"+str(i), lower=0., upper=1., testval=testval[i], shape=shape) 
-        pm.Normal("P"+str(i)+"s", mu=np.log(press_knots[i]), sigma=np.log(5), shape=nc)#, testval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598]))
+        pm.Normal("P"+str(i)+"s", mu=np.log(press_knots[i]), sigma=np.log(5), shape=nc)#, testval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 
+                                                                                                          0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598]))
     for i in range(nc):
         pm.Uniform("ped"+str(i+1), lower=-1, upper=1, testval=0., shape=shape)
 pars = [[model['P'+str(i)+'s'][j] for i in range(len(press_knots))] for j in range(nc)]
@@ -216,8 +217,8 @@ def main():
     # press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, cropped_side=cropped_side, 
-                                  normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
+                                  cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
@@ -235,8 +236,9 @@ def main():
                        mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
-    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value,
-                     mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
+    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
+                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in 
+            range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
     r_am = np.arange(0., (mystep*(1+min([len(r) for r in r_pp]))).to(u.arcmin, equivalencies=eq_kpc_as).value,
                      mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
     
@@ -283,7 +285,7 @@ def main():
         # map_prof2 = [pm.Deterministic('br'+str(i), pfuncs.log_lik_prof2(m, sz, i)) for i, m in enumerate(map_prof)]
         like = pm.Potential('like', pfuncs.log_lik_final(map_prof, sz))
         ll = pm.Deterministic('loglik', model.logpt)
-        start_guess = pmx.eval_in_model(map_prof)
+        start_guess = [m.eval() for m in map_prof]
         # print(start_guess[:3])
     pplots.plot_guess(start_guess, sz, plotdir=plotdir)
     # import sys; sys.exit()
@@ -370,8 +372,7 @@ def main():
     pplots.plot_press(sz.r_pp, p_quant, ci=ci, plotdir=plotdir)
 
     with model:
-        univpress = [pmx.eval_in_model(press.functional_form(shared(sz.r_pp[i]), univpars[i]))[:,0] 
-                     for i in range(nc)]
+        univpress = [press.functional_form(shared(sz.r_pp[i]), univpars[i]).eval()[:,0] for i in range(nc)]
 
     # Outer slope posterior distribution
     # slopes = np.zeros(flat_chain.shape[0])
