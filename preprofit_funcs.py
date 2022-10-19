@@ -138,7 +138,7 @@ class Press_cubspline(Pressure):
         '''
         self = press
         p_ref = pars[np.where([type(p) is TensorVariable for p in pars])[0][0]]
-        shape = p_ref.model.test_point[p_ref.name+'_interval__'].size
+        shape = p_ref.model.initial_point()[p_ref.name+'_interval__'].size
         pars = np.array([p.eval() if type(p) is pm.model.TransformedRV else np.repeat(p, shape) for p in pars])
         try:
             f = interp1d(np.log10(self.knots.value), np.log10(pars).T, kind='cubic', fill_value='extrapolate')
@@ -625,7 +625,7 @@ def log_lik_press(pars, press, model, sz, i, output='ll'):
     ped = pars[-1]
     # prior on pressure distribution
     pars = pars[:-1]
-    p_pr = press.prior(pars, shape=model.test_point[next(iter(model.test_point))].size)
+    p_pr = press.prior(pars, shape=model.initial_point()[next(iter(model.initial_point()))].size)
     # mask on infinite values
     mask = tt.isinf(p_pr)
     # if tt.eq(mask.sum(axis=-1), 1).eval()[0]:
