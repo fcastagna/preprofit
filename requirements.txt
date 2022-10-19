@@ -1,8 +1,7 @@
 numpy
 scipy
 astropy
-pymc3
-pymc3_ext
+pymc
 cloudpickle
 matplotlib
 arviz
