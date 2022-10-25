@@ -132,6 +132,14 @@ with pm.Model() as model:
         # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
         pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0.)#, shape=shape)
 
+pars = [[model.initial_values[Ps][i],#model["P_"+str(i+1)],
+         a,
+         b,
+         c,
+         r_p[i],
+         model.initial_values[list(model.initial_values.keys())[i+1]]] for i in range(nc)]
+
+'''
 pars = [[Ps[i],#model["P_"+str(i+1)],
          a,
          b,
@@ -139,7 +147,6 @@ pars = [[Ps[i],#model["P_"+str(i+1)],
          r_p[i],
          model["ped"+str(i+1)]] for i in range(nc)]
 
-'''
 # Cubic spline
 knots = [100, 300, 600, 1000, 2000]*u.kpc
 press_knots = [9e-1, 8e-1, 2e-1, 5e-2, 5e-3]*u.Unit('keV/cm3')
