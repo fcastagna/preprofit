@@ -72,7 +72,7 @@ class Press_gNFW(Pressure):
         pars = set of pressure parameters
         '''
         if self.slope_prior == True:
-            slope_out = self.functional_form(self.r_out, pars, logder=True)
+            slope_out = self.functional_form(shared(self.r_out.value), pars, logder=True)
             return np.nansum([tt.zeros_like(slope_out).eval(), 
                               tt.prod([tt.gt(slope_out, self.max_slopeout), -np.inf*tt.ones_like(slope_out)], axis=0).eval()], axis=0)
         return np.atleast_2d(np.zeros(shape))
