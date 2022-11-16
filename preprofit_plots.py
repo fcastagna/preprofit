@@ -157,7 +157,7 @@ def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./'):
+def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, plotdir='./'):
     '''
     Plot the radial pressure profiles
     ---------------------------------
