@@ -6,7 +6,6 @@ from astropy import units as u
 from astropy import constants as const
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
-import h5py
 import cloudpickle
 import pymc as pm
 from aesara import shared
