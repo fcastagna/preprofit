@@ -136,7 +136,7 @@ pars = [[Ps[i],#model["P_"+str(i+1)],
          b,
          c,
          r_p[i],
-         model.initial_point()["ped"+str(i+1)+"_interval__"]] for i in range(nc)]
+         model.initial_values[list(model.initial_values.keys())[i+1]]] for i in range(nc)]
 '''
 # Cubic spline
 knots = [100, 300, 600, 1000, 2000]*u.kpc
