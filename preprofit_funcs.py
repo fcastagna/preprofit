@@ -625,7 +625,7 @@ def log_lik_press(pars, press, model, sz, i, output='ll'):
     ped = pars[-1]
     # prior on pressure distribution
     pars = pars[:-1]
-    p_pr = press.prior(pars, shape=model.initial_point()[next(iter(model.initial_point()))].size)
+    p_pr = press.prior(pars, shape=model)#.initial_point()[next(iter(model.initial_point()))].size)
     # mask on infinite values
     mask = tt.isinf(p_pr)
     # if tt.eq(mask.sum(axis=-1), 1).eval()[0]:
