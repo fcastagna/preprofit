@@ -277,7 +277,7 @@ def main():
         # print(len(pmx.eval_in_model(pfuncs.log_lik(P_0, a, b, c, r_p, model, press, sz, 'bright'))))
         with open('%s/model.pickle' % savedir, 'wb') as m:
             cloudpickle.dump(model, m, -1)
-        pp = [pm.Deterministic('press'+str(i), pfuncs.log_lik_press(pr, press, model, sz, i)) for i, pr in enumerate(pars)]
+        pp = [pm.Deterministic('press'+str(i), pfuncs.log_lik_press(pr, press, nc, sz, i)) for i, pr in enumerate(pars)]
         map_prof = [pm.Deterministic('bright'+str(i), pfuncs.log_lik_prof(pr, p, shape, sz, i)) for i, (pr, p) in enumerate(zip(pars, pp))]
         # map_prof = pm.Potential('br', pfuncs.log_lik_prof(pars, pp, shape, sz))
         # map_prof2 = [pm.Deterministic('br'+str(i), pfuncs.log_lik_prof2(m, sz, i)) for i, m in enumerate(map_prof)]
