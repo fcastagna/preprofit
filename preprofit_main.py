@@ -120,23 +120,18 @@ with pm.Model() as model:
     # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
     initval = np.array([[0., -4.74017024e-05], [5.26077081e-01, .5], [4.25946548e+00, 4], [5.48547959e+00, 5.5],  [8.47405222e+02, 800]])
     # P_0 = pm.Uniform("P_0", lower=0, upper=1, initval=initval[1,:shape], shape=shape)
-    Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, initval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 
-                                                                                         0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598]))
+    Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, initval=np.log(np.ones(nc)/2))
     a = 1.051#pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), initval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., initval=initval[2,:shape], shape=shape)
     b = 5.4905#pm.Normal('b', mu=np.log(80), sigma=np.log(150/80), initval=np.log(80))#pm.Uniform('b', lower=3, upper=70, initval=initval[3,:shape], shape=shape)
     c = 0.3081#pm.Normal('c', mu=np.log(2.5), sigma=np.log(3/2.5), initval=np.log(2.5))
     # r_p = pm.Uniform('r_p', lower=100., upper=1000., initval=initval[4,:shape], shape=shape)
     r_p = r500.value/c500
-    for i in range(nc):
-        # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
-        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0.)#, shape=shape)
+    #for i in range(nc):
+    #    # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
+    #    pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0.)#, shape=shape)
+    peds = pm.Uniform("peds", lower=-1, upper=1, initval=np.zeros(nc), shape=nc)
 
-pars = [[Ps[i],#model["P_"+str(i+1)],
-         a,
-         b,
-         c,
-         r_p[i],
-         model.initial_values[list(model.initial_values.keys())[i+1]]] for i in range(nc)]
+pars = [[mip['Ps'][i], a, b, c, r_p[i], mip["peds_interval__"][i]] for i in range(nc)]
 '''
 # Cubic spline
 knots = [100, 300, 600, 1000, 2000]*u.kpc
@@ -303,11 +298,10 @@ def main():
     # for (i, par) in enumerate(prs):
     #     samples[:,i] = np.array(trace['posterior'][par]).flatten()
 
-    samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)+9))
+    samples = np.zeros((int(sum([trace['posterior'][p].size for p in prs])/2/nc), 2*nc))
     for i in range(10):
         samples[:,i] = np.array(trace['posterior'][prs[0]])[:,:,i].flatten()
-    for (i, par) in enumerate(prs[1:]):
-        i = i+10;samples[:,i] = np.array(trace['posterior'][par]).flatten() 
+        samples[:,nc+i] = np.array(trace['posterior'][prs[1]])[:,:,i].flatten()
     np.savetxt('%s/trace_mult.txt' % savedir, samples)
 
     # Extract chain of parameters
