@@ -131,6 +131,7 @@ with pm.Model() as model:
     #    pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0.)#, shape=shape)
     peds = pm.Uniform("peds", lower=-1, upper=1, initval=np.zeros(nc), shape=nc)
 
+mip = model.initial_point()
 pars = [[mip['Ps'][i], a, b, c, r_p[i], mip["peds_interval__"][i]] for i in range(nc)]
 '''
 # Cubic spline
@@ -283,7 +284,7 @@ def main():
     pplots.plot_guess(start_guess, sz, plotdir=plotdir)
     # import sys; sys.exit()
     with model:
-        start = pm.find_MAP(start=model.initial_point(), model = model)
+        start = pm.find_MAP(start=mip, model = model)
         trace = pm.sample(draws=1000
                           , tune=300
                           , chains=4, return_inferencedata=True, step=pm.Slice(), start=start)
