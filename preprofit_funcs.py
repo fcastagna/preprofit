@@ -688,8 +688,7 @@ def print_summary(prs, pmed, pstd, medsf, sz):
     sz = class of SZ data
     '''
     g = interp1d(sz.radius[sz.sep:], medsf, 'cubic', fill_value='extrapolate', axis=-1)
-    chisq = np.sum([np.sum((fl[1]-(mp.to(fl[1].unit))/fl[2].value)**2, axis=-1) 
-                    for fl, mp in zip(sz.flux_data, g(sz.flux_data[0][0])*sz.flux_data[0][1].unit)], axis=0)
+    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i]*fl[1].unit)/fl[2].value)**2, axis=-1) for i, fl in enumerate(sz.flux_data)], axis=0)
     wid1 = len(max(prs, key=len))
     wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
     wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
