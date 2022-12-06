@@ -271,6 +271,7 @@ def main():
     #print(model.test_point); import sys; sys.exit()
     with model:
         # print(len(pmx.eval_in_model(pfuncs.log_lik(P_0, a, b, c, r_p, model, press, sz, 'bright'))))
+        model.step = pm.Metropolis()
         with open('%s/model.pickle' % savedir, 'wb') as m:
             cloudpickle.dump(model, m, -1)
         pp = [pm.Deterministic('press'+str(i), pfuncs.log_lik_press(pr, press, nc, sz, i)) for i, pr in enumerate(pars)]
@@ -287,7 +288,7 @@ def main():
         start = pm.find_MAP(start=mip, model = model)
         trace = pm.sample(draws=1000
                           , tune=300
-                          , chains=4, return_inferencedata=True, step=pm.Slice(), start=start)
+                          , chains=4, return_inferencedata=True, step=model.step, start=start)
 
     trace.to_netcdf("%s/trace_mult.nc" % savedir)#; import sys; sys.exit()
     # trace = az.from_netcdf("%s/trace_mult.nc" % savedir)
