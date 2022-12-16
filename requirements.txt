@@ -1,10 +1,10 @@
 numpy
 scipy
 astropy
-pymc
+pymc=4.4.0
 cloudpickle
 matplotlib
 arviz
 corner
 h5py
-aesara=2.8.7
+aesara
