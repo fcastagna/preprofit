@@ -1,7 +1,7 @@
 numpy
 scipy
 astropy
-pymc
+pymc==4.4.0
 cloudpickle
 matplotlib
 arviz
