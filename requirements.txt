@@ -1,10 +1,10 @@
 numpy
 scipy
 astropy
-pymc==4.4.0
+pymc
 cloudpickle
 matplotlib
 arviz
 corner
 h5py
-aesara
+pytensor
