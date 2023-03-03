@@ -35,12 +35,6 @@ cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
 
-
-# def r500fromM500(M500, z,omegam,omegal,omegak):
-#     "Compute r500 in Mpc given M500 in msol"
-#     Ez=np.sqrt(omegam*(1+z)**3+omegak*(1+z)**2+omegal)
-#     r500 = (3/4* M500/(500. * 2.775e11*0.7*0.7 *Ez**2 * np.pi))**(1/3)
-#     return r500
 r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 c500 = 1.177
 pnorm = .59/1.14*.175*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
@@ -119,17 +113,11 @@ with pm.Model() as model:
     # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as initval
     # To exclude a parameter from the fit, just set it at a fixed value 
     shape = 1
-    # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
-    #initval = np.array([[0., -4.74017024e-05], [5.26077081e-01, .5], [4.25946548e+00, 4], [5.48547959e+00, 5.5],  [8.47405222e+02, 800]])
-    # P_0 = pm.Uniform("P_0", lower=0, upper=1, initval=initval[1,:shape], shape=shape)
     Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, initval=np.log(np.ones(nc)/2))
     a = 1.051#pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), initval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., initval=initval[2,:shape], shape=shape)
     b = 5.4905#pm.Normal('b', mu=np.log(80), sigma=np.log(150/80), initval=np.log(80))#pm.Uniform('b', lower=3, upper=70, initval=initval[3,:shape], shape=shape)
     c = 0.3081#pm.Normal('c', mu=np.log(2.5), sigma=np.log(3/2.5), initval=np.log(2.5))
-    # r_p = pm.Uniform('r_p', lower=100., upper=1000., initval=initval[4,:shape], shape=shape)
     r_p = r500.value/c500
-    #for i in range(nc):
-    # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
     peds = pm.Uniform("peds", lower=-1, upper=1, initval=np.zeros(nc), shape=nc)
 
 mip = model.initial_point()
@@ -140,7 +128,6 @@ pars = [[mip['Ps'][i],#model["P_"+str(i+1)],
          r_p[i],
          mip["peds_interval__"][i]]#model.initial_values[list(model.initial_values.keys())[i+1]]] 
          for i in range(nc)]
-#print(pars[0]); import sys; sys.exit()
 
 '''
 with model:
@@ -176,32 +163,10 @@ with pm.Model() as model:
 pars = [[model['P'+str(i)+'s'][j] for i in range(len(press_knots))] for j in range(nc)]
 [p.append(model['ped'+str(i+1)]) for i, p in enumerate(pars)]
 '''
-# To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and
-# JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
-# NOTE: this option is available for both parametric and non parametric pressure models
-# press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
-
-# Otherwise, you can customize your set of parameters
-# For each parameter, use the following to change the values of the prior distribution, either altogether...
-#press.pars['P_0'] = pfuncs.Param(val=1.5, minval=0.1, maxval=10., frozen=False, unit=u.Unit('keV cm-3'))
-# ... or separately
-#press.pars['P_0'].val = 1.5
-#press.pars['P_0'].minval = 0.1
-#press.pars['P_0'].maxval = 10.
-# To adopt a Gaussian prior:
-#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
 
 # Sampling step
 mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
-
-# MCMC parameters
-nburn = 2000 # number of burn-in iterations
-nlength = 5000 # number of chain iterations (after burn-in)
-nwalkers = 30 # number of random walkers
-nthreads = 8 # number of processes/threads
-nthin = 50 # thinning
-seed = None # random seed
 
 # Uncertainty level
 ci = 68
@@ -212,17 +177,10 @@ ci = 68
 
 def main():
 
-    # Parameter definition
-    # press.fit_pars =  [x for x in press.pars if not press.pars[x].frozen]
-    # press.max_val = [press.pars[name].maxval for name in press.fit_pars]
-    # press.min_val = [press.pars[name].minval for name in press.fit_pars]
-    # ndim = len(press.fit_pars)
-    # press.indexes = {'ind_'+x: np.array(press.fit_pars)==x if x in press.fit_pars else press.pars[x].val for x in name_pars}
     # Flux density data
     flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
     maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
     maxr_data = maxr_data.mean()
-    # press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
@@ -267,63 +225,35 @@ def main():
         press.r_low = [press.rbins[i] for i in press.ind_low] # lower radial bins
         press.alpha_ind = [np.minimum(i, len(press.rbins)-2) for i in press.ind_low]# alpha indexes
 
-    
-    # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
-    # with model:
-    #     ll = (pfuncs.mylog_lik(shared(r_pp), P_0, a, b, c, r_p, ped, press, sz))
-    #     try:
-    #         np.isfinite(pmx.eval_in_model(ll))
-    #         sb = pmx.eval_in_model(pfuncs.mylog_lik(shared(r_pp), P_0, a, b, c, r_p, ped, press, sz, output='bright'))
-    #     except:
-    #         raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
-    
     # Save objects
     with open('%s/press_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(press, f, -1)
     with open('%s/szdata_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(sz, f, -1)
     with model:
-        # print(len(pmx.eval_in_model(pfuncs.log_lik(P_0, a, b, c, r_p, model, press, sz, 'bright'))))
-        #model.step = pm.Metropolis()
         like = list(map(#aesara.scan(
             lambda i, pr, szr, sza, szf, szl, dm, szfl: #pm.Deterministic('like'+str(i), 
             pfuncs.whole_lik(
             pr, press, shape, szr, sza, szf, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, 'll')#)
             , np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.filtering, sz.dist.labels, sz.dist.d_mat, sz.flux_data)
             )
-        # like = [pm.Deterministic('like'+str(i), pfuncs.np_whole_lik(shared(pars[i]), shared(press), shared(shape), 
-        #                             shared(sz.r_pp[i]), shared(sz.abel_data[i]), 
-        #                             shared(sz.filtering[i]), shared(sz.conv_temp_sb), 
-        #                             shared(sz.dist.labels[i]), shared(sz.sep), 
-        #                             shared(sz.dist.d_mat[i]), shared(sz.radius[sz.sep:].value), 
-        #                             shared(sz.flux_data[i]), shared('ll'))) for i in range(nc)]
         like = pm.Potential('like', tt.sum(like))
         ll = pm.Deterministic('loglik', model.logp())
-        # start_guess = [m.eval() for m in map_prof]
-        # print(start_guess[:3])
         with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
             cloudpickle.dump(model, m, -1)
-    # pplots.plot_guess(start_guess, sz, plotdir=plotdir)
-    #import sys; sys.exit()
+    pplots.plot_guess(start_guess, sz, plotdir=plotdir)
     with model:
-    #with open('%s/model_%s.pickle' % (savedir, nc), 'rb') as m:
-    #    rmodel = cloudpickle.load(m)
-    #with rmodel:
-        start = pm.find_MAP(start=model.initial_point(), model = model)
+        start = pm.find_MAP(start=mip, model = model)
         with open('%s/start_%s.pickle' % (savedir, nc), 'wb') as s:
             cloudpickle.dump(start, s, -1)
-            # start = cloudpickle.load(s)
-        #print(rmodel.named_vars); import sys; sys.exit()
         trace = pm.sample(draws=45
                           , tune=0#300
                           , chains=8, cores=4, 
 			  return_inferencedata=True, step=pm.Metropolis(), initvals=start)
-    print(trace['posterior']['Ps'].shape)
     trace.to_netcdf("%s/trace_mult.nc" % savedir)#; import sys; sys.exit()
     # trace = az.from_netcdf("%s/trace_mult.nc" % savedir)
     prs = [k for k in trace.posterior.keys()]
     prs = prs[:np.where([p[:2]=='pr' for p in prs])[0][0]]
-    # import sys; sys.exit()
 
     # samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)))
     # for (i, par) in enumerate(prs):
