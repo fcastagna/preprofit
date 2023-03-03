@@ -13,11 +13,11 @@ from scipy.ndimage import mean
 from scipy.optimize import minimize
 import time
 import h5py
-import aesara.tensor as tt
-from aesara.compile.ops import as_op
-from aesara import shared
-from aesara.tensor.var import TensorVariable
-from aesara.link.c.type import Generic
+import pytensor.tensor as tt
+from pytensor.compile.ops import as_op
+from pytensor import shared
+from pytensor.tensor.var import TensorVariable
+from pytensor.link.c.type import Generic
 
 class Pressure:
     '''
