@@ -8,9 +8,9 @@ from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
 import cloudpickle
 import pymc as pm
-from aesara import shared
+from pytensor import shared
 import arviz as az
-
+import pytensor.tensor as tt
 ### Global and local variables
 
 ## Cluster cosmology
@@ -24,6 +24,8 @@ for i, n in enumerate(names):
         clus.append(n)
     except:
         pass
+reps = 4
+clus = np.tile(clus, reps)
 nc = len(clus)
 ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
 z = np.float64(reds)[ind] # redshift
@@ -118,7 +120,7 @@ with pm.Model() as model:
     # To exclude a parameter from the fit, just set it at a fixed value 
     shape = 1
     # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
-    initval = np.array([[0., -4.74017024e-05], [5.26077081e-01, .5], [4.25946548e+00, 4], [5.48547959e+00, 5.5],  [8.47405222e+02, 800]])
+    #initval = np.array([[0., -4.74017024e-05], [5.26077081e-01, .5], [4.25946548e+00, 4], [5.48547959e+00, 5.5],  [8.47405222e+02, 800]])
     # P_0 = pm.Uniform("P_0", lower=0, upper=1, initval=initval[1,:shape], shape=shape)
     Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, initval=np.log(np.ones(nc)/2))
     a = 1.051#pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), initval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., initval=initval[2,:shape], shape=shape)
@@ -127,13 +129,26 @@ with pm.Model() as model:
     # r_p = pm.Uniform('r_p', lower=100., upper=1000., initval=initval[4,:shape], shape=shape)
     r_p = r500.value/c500
     #for i in range(nc):
-    #    # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
-    #    pm.Uniform("ped"+str(i+1), lower=-1, upper=1, initval=0.)#, shape=shape)
+    # pm.Uniform("P_"+str(i+1), lower=0, upper=1, initval=.5, shape=shape)
     peds = pm.Uniform("peds", lower=-1, upper=1, initval=np.zeros(nc), shape=nc)
 
 mip = model.initial_point()
-pars = [[mip['Ps'][i], a, b, c, r_p[i], mip["peds_interval__"][i]] for i in range(nc)]
+pars = [[mip['Ps'][i],#model["P_"+str(i+1)],
+         a,
+         b,
+         c,
+         r_p[i],
+         mip["peds_interval__"][i]]#model.initial_values[list(model.initial_values.keys())[i+1]]] 
+         for i in range(nc)]
+#print(pars[0]); import sys; sys.exit()
+
 '''
+with model:
+    model.step = pm.Metropolis()
+    with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
+        cloudpickle.dump(model, m, -1)
+import sys; sys.exit()
+
 # Cubic spline
 knots = [100, 300, 600, 1000, 2000]*u.kpc
 press_knots = [9e-1, 8e-1, 2e-1, 5e-2, 5e-3]*u.Unit('keV/cm3')
@@ -203,7 +218,6 @@ def main():
     # press.min_val = [press.pars[name].minval for name in press.fit_pars]
     # ndim = len(press.fit_pars)
     # press.indexes = {'ind_'+x: np.array(press.fit_pars)==x if x in press.fit_pars else press.pars[x].val for x in name_pars}
-
     # Flux density data
     flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
     maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
@@ -264,44 +278,59 @@ def main():
     #         raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
     
     # Save objects
-    with open('%s/press_obj_mult.pickle' % savedir, 'wb') as f:
+    with open('%s/press_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(press, f, -1)
-    with open('%s/szdata_obj_mult.pickle' % savedir, 'wb') as f:
+    with open('%s/szdata_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(sz, f, -1)
-    #print(model.test_point); import sys; sys.exit()
     with model:
         # print(len(pmx.eval_in_model(pfuncs.log_lik(P_0, a, b, c, r_p, model, press, sz, 'bright'))))
-        model.step = pm.Metropolis()
-        with open('%s/model.pickle' % savedir, 'wb') as m:
-            cloudpickle.dump(model, m, -1)
-        pp = [pm.Deterministic('press'+str(i), pfuncs.log_lik_press(pr, press, nc, sz, i)) for i, pr in enumerate(pars)]
-        map_prof = [pm.Deterministic('bright'+str(i), pfuncs.log_lik_prof(pr, p, shape, sz, i)) for i, (pr, p) in enumerate(zip(pars, pp))]
-        # map_prof = pm.Potential('br', pfuncs.log_lik_prof(pars, pp, shape, sz))
-        # map_prof2 = [pm.Deterministic('br'+str(i), pfuncs.log_lik_prof2(m, sz, i)) for i, m in enumerate(map_prof)]
-        like = pm.Potential('like', pfuncs.log_lik_final(map_prof, sz))
+        #model.step = pm.Metropolis()
+        like = list(map(#aesara.scan(
+            lambda i, pr, szr, sza, szf, szl, dm, szfl: #pm.Deterministic('like'+str(i), 
+            pfuncs.whole_lik(
+            pr, press, shape, szr, sza, szf, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, 'll')#)
+            , np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.filtering, sz.dist.labels, sz.dist.d_mat, sz.flux_data)
+            )
+        # like = [pm.Deterministic('like'+str(i), pfuncs.np_whole_lik(shared(pars[i]), shared(press), shared(shape), 
+        #                             shared(sz.r_pp[i]), shared(sz.abel_data[i]), 
+        #                             shared(sz.filtering[i]), shared(sz.conv_temp_sb), 
+        #                             shared(sz.dist.labels[i]), shared(sz.sep), 
+        #                             shared(sz.dist.d_mat[i]), shared(sz.radius[sz.sep:].value), 
+        #                             shared(sz.flux_data[i]), shared('ll'))) for i in range(nc)]
+        like = pm.Potential('like', tt.sum(like))
         ll = pm.Deterministic('loglik', model.logp())
-        start_guess = [m.eval() for m in map_prof]
+        # start_guess = [m.eval() for m in map_prof]
         # print(start_guess[:3])
-    pplots.plot_guess(start_guess, sz, plotdir=plotdir)
-    # import sys; sys.exit()
+        with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
+            cloudpickle.dump(model, m, -1)
+    # pplots.plot_guess(start_guess, sz, plotdir=plotdir)
+    #import sys; sys.exit()
     with model:
-        start = pm.find_MAP(start=mip, model = model)
-        trace = pm.sample(draws=1000
-                          , tune=300
-                          , chains=4, return_inferencedata=True, step=model.step, start=start)
-
+    #with open('%s/model_%s.pickle' % (savedir, nc), 'rb') as m:
+    #    rmodel = cloudpickle.load(m)
+    #with rmodel:
+        start = pm.find_MAP(start=model.initial_point(), model = model)
+        with open('%s/start_%s.pickle' % (savedir, nc), 'wb') as s:
+            cloudpickle.dump(start, s, -1)
+            # start = cloudpickle.load(s)
+        #print(rmodel.named_vars); import sys; sys.exit()
+        trace = pm.sample(draws=45
+                          , tune=0#300
+                          , chains=8, cores=4, 
+			  return_inferencedata=True, step=pm.Metropolis(), initvals=start)
+    print(trace['posterior']['Ps'].shape)
     trace.to_netcdf("%s/trace_mult.nc" % savedir)#; import sys; sys.exit()
     # trace = az.from_netcdf("%s/trace_mult.nc" % savedir)
     prs = [k for k in trace.posterior.keys()]
     prs = prs[:np.where([p[:2]=='pr' for p in prs])[0][0]]
-    
+    # import sys; sys.exit()
 
     # samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)))
     # for (i, par) in enumerate(prs):
     #     samples[:,i] = np.array(trace['posterior'][par]).flatten()
 
     samples = np.zeros((int(sum([trace['posterior'][p].size for p in prs])/2/nc), 2*nc))
-    for i in range(10):
+    for i in range(nc):
         samples[:,i] = np.array(trace['posterior'][prs[0]])[:,:,i].flatten()
         samples[:,nc+i] = np.array(trace['posterior'][prs[1]])[:,:,i].flatten()
     np.savetxt('%s/trace_mult.txt' % savedir, samples)
