@@ -1,5 +1,5 @@
 import numpy as np
-import pymc as pm
+import pymc3 as pm
 from astropy.io import fits
 from scipy.stats import norm
 from scipy.interpolate import interp1d
@@ -560,19 +560,9 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-'''
-def cond_as_op(int_func_1):
-    def wrapper(r_pp, pp, sz, ped, out):
-        if pp.type.ndim == 1:
-            return as_op(itypes=[tt.dvector, tt.dvector, tt.Generic(), tt.dscalar, tt.Generic()], otypes=[tt.dvector])
-        return as_op(itypes=[tt.dvector, tt.dmatrix, tt.Generic(), tt.dvector, tt.Generic()], otypes=[tt.dmatrix])
-    return wrapper
-
-@cond_as_op#
-'''
-# @as_op(itypes=[tt.dvector, tt.dmatrix, tt.Generic(), tt.Generic(), tt.lscalar], otypes=[tt.dmatrix])
-@as_op(itypes=[tt.dvector, tt.drow, Generic(), Generic(), tt.lscalar], otypes=[tt.dmatrix])
-def int_func_1(r, pp, sz, output, i):
+@as_op(itypes=[tt.dvector, tt.drow, Generic(), tt.dvector, tt.dscalar, tt.lmatrix, 
+               tt.lscalar, tt.dmatrix, Generic()], otypes=[tt.dvector])
+def int_func_1(r, pp, sza, szf, szc, szl, szs, dm, output):
     '''
     First intermediate likelihood function
     --------------------------------------
@@ -582,31 +572,30 @@ def int_func_1(r, pp, sz, output, i):
     output = desired output
     '''
     # abel transform
-    ab = calc_abel(pp, r=r, abel_data=sz.abel_data[i])#[calc_abel(pp[i], r=r[i], abel_data=sz.abel_data[i]) for i in range(len(r))]
+    ab = calc_abel(pp, r=r, abel_data=sza)#[calc_abel(pp[i], r=r[i], abel_data=sz.abel_data[i]) for i in range(len(r))]
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = f(sz.dist.d_mat[i].value)
+    y_2d = f(dm)#.value)
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*sz.filtering), axes=(-2, -1)))
+    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*szf), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = list(map(lambda x: mean(x, labels=sz.dist.labels[i], index=np.arange(sz.sep+1)), map_out))*sz.conv_temp_sb.to(sz.flux_data[i][1].unit)
-    return map_prof.value
+    map_prof = list(map(lambda x: mean(x, labels=szl, index=np.arange(szs+1)), map_out))#*szc.to(szfl.unit)
+    return map_prof#.value
 
-
-@as_op(itypes=[tt.dmatrix, Generic(), tt.lscalar], otypes=[tt.dmatrix])
-def int_func_2(map_prof, sz, i):
+@as_op(itypes=[tt.dvector, tt.dvector, Generic()], otypes=[tt.dvector])
+def int_func_2(map_prof, szrv, szfl):
     '''
     Second intermediate likelihood function
     ---------------------------------------
     map_prof = fitted profile
     sz = class of SZ data
     '''
-    g = interp1d(sz.radius[sz.sep:].value, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    return g(sz.flux_data[i][0])
+    g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
+    return g(szfl[0])
 
-def log_lik_press(pars, press, shape, sz, i, output='ll'):
+def log_lik_press(pars, press, shape, szr, output='ll'):
     '''
     Computes the log-likelihood for the current pressure parameters
     ---------------------------------------------------------------
@@ -635,7 +624,7 @@ def log_lik_press(pars, press, shape, sz, i, output='ll'):
     #     # return None
     # pressure profile
     # gnfw
-    pp = press.functional_form(shared(sz.r_pp[i]), pars).T# for r in sz.r_pp]
+    pp = press.functional_form(shared(szr), pars).T# for r in sz.r_pp]
     # cubspline
     # pp = press.functional_form(shared(press), shared(sz.r_pp[i]), shared(pars)).T# for r in sz.r_pp]
     # nonparam
@@ -643,18 +632,18 @@ def log_lik_press(pars, press, shape, sz, i, output='ll'):
     # print(pp.type); import sys; sys.exit()
     return pp
 
-def log_lik_prof(pars, pp, shape, sz, i, output='ll'):
+def log_lik_prof(pars, pp, shape, szr, sza, szf, szc, szl, szs, dm, output='ll'):
     ped = pars[-1]
-    int_prof = int_func_1(shared(sz.r_pp[i]), pp, shared(sz), shared(output), shared(i))
+    int_prof = int_func_1(shared(szr), pp, shared(sza), shared(szf), shared(szc), 
+                          shared(szl), shared(szs), shared(dm), shared(output))
     int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=shape))
     return int_prof
 
-    
-def log_lik_final(int_prof, sz):
+def log_lik_final(int_prof, szrv, szfl):
     # Log-likelihood calculation
-    map_prof = [int_func_2(int_prof[i], shared(sz), shared(i)) for i in range(len(sz.r_pp))]
+    map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
     # print([pmx.eval_in_model(x).shape for x in map_prof]); import sys; sys.exit()
-    chisq = tt.sum([tt.sum(((fl[1].value-mp)/fl[2].value)**2, axis=-1) for fl, mp in zip(sz.flux_data, map_prof)], axis=0)
+    chisq = tt.sum([tt.sum(((szfl[1].value-map_prof)/szfl[2].value)**2, axis=-1)], axis=0)
     log_lik = -chisq/2
     # log_lik = tt.switch(mask, -np.inf*tt.ones_like(mask), log_lik)
     return log_lik
@@ -677,6 +666,41 @@ def log_lik_final(int_prof, sz):
     # else:
     #     raise RuntimeError('Unrecognised output name (must be "ll", "chisq", "pp", "bright" or "integ")')
 
+def whole_lik(pars, press, shape, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, output):
+    ped = pars[-1]
+    pars = pars[:-1]
+    # p_pr = press.prior(pars, shape=shape)#.initial_point()[next(iter(model.initial_point()))].size)
+    # mask = tt.isinf(p_pr)
+    pp = press.functional_form(shared(szr), pars).T# for r in sz.r_pp]
+    int_prof = int_func_1(shared(szr), pp, shared(sza), shared(szf), shared(szc), 
+                          shared(szl), shared(szs), shared(dm), shared(output))
+    int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=shape))
+    map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
+    chisq = tt.sum([tt.sum(((szfl[1].value-map_prof)/szfl[2].value)**2, axis=-1)], axis=0)
+    log_lik = -chisq/2
+    return log_lik
+
+@as_op(itypes=[Generic(), Generic(), tt.lscalar, tt.dvector, Generic(),
+               tt.dvector, tt.dscalar, tt.lmatrix, tt.lscalar, tt.dmatrix, tt.dvector,
+               Generic(), Generic()], otypes=[tt.dvector])
+def np_whole_lik(pars, press, shape, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, output):
+    ped = pars[-1]
+    pars = pars[:-1]
+    pp = press.functional_form(szr, pars).T# for r in sz.r_pp]
+    int_prof = int_func_1(szr, pp, sza, szf, szc, szl, szs, dm, output)
+    ab = calc_abel(pp, r=szr, abel_data=sza)#[calc_abel(pp[i], r=r[i], abel_data=sz.abel_data[i]) for i in range(len(r))]
+    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
+    f = interp1d(np.append(-szr, szr), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
+    y_2d = f(dm)#.value)
+    map_out = np.real(fftshift(ifft2(np.abs(fft2(y_2d))*szf), axes=(-2, -1)))
+    int_prof = list(map(lambda x: mean(x, labels=szl, index=np.arange(szs+1)), map_out))#*szc.to(szfl.unit)
+    int_prof = int_prof+tt.transpose(tt.as_tensor(ped, ndim=shape))
+    g = interp1d(szrv, int_prof, 'cubic', fill_value='extrapolate', axis=-1)
+    map_prof = g(szfl[0])
+    chisq = tt.sum([tt.sum(((szfl[1].value-map_prof)/szfl[2].value)**2, axis=-1)], axis=0)
+    log_lik = -chisq/2
+    return log_lik
+
 def print_summary(prs, pmed, pstd, medsf, sz):
     '''
     Prints as output a statistical summary of the posterior distribution
@@ -688,7 +712,8 @@ def print_summary(prs, pmed, pstd, medsf, sz):
     sz = class of SZ data
     '''
     g = interp1d(sz.radius[sz.sep:], medsf, 'cubic', fill_value='extrapolate', axis=-1)
-    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i]*fl[1].unit)/fl[2].value)**2, axis=-1) for i, fl in enumerate(sz.flux_data)], axis=0)
+    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i]*fl[1].unit)/fl[2].value)**2, axis=-1) 
+                    for i, fl in enumerate(sz.flux_data)], axis=0)
     wid1 = len(max(prs, key=len))
     wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
     wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
