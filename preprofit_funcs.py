@@ -1,5 +1,5 @@
 import numpy as np
-import pymc3 as pm
+import pymc as pm
 from astropy.io import fits
 from scipy.stats import norm
 from scipy.interpolate import interp1d
