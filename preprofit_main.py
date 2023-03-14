@@ -113,20 +113,21 @@ with pm.Model() as model:
     # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as initval
     # To exclude a parameter from the fit, just set it at a fixed value 
     shape = 1
-    Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, initval=np.log(np.ones(nc)/2))
-    a = 1.051#pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), initval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., initval=initval[2,:shape], shape=shape)
-    b = 5.4905#pm.Normal('b', mu=np.log(80), sigma=np.log(150/80), initval=np.log(80))#pm.Uniform('b', lower=3, upper=70, initval=initval[3,:shape], shape=shape)
-    c = 0.3081#pm.Normal('c', mu=np.log(2.5), sigma=np.log(3/2.5), initval=np.log(2.5))
+    [pm.Normal("Ps_"+str(i), mu=np.log(1.5), sigma=np.log(3./1.5), initval=np.log(.5)) for i in range(nc)]
+    a = pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), initval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., initval=initval[2,:shape], shape=shape)
+    b = pm.Normal('b', mu=np.log(80), sigma=np.log(150/80), initval=np.log(80))#pm.Uniform('b', lower=3, upper=70, initval=initval[3,:shape], shape=shape)
+    c = pm.Normal('c', mu=np.log(2.5), sigma=np.log(3/2.5), initval=np.log(2.5))
     r_p = r500.value/c500
-    peds = pm.Uniform("peds", lower=-1, upper=1, initval=np.zeros(nc), shape=nc)
+    [pm.Uniform("peds_"+str(i), lower=-1, upper=1, initval=0.) for i in range(nc)]
 
 mip = model.initial_point()
-pars = [[mip['Ps'][i],#model["P_"+str(i+1)],
-         a,
-         b,
-         c,
+mrv = model.free_RVs
+pars = [[mrv[i],#mip['Ps'][i],#model["P_"+str(i+1)],
+         mrv[nc],#a,
+         mrv[nc+1],#b,
+         mrv[nc+2],#c,
          r_p[i],
-         mip["peds_interval__"][i]]#model.initial_values[list(model.initial_values.keys())[i+1]]] 
+         mrv[nc+3+i]]#mip["peds_interval__"][i]]#model.initial_values[list(model.initial_values.keys())[i+1]]] 
          for i in range(nc)]
 
 '''
