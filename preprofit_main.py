@@ -232,12 +232,13 @@ def main():
     with open('%s/szdata_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(sz, f, -1)
     with model:
-        like = list(map(#aesara.scan(
+        like, maps = zip(*map(#aesara.scan(
             lambda i, pr, szr, sza, szf, szl, dm, szfl: #pm.Deterministic('like'+str(i), 
             pfuncs.whole_lik(
             pr, press, shape, szr, sza, szf, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, 'll')#)
             , np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.filtering, sz.dist.labels, sz.dist.d_mat, sz.flux_data)
             )
+	map_prof = [pm.Deterministic("bright"+str(i), maps[i]) for i in range(nc)]
         like = pm.Potential('like', tt.sum(like))
         ll = pm.Deterministic('loglik', model.logp())
         with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
