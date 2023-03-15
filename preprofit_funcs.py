@@ -699,7 +699,7 @@ def np_whole_lik(pars, press, shape, szr, sza, szf, szc, szl, szs, dm, szrv, szf
     map_prof = g(szfl[0])
     chisq = tt.sum([tt.sum(((szfl[1].value-map_prof)/szfl[2].value)**2, axis=-1)], axis=0)
     log_lik = -chisq/2
-    return log_lik
+    return log_lik, int_prof
 
 def print_summary(prs, pmed, pstd, medsf, sz):
     '''
