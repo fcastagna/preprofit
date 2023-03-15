@@ -238,12 +238,12 @@ def main():
             pr, press, shape, szr, sza, szf, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, 'll')#)
             , np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.filtering, sz.dist.labels, sz.dist.d_mat, sz.flux_data)
             )
-	map_prof = [pm.Deterministic("bright"+str(i), maps[i]) for i in range(nc)]
+        map_prof = [pm.Deterministic("bright"+str(i), maps[i]) for i in range(nc)]
         like = pm.Potential('like', tt.sum(like))
         ll = pm.Deterministic('loglik', model.logp())
         with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
             cloudpickle.dump(model, m, -1)
-    pplots.plot_guess(start_guess, sz, plotdir=plotdir)
+    #pplots.plot_guess(start_guess, sz, plotdir=plotdir)
     with model:
         start = pm.find_MAP(start=mip, model = model)
         with open('%s/start_%s.pickle' % (savedir, nc), 'wb') as s:
