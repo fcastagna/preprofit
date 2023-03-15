@@ -560,7 +560,7 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-@as_op(itypes=[tt.dvector, tt.drow, Generic(), tt.dvector, tt.dscalar, tt.lmatrix, 
+@as_op(itypes=[tt.dvector, tt.drow, Generic(), tt.dmatrix, tt.dscalar, tt.lmatrix, 
                tt.lscalar, tt.dmatrix, Generic()], otypes=[tt.dvector])
 def int_func_1(r, pp, sza, szf, szc, szl, szs, dm, output):
     '''
