@@ -180,7 +180,7 @@ def main():
 
     # Flux density data
     flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
-    maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
+    maxr_data = [f[0][-1].value for f in flux_data]*flux_data[0][0][-1].unit # largest radius in the data
     maxr_data = maxr_data.mean()
 
     # PSF computation and creation of the 2D image
