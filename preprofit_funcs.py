@@ -594,7 +594,7 @@ def int_func_2(map_prof, szrv, szfl):
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(szfl[0])
 
-def whole_lik(pars, press, shape, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, output):
+def whole_lik(pars, press, shape, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pars[-1]
     pars = pars[:-1]
     # p_pr = press.prior(pars, shape=shape)#.initial_point()[next(iter(model.initial_point()))].size)
