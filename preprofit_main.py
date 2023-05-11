@@ -153,16 +153,13 @@ with pm.Model() as model:
     # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as initval
     # To exclude a parameter from the fit, just set it at a fixed value 
     shape = 1
-    # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
-    testval = np.tile(press_knots, (shape,1)) if shape > 1 else press_knots
-    for i in range(len(press_knots)):
-        # pm.Uniform("P_"+str(i), lower=0., upper=1., testval=testval[i], shape=shape) 
-        pm.Normal("P"+str(i)+"s", mu=np.log(press_knots[i]), sigma=np.log(5), shape=nc)#, testval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 
-                                                                                                          0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598]))
-    for i in range(nc):
-        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, testval=0., shape=shape)
-pars = [[model['P'+str(i)+'s'][j] for i in range(len(press_knots))] for j in range(nc)]
-[p.append(model['ped'+str(i+1)]) for i, p in enumerate(pars)]
+    [pm.Normal("P"+str(i), mu=np.log(press_knots[i]), sigma=np.log(5)) for i in range(len(press_knots))]
+    [pm.Uniform("peds_"+str(i), lower=-1, upper=1, initval=0.) for i in range(nc)]
+
+mip = model.initial_point()
+mrv = model.free_RVs
+pars = [[mrv[j] for j in range(len(press_knots))]+
+        [mrv[len(press_knots):][i]] for i in range(nc)]
 '''
 
 # Sampling step
@@ -232,10 +229,10 @@ def main():
     with open('%s/szdata_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(sz, f, -1)
     with model:
-        like, maps = zip(*map(#aesara.scan(
-            lambda i, pr, szr, sza, szl, dm, szfl: #pm.Deterministic('like'+str(i), 
+        like, maps = zip(*map(
+            lambda i, pr, szr, sza, szl, dm, szfl: 
             pfuncs.whole_lik(
-            pr, press, shape, szr, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, 'll')#)
+            pr, press, shape, szr, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll')#)
             , np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data)
             )
         map_prof = [pm.Deterministic("bright"+str(i), maps[i]) for i in range(nc)]
