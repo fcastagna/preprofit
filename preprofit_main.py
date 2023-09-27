@@ -283,7 +283,8 @@ def main():
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     pplots.plot_guess(
         start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-        [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] for j in range(nc)], plotdir=plotdir)
+        [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j] if type(press == pfuncs.Press_rcs) 
+                                                                                                else press.rbins[j])] for j in range(nc)], plotdir=plotdir)
     # pplots.Arnaud_press(sz.r_pp, [p.eval() for p in p_prof])
 
     with model:
