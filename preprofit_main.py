@@ -27,7 +27,7 @@ for i, n in enumerate(names):
         pass
 reps = 1#4#8
 # clus = clus[:10]#7]#[:1]
-clus = [clus[x] for x in [7]]#[0,17,13,15,3,16,18,10,2,9]]#[7]]#np.argsort(r500/kpc_as)[-10:]]
+clus = [clus[x] for x in [0]]#[0,17,13,15,3,16,18,10,2,9]]#[7]]#np.argsort(r500/kpc_as)[-10:]]
 clus = np.tile(clus, reps)
 nc = len(clus)
 ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
