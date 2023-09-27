@@ -63,7 +63,7 @@ class Press_gNFW(Pressure):
         '''
         if self.slope_prior:
             slope_out = self.functional_form(shared(self.r_out.value), pars, logder=True)
-            return pt.switch(pt.gt(pt.gt(slopes_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slopes_out[0]
+            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slopes_out[0]
         return pt.as_tensor([0.]), None
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
