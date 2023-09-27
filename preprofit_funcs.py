@@ -13,7 +13,6 @@ import pytensor.tensor as pt
 from pytensor.compile.ops import as_op
 from pytensor.tensor.linalg import solve
 from pytensor import shared
-# from pytensor.tensor.var import TensorVariable
 from pytensor.link.c.type import Generic
 
 class Pressure:
@@ -48,10 +47,6 @@ class Press_gNFW(Pressure):
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
         '''
         P_0, a, b, c, r_p = pt.as_tensor([10**p for p in pars[:5]])
-        # a = a if type(a) is not TensorVariable else pt.as_tensor(10**a) if a.owner.op.name=='normal' else a
-        # b = b if type(b) is not TensorVariable else pt.as_tensor(10**b) if b.owner.op.name=='normal' else b
-        # c = c if type(c) is not TensorVariable else pt.as_tensor(10**c) if c.owner.op.name=='normal' else c
-        # r_p = shared(r_p) if type(r_p) is not TensorVariable else r_p
         if not logder:
             den1 = pt.outer(r_kpc, 1/r_p)**c
             den2 = (1+pt.outer(r_kpc, 1/r_p)**a)**((b-c)/a)
