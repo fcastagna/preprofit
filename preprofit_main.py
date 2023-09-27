@@ -134,7 +134,7 @@ with pm.Model() as model:
         [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)]
         [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)]
         c500=1.177
-        r_p = r500.value/c500
+        logr_p = np.log10(r500.value/c500)
     else:
         [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nk)]
         [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.1, initval=press_knots[i]) for i in range(nk)]
@@ -237,7 +237,7 @@ def main():
                     [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
                      for m, m2 in zip(model.continuous_value_vars[nc:nc+3], model.free_RVs[nc:nc+3])]+
-                    [r_p[i]]+
+                    [logr_p[i]]+
                     [[m2 for m2 in model.free_RVs[-nc:]][i]]
                     for i in range(nc)]
         else:
