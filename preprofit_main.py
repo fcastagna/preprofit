@@ -231,6 +231,7 @@ def main():
                                 [np.arange(npar)[-nc:][_]] for _ in infs] for i in s]
             pm.draw([model.free_RVs[i] for i in inds])
         if type(press) == pfuncs.Press_gNFW:
+            vals = [x.eval() for x in model.free_RVs]
             pars = [[[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
                      for m, m2 in zip(model.continuous_value_vars, model.free_RVs)][i]]+
