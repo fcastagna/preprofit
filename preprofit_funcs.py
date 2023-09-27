@@ -93,8 +93,8 @@ class Press_rcs(Pressure):
         self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
         self.N = [len(k)-2 for k in self.knots]
-        self.betas = None
-
+        self.betas = [None]*len(self.knots)
+        
     def prior(self, pars, i):
         pars = pt.as_tensor(pars)
         if self.slope_prior == True:
@@ -106,22 +106,22 @@ class Press_rcs(Pressure):
         
     def functional_form(self, r_kpc, pars, i, logder=False):
         kn = pt.log10(self.knots[i])
-        if self.betas is None:
+        if self.betas[i] is None:
             sv = [(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2 for _ in range(self.N[i])]
             X = pt.concatenate((pt.atleast_2d(pt.ones(5)), pt.atleast_2d(kn), pt.as_tensor(sv))).T
-            self.betas = solve(X, pars)
+            self.betas[i] = solve(X, pars)
         if not logder:
             x = pt.log10(r_kpc)
             svr = [(x > kn[_])*(x-kn[_])**3-1/(kn[-1]-kn[-2])*
                    ((kn[-1]-kn[_])*(x > kn[-2])*(x-kn[-2])**3 
                     -(kn[-2]-kn[_])*(x > kn[-1])*(x-kn[-1])**3) 
                     for _ in range(self.N[i])]
-            return 10**(self.betas[0]+self.betas[1]*x+pt.sum([self.betas[2+_]*svr[_] for _ in range(self.N[i])], axis=0))
+            return 10**(self.betas[i][0]+self.betas[i][1]*x+pt.sum([self.betas[i][2+_]*svr[_] for _ in range(self.N[i])], axis=0))
         return pt.as_tensor([
-            self.betas[1]+3*(
-                pt.sum([self.betas[2+_]*kn[_]**2 for _ in range(self.N[i])], axis=0)
+            self.betas[i][1]+3*(
+                pt.sum([self.betas[i][2+_]*kn[_]**2 for _ in range(self.N[i])], axis=0)
                 -kn[-2:].sum()*
-                pt.sum([self.betas[2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[2:].sum())])
+                pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum())])
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
         new_press = Press_gNFW(self.eq_kpc_as)
