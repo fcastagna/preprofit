@@ -17,6 +17,8 @@ import pytensor.tensor as pt
 H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)	
+
+# Select clusters to analyse
 names, reds, M500 = np.loadtxt('./data/fullsample_SPT.txt', skiprows=1, dtype=('str', 'str'), usecols=(0,3,4), unpack=1)[:,:40]
 clus = []
 for i, n in enumerate(names):
@@ -25,18 +27,15 @@ for i, n in enumerate(names):
         clus.append(n)
     except:
         pass
-reps = 1#4#8
-# clus = clus[:10]#7]#[:1]
-clus = [clus[x] for x in [0]]#[0,17,13,15,3,16,18,10,2,9]]#[7]]#np.argsort(r500/kpc_as)[-10:]]
-clus = np.tile(clus, reps)
+clus = [clus[x] for x in [0]]#[0,17,13,15,3,16,18,10,2,9]]
+
+# 
 nc = len(clus)
 ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
 z = np.float64(reds)[ind] # redshift
 M500 = np.float64(M500)[ind]*u.Msun # M500
-
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
-
 r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
 ## Beam and transfer function
@@ -82,8 +81,8 @@ R_b = 5000*u.kpc
 
 # Name for outputs
 name = 'preprofit'
-plotdir = './'#pgnfw/'#'law/'#+(str(clus[0]) if len(clus)==1 else '')+'/' # directory for the plots
-savedir = plotdir  # directory for saved files
+plotdir = './' # directory for the plots
+savedir = './' # directory for saved files
 
 ## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
@@ -96,24 +95,20 @@ r_out = r500*1.1 # large radius for the slope prior
 max_slopeout = -2. # maximum value for the slope at r_out
 
 ## Pressure modelization
-# 4 models available: 1 parametric (Generalized Navarro Frenk and White), 3 non parametric ((restricted) cubic spline / power law interpolation)
+# 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (restricted cubic spline / power law interpolation)
 
-# Generalized Navarro Frenk and White
-press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-
+# 1. Generalized Navarro Frenk and White
+# press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 ## Parameters setup
-logunivpars = press.get_universal_params(cosmology, z, M500=M500)
+# logunivpars = press.get_universal_params(cosmology, z, M500=M500)
 
-# Restricted cubic spline
+# 2. Restricted cubic spline
 knots = np.outer([.1, .3, .5, .75, 1], r500).T
 press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
-
-'''
-# Power law interpolation
-rbins = np.outer([.1, .3, .5, .75, 1], r500).T
-press = pfuncs.Press_nonparam_plaw(rbins=rbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
-'''
+# 3. Power law interpolation
+# rbins = np.outer([.1, .3, .5, .75, 1], r500).T
+# press = pfuncs.Press_nonparam_plaw(rbins=rbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 univpars = press.get_universal_params(cosmology, z, M500=M500)
 press_knots = np.mean(univpars, axis=0)
@@ -126,7 +121,7 @@ if type(press) != pfuncs.Press_gNFW:
     print("Universal pressure values (log10)")
     print(press_knots)
 
-## Parameters setup
+## Model definition
 with pm.Model() as model:
     # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as initval
     # To exclude a parameter from the fit, just set it at a fixed value 
@@ -211,6 +206,7 @@ def main():
         press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)]# alpha indexes
         #pplots.pop_plot(sz, eq_kpc_as=eq_kpc_as, r500=r500, knots=press.rbins, plotdir=plotdir)
 
+    # Add pedestal component to the model
     with model:
         [pm.Uniform("peds_"+str(i), lower=-10**int(np.round(np.log10(abs(sz.flux_data[0][1].value)), 0)[4:].max()), 
                     upper=10**int(np.round(np.log10(abs(sz.flux_data[0][1].value)), 0)[4:].max()), initval=0.) for i in range(nc)]
@@ -262,16 +258,15 @@ def main():
                 np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             pm.Potential('pv_like'+str(nn), pt.sum(like))
             infs = [int(np.isinf(l.eval())) for l in like]
-            print(infs)
             print('like')
             print(pt.sum(like).eval())
-            factor_logps_fn = [pt.sum(factor) for factor in model.logp(model.basic_RVs + [model.potentials[-1]], sum=False)]
+            # factor_logps_fn = [pt.sum(factor) for factor in model.logp(model.basic_RVs + [model.potentials[-1]], sum=False)]
             [model.set_initval(n, v) for n, v in zip(model.free_RVs, vals)]
-            check = model.compile_fn(factor_logps_fn)(model.initial_point())
-            print('logp')
-            print(check[-1])
-            ilike = pt.sum([pt.sum(like), shared(check[-1])])
-            print('sum')
+            # check = model.compile_fn(factor_logps_fn)(model.initial_point())
+            # print('logp')
+            # print(check[-1])
+            # ilike = pt.sum([pt.sum(like), shared(check[-1])])
+            # print('sum')
             print(ilike.eval())
             nn += 1
             if nn == 100:
@@ -286,16 +281,15 @@ def main():
         with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
-    pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                          [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] for j in range(nc)], plotdir=plotdir)
+    pplots.plot_guess(
+        start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
+        [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] for j in range(nc)], plotdir=plotdir)
     # pplots.Arnaud_press(sz.r_pp, [p.eval() for p in p_prof])
 
     with model:
         # start = pm.find_MAP(start=model.initial_point(), model = model)
-        trace = pm.sample(draws=int(1000*5)
-                          , tune=int(200*5)#300
-                          , chains=4, #cores=1, 
- 			  return_inferencedata=True, step=pm.Metropolis(), initvals=model.initial_point())#start_short)#start)
+        trace = pm.sample(draws=int(5000), tune=int(1000), chains=4,
+                          return_inferencedata=True, step=pm.Metropolis(), initvals=model.initial_point())
     trace.to_netcdf("%s/trace_mult.nc" % savedir)
     # trace = az.from_netcdf("%s/trace_mult.nc" % savedir)
     prs = [k for k in trace.posterior.keys()]
