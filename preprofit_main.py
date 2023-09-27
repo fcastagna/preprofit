@@ -99,8 +99,6 @@ max_slopeout = -2. # maximum value for the slope at r_out
 
 # 1. Generalized Navarro Frenk and White
 # press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-## Parameters setup
-# logunivpars = press.get_universal_params(cosmology, z, M500=M500)
 
 # 2. Restricted cubic spline
 knots = np.outer([.1, .3, .5, .75, 1], r500).T
@@ -110,9 +108,10 @@ press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_pri
 # rbins = np.outer([.1, .3, .5, .75, 1], r500).T
 # press = pfuncs.Press_nonparam_plaw(rbins=rbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
-univpars = press.get_universal_params(cosmology, z, M500=M500)
-press_knots = np.mean(univpars, axis=0)
-std_knots = np.std(univpars, axis=0)
+## Parameters setup
+logunivpars = press.get_universal_params(cosmology, z, M500=M500)
+press_knots = np.mean(logunivpars, axis=0)
+std_knots = np.std(logunivpars, axis=0)
 
 nk = len(press_knots)
 if type(press) != pfuncs.Press_gNFW:
@@ -407,8 +406,7 @@ def main():
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
     [np.savetxt('%s/profiles/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
     with model:
-        # univpress=None
-        univpress = [press.functional_form(shared(sz.r_pp[i]), univpars[i], i).eval()[0] for i in range(nc)]
+        univpress = [press.functional_form(shared(sz.r_pp[i]), logunivpars[i], i).eval()[0] for i in range(nc)]
     stef = None#np.loadtxt('%s/press_fit_gtm2_flat.dat' % savedir).T[1:]
     # print(sz.r_pp[0].size); import sys; sys.exit()
     pplots.spaghetti_press(sz.r_pp, p_prof, clus=clus, nl=100, ci=ci, univpress=univpress, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots, stef=stef)
