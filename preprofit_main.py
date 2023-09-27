@@ -29,7 +29,7 @@ for i, n in enumerate(names):
         pass
 clus = [clus[x] for x in [0]]#[0,17,13,15,3,16,18,10,2,9]]
 
-# 
+# Get necessary data from each analysed cluster
 nc = len(clus)
 ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
 z = np.float64(reds)[ind] # redshift
@@ -96,6 +96,7 @@ max_slopeout = -2. # maximum value for the slope at r_out
 
 ## Pressure modelization
 # 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (restricted cubic spline / power law interpolation)
+# Select your model and please comment the remaining ones
 
 # 1. Generalized Navarro Frenk and White
 # press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
@@ -108,13 +109,12 @@ press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_pri
 # rbins = np.outer([.1, .3, .5, .75, 1], r500).T
 # press = pfuncs.Press_nonparam_plaw(rbins=rbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
-## Parameters setup
+## Get parameters from the universal pressure profile
 logunivpars = press.get_universal_params(cosmology, z, M500=M500)
-press_knots = np.mean(logunivpars, axis=0)
-std_knots = np.std(logunivpars, axis=0)
-
-nk = len(press_knots)
 if type(press) != pfuncs.Press_gNFW:
+    press_knots = np.mean(logunivpars, axis=0)
+    std_knots = np.std(logunivpars, axis=0)
+    nk = len(press_knots)
     print("Knots")
     print(np.mean(rbins if type(press)==pfuncs.Press_nonparam_plaw else knots, axis=0))
     print("Universal pressure values (log10)")
@@ -122,23 +122,28 @@ if type(press) != pfuncs.Press_gNFW:
 
 ## Model definition
 with pm.Model() as model:
-    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as initval
-    # To exclude a parameter from the fit, just set it at a fixed value 
+    # Customize the prior distribution of the parameters using pymc distributions
     if type(press) == pfuncs.Press_gNFW:
-        nps = 4
+        fitted = ['Ps', 'a', 'b', 'c'] # include 
+        nps = len(fitted)
+        # Parameters uncertainty across the population
         [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nps)]
-        [pm.Normal(_, mu=logunivpars[0][i], sigma=.1) for i,_ in enumerate(['Ps', 'a', 'b', 'c'])]
-        [pm.Normal("Ps_"+str(i), mu=model['Ps'], sigma=.1) for i in range(nc)]
-        [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5) for i in range(nc)]
-        [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)]
-        [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)]
+        # Population-level parameters
+        [pm.Normal(_, mu=logunivpars[0][i], sigma=.1) for i,_ in enumerate(fitted)]
+        # Individual-level parameters
+        [pm.Normal('Ps_'+str(i), mu=model['Ps'], sigma=.1) for i in range(nc)] if 'Ps' in fitted else None
+        [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5) for i in range(nc)] if 'a' in fitted else None
+        [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)] if 'b' in fitted else None
+        [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)] if 'c' in fitted else None
         c500=1.177
         logr_p = np.log10(r500.value/c500)
     else:
+        # Parameters uncertainty across the population
         [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nk)]
+        # Population-level parameters
         [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.1, initval=press_knots[i]) for i in range(nk)]
-        [pm.Normal('P'+str(i)+'_'+str(j), mu=model['P'+str(i)], sigma=model['sig'+str(i)], #1
-         initval=press_knots[i]) for j in range(nc) for i in range(nk)]
+        # Individual-level parameters
+        [pm.Normal('P'+str(i)+'_'+str(j), mu=model['P'+str(i)], sigma=model['sig'+str(i)], initval=press_knots[i]) for j in range(nc) for i in range(nk)]
 
 # Sampling step
 mystep = 10.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
@@ -181,9 +186,9 @@ def main():
                        mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
-    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
-                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in 
-            range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
+    r_pp = [np.arange(
+        mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
+        mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
     r_am = np.arange(0., (mystep*(1+min([len(r) for r in r_pp]))).to(u.arcmin, equivalencies=eq_kpc_as).value,
                      mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
  
@@ -202,7 +207,7 @@ def main():
     if type(press) == pfuncs.Press_nonparam_plaw:
         press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[i], press.rbins[i])-1) for i in range(nc)] # lower bins indexes
         press.r_low = [press.rbins[i][press.ind_low[i]] for i in range(nc)] # lower radial bins
-        press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)]# alpha indexes
+        press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)] # alpha indexes
         #pplots.pop_plot(sz, eq_kpc_as=eq_kpc_as, r500=r500, knots=press.rbins, plotdir=plotdir)
 
     # Add pedestal component to the model
@@ -255,16 +260,9 @@ def main():
                 np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             pm.Potential('pv_like'+str(nn), pt.sum(like))
             infs = [int(np.isinf(l.eval())) for l in like]
-            print('like')
+            print('Log-likelihood:')
             print(pt.sum(like).eval())
-            # factor_logps_fn = [pt.sum(factor) for factor in model.logp(model.basic_RVs + [model.potentials[-1]], sum=False)]
             [model.set_initval(n, v) for n, v in zip(model.free_RVs, vals)]
-            # check = model.compile_fn(factor_logps_fn)(model.initial_point())
-            # print('logp')
-            # print(check[-1])
-            # ilike = pt.sum([pt.sum(like), shared(check[-1])])
-            # print('sum')
-            print(ilike.eval())
             nn += 1
             if nn == 100:
                 raise RuntimeError('Valid starting point not found after 100 attempts. Execution stopped')
@@ -278,17 +276,17 @@ def main():
         with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
-    pplots.plot_guess(
-        start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-        [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j] if type(press == pfuncs.Press_rcs) 
-                                                                                                else press.rbins[j])] for j in range(nc)], plotdir=plotdir)
+    pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
+                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in 
+                        enumerate(press.knots[j] if type(press == pfuncs.Press_rcs) else press.rbins[j])] for j in range(nc)], plotdir=plotdir)
     # pplots.Arnaud_press(sz.r_pp, [p.eval() for p in p_prof])
 
+    # MCMC computation
     with model:
         # start = pm.find_MAP(start=model.initial_point(), model = model)
         trace = pm.sample(draws=int(5000), tune=int(1000), chains=4,
                           return_inferencedata=True, step=pm.Metropolis(), initvals=model.initial_point())
-    trace.to_netcdf("%s/trace_mult.nc" % savedir)
+    trace.to_netcdf("%s/trace_mult.nc" % savedir) # save chain results
     # trace = az.from_netcdf("%s/trace_mult.nc" % savedir)
     prs = [k for k in trace.posterior.keys()]
     prs = prs[:np.where([p[:2]=='br' for p in prs])[0][0]]
