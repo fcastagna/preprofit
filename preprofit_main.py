@@ -231,15 +231,13 @@ def main():
             pm.draw([model.free_RVs[i] for i in inds])
         vals = [x.eval() for x in model.free_RVs]
         if type(press) == pfuncs.Press_gNFW:
-            pars = [[[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
-                     for m, m2 in zip(model.continuous_value_vars, model.free_RVs)][i]]+
-                    [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
-                     for m, m2 in zip(model.continuous_value_vars[nc:nc+3], model.free_RVs[nc:nc+3])]+
-                    [logr_p[i]]+
-                    [[m2 for m2 in model.free_RVs[-nc:]][i]]
-                    for i in range(nc)]
+            pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
+                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
+                     for m, m2, v in zip(model.continuous_value_vars[:nps], model.free_RVs[:nps], vals[:nps])]+
+                    [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
+                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
+                     for m, m2, v in zip(model.continuous_value_vars[(2+i)*nps:(3+i)*nps], model.free_RVs[(2+i)*nps:(3+i)*nps], vals[(2+i)*nps:(3+i)*nps])]+
+                    [logr_p[i]]+[[m2 for m2 in model.free_RVs[-nc:]][i]] for i in range(nc)]
         else:
             pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
@@ -250,7 +248,7 @@ def main():
                     [[m2 for m2 in model.free_RVs[-nc:]][i]]
                     for i in range(nc)]
         with model:
-            pars = pars if type(press)==pfuncs.Press_gNFW else [p[nk:] for p in pars]
+            pars = [p[[nps if type(press)==pfuncs.Press_gNFW else nk][0]:] for p in pars]
             like, pprof, maps, slopes = zip(*map(
                 lambda i, pr, szr, sza, szl, dm, szfl: pfuncs.whole_lik(
                     pr, press, szr, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
