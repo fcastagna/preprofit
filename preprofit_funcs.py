@@ -95,7 +95,7 @@ class Press_rcs(Pressure):
         self.N = [len(k)-2 for k in self.knots]
         self.betas = None
 
-    def prior(self, pars, r_kpc, i):
+    def prior(self, pars, i):
         pars = pt.as_tensor(pars)
         if self.slope_prior == True:
             if self.r_out[i] < self.knots[i][-1]:
@@ -158,7 +158,7 @@ class Press_nonparam_plaw(Pressure):
         out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor([self.q]))
         return out
 
-    def prior(self, pars, r_kpc, i, decr_prior=False):
+    def prior(self, pars, i, decr_prior=False):
         '''
         Checks accordance with prior constrains
         ---------------------------------------
@@ -531,12 +531,10 @@ def int_func_2(map_prof, szrv, szfl):
 def whole_lik(pars, press, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pt.as_tensor(pars[-1])
     pars = pars[:-1]
-    p_pr, slope = press.prior(pars, szr, i)
+    p_pr, slope = press.prior(pars, i)
     if np.isinf(p_pr.eval()):
         return p_pr, pt.zeros_like(szfl[0]), pt.zeros_like(szfl[0]), slope
     pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)
-    # pp = press.functional_form(shared(press.knots[i]), shared(szr), pt.as_tensor(pars), shared(i), shared(0))
-    # pp = press.functional_form(shared(press), shared(szr), pt.as_tensor(pars), shared(i), shared(0))#.T# for r in sz.r_pp]
     pp = pt.atleast_2d(pp)
     int_prof = int_func_1(shared(szr), pp, shared(sza), shared(szf), shared(szc), 
                           shared(szl), shared(szs), shared(dm), shared(output))
