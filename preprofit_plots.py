@@ -1,13 +1,15 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from astropy import units as u
 import numpy as np
 import corner
+import arviz as az
 
 plt.style.use('classic')
-font = {'size': 20}
+font = {'size': 10}
 plt.rc('font', **font)
 
-def plot_guess(out_prof, sz,  plotdir='./'):
+def plot_guess(out_prof, sz, knots=None, plotdir='./'):
     '''
     Modeled profile resulting from starting parameters VS observed data
     -------------------------------------------------------------------
@@ -15,15 +17,27 @@ def plot_guess(out_prof, sz,  plotdir='./'):
     sz = class of SZ data
     plotdir = directory where to place the plot
     '''
-    if out_prof[1] == None: raise RuntimeError('The starting paramaters you adopted are not in agreement with prior constraints. Please fix them and retry')
     plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
-    plt.plot(sz.radius[sz.sep:], out_prof, color='r', label='Starting guess')
-    plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
-    plt.legend()
-    plt.xlabel('Radius ('+str(sz.flux_data[0].unit)+')')
-    plt.ylabel('Surface brightness ('+str(sz.flux_data[1].unit)+')')
-    plt.xlim(0., (sz.flux_data[0][-1]+np.diff(sz.flux_data[0])[-1]).value)
+    for i in range(len(sz.flux_data)):
+        if len(sz.flux_data) > 1:
+            plt.subplot(221+i%4)
+        plt.plot(sz.radius[sz.sep:], out_prof[i][0], color='r', label='Starting guess')
+        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value, yerr=sz.flux_data[i][2].value,
+                     fmt='o', fillstyle='none', color='black', label='Observed data')
+        if knots is not None:
+            [plt.axvline(k, linestyle=':') for k in knots[i]]
+        if i == 0:
+            plt.legend()
+        plt.ylim(np.min([fl[1].min() for fl in sz.flux_data]), np.max([fl[1].max() for fl in sz.flux_data]))
+        plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
+        if i%4 > 1:
+            plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
+        if i%2 == 0:
+            plt.ylabel('Surface brightness ('+str(sz.flux_data[i][1].unit)+')')
+        if (i+1)%4 == 0:
+            pdf.savefig()
+            plt.clf()
     pdf.savefig()
     pdf.close()
 
@@ -65,6 +79,21 @@ def traceplot(cube_chain, param_names, plotw=20, seed=None, ppp=4, labsize=18., 
             pdf.savefig(bbox_inches='tight')
     pdf.close()
 
+def traceplot_new(trace, prs, nc, trans_ped=None, ppp=10, plotdir='./'):
+    '''
+    '''
+    plt.clf()
+    pdf = PdfPages(plotdir+'traceplot.pdf')
+    # trans = np.atleast_1d(trans)
+    for i in range(int((len(prs)-nc-.5)//ppp)+1):
+        az.plot_trace(trace, var_names=prs[i*ppp:min((i+1)*ppp,len(prs))])
+        pdf.savefig(bbox_inches='tight')
+    for i in range(int((nc-.5)//ppp)+1):
+        az.plot_trace(trace, var_names=prs[-nc:][i*ppp:min((i+1)*ppp,nc)], transform=trans_ped)
+        pdf.savefig(bbox_inches='tight')
+    plt.clf()
+    pdf.close()
+
 def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
@@ -81,6 +110,7 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
     plt.clf()
     pdf = PdfPages(plotdir+'cornerplot.pdf')
     param_latex = ['${}$'.format(i) for i in param_names]
+    #print(param_latex)
     fig = corner.corner(mat_chain, labels=param_latex, title_kwargs={'fontsize': titsize}, label_kwargs={'fontsize': labsize})
     axes = np.array(fig.axes).reshape((len(param_names), len(param_names)))
     plb, pmed, pub = get_equal_tailed(mat_chain, ci=ci)
@@ -118,7 +148,7 @@ def get_equal_tailed(data, ci=95):
     low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
     return np.array([low, med, upp])
 
-def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
+def fitwithmod(sz, perc_sz, eq_kpc_as, clus, rbins=None, peds=None, fact=1, ci=95, plotdir='./'):
     '''
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties
     -----------------------------------------------------------------------------------------------
@@ -129,46 +159,35 @@ def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     '''
     plt.clf()
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
-    lsz, msz, usz = perc_sz
-    plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
-    plt.fill_between(sz.radius[sz.sep:], lsz, usz, color='gold', label='%i%% CI' % ci)
-    plt.errorbar(sz.flux_data[0].value, sz.flux_data[1].value, yerr=sz.flux_data[2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
-    plt.xlabel('Radius ('+str(sz.flux_data[0].unit)+')')
-    plt.ylabel('Surface brightness ('+str(sz.flux_data[1].unit)+')')
-    plt.xlim(0., np.ceil(sz.flux_data[0][-1].value))
-    plt.legend()
+    for i in range(len(sz.flux_data)):
+        if len(sz.flux_data) > 1:
+            plt.subplot(221+i%4)
+        plt.title(clus[i])
+        lsz, msz, usz = perc_sz[i]*fact
+        plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
+        plt.fill_between(sz.radius[sz.sep:].value, lsz, usz, color='gold', label='%i%% CI' % ci)
+        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value*fact, yerr=sz.flux_data[i][2].value*fact, fmt='o', fillstyle='none', color='black', label='Observed data')
+        plt.xlim(0., 50+np.ceil(sz.flux_data[i][0][-1].value))
+        if rbins is not None:
+            #print(rbins[i][0]); import sys; sys.exit()
+            [plt.axvline(r.to(sz.radius.unit, equivalencies=eq_kpc_as)[i].value, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
+        if peds is not None:
+            plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
+        if i == 0:
+            plt.legend()
+        if i%4 > 1 or len(sz.flux_data)-i < 3:
+            plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
+        if i%2 == 0:
+            plt.ylabel('Surface brightness ('+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$)' % np.log10(fact) if fact != 1 else '')
+        if i == 0:
+            plt.suptitle('Fitted model on data (median + %i%% CI)' % ci)
+        if (i+1)%4 == 0:
+            pdf.savefig()
+            plt.clf()
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def press_prof(cube_chain, press, r_kpc, num='all', seed=None, ci=95):
-    '''
-    Radial pressure profile (median and uncertainty interval) from given number of samples
-    --------------------------------------------------------------------------------------
-    cube_chain = 3d array of sampled values (nw x niter x nparam)
-    press = pressure object of the class Pressure
-    r_kpc = radius (kpc)
-    num = number of samples to include (default is 'all', i.e. nw x niter parameters)
-    seed = random seed (default is None)
-    ci = uncertainty level of the interval
-    ------------------------------------------------
-    RETURN: median and uncertainty interval profiles
-    '''
-    nw = cube_chain.shape[0]
-    if num == 'all':
-        num = nw*cube_chain.shape[1]
-    w, it = np.meshgrid(np.arange(nw), np.arange(cube_chain.shape[1]))
-    w = w.flatten()
-    it = it.flatten()
-    np.random.seed(seed)
-    rand = np.random.choice(w.size, num, replace=False)
-    press_prof = []
-    for j in rand:
-        press.update_vals(press.fit_pars, cube_chain[w[j],it[j],:])
-        press_prof.append(press.press_fun(r_kpc))
-    perc_press = get_equal_tailed(press_prof, ci)
-    return perc_press
-
-def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./'):
+def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, stef=None, plotdir='./'):
     '''
     Plot the radial pressure profiles
     ---------------------------------
@@ -178,21 +197,44 @@ def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, plotdir='./')
     ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
-    pdf = PdfPages(plotdir+'press_fit.pdf')
     plt.clf()
-    l_press, m_press, u_press = press_prof
-    xmin, xmax = np.nanmax([r_kpc[0].value, xmin]), np.nanmin([r_kpc[-1].value, xmax])
-    ind = np.where((r_kpc.value > xmin) & (r_kpc.value < xmax))
-    e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
-    plt.plot(r_kpc[e_ind], m_press[e_ind])
-    plt.fill_between(r_kpc[e_ind], l_press[e_ind], u_press[e_ind], color='powderblue')
-    plt.xscale('log')
-    plt.yscale('log')
-    plt.xlabel('Radius ('+str(r_kpc.unit)+')')
-    plt.ylabel('Pressure (keV cm$^{-3}$)')
-    plt.title('Radial pressure profile (median with %i%% CI)' % ci)
-    plt.xlim(xmin, xmax)
-    pdf.savefig(bbox_inches='tight')
+    plt.style.use('classic')
+    font = {'size': 10}
+    plt.rc('font', **font)
+    pdf = PdfPages(plotdir+'press_fit.pdf')
+    for i in range(len(press_prof)):
+        if len(press_prof) > 1:
+            plt.subplot(221+i%4)
+        plt.title(clus[i])
+        l_press, m_press, u_press = press_prof[i]
+        xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
+        ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
+        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+        plt.plot(r_kpc[i][e_ind], m_press[e_ind])
+        plt.fill_between(r_kpc[i][e_ind].value, l_press[e_ind], u_press[e_ind], color='powderblue', label='_nolegend_')
+        if rbins is not None:
+            [plt.axvline(r.value, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
+        plt.xscale('log')
+        plt.yscale('log')
+        if univpress is not None:
+            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
+        if stef is not None:
+            plt.plot(r_kpc[i][e_ind], stef[0][e_ind], color='r', label='Stefano')
+            plt.fill_between(r_kpc[i][e_ind].value, stef[1][e_ind], stef[2][e_ind], color='orange', alpha=.25)
+        plt.ylim(1e-5, 1e-1)
+        if i%4 > 1 or len(press_prof)-i < 3:
+            plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
+        if i%2 == 0:
+            plt.ylabel('Pressure (keV cm$^{-3}$)')
+        if i == 0:
+            plt.suptitle('Radial pressure profile (median + %i%% CI)' % ci)
+            if univpress is not None:
+                plt.legend(('fitted', 'universal'), loc='lower left')
+        plt.xlim(xmin, xmax)
+        if (i+1)%4 == 0:
+            pdf.savefig()
+            plt.clf()
+    pdf.savefig()#bbox_inches='tight')
     pdf.close()
 
 def hist_slopes(slopes, ci=95, plotdir='./'):
@@ -213,5 +255,198 @@ def hist_slopes(slopes, ci=95, plotdir='./'):
     plt.axvline(upp, color='black', linestyle='-.', label='_nolegend_')
     plt.xlabel('Outer slope')
     plt.ylabel('Density')
+    pdf.savefig(bbox_inches='tight')
+    pdf.close()
+
+def pop_plot(sz, eq_kpc_as, r500=None, knots=None, plotdir='./'):
+    '''
+    Surface brightness profile (points with error bars) and best fitting profile with uncertainties
+    -----------------------------------------------------------------------------------------------
+    sz = class of SZ data
+    plotdir = directory where to place the plot
+    '''
+    plt.clf()
+    pdf = PdfPages(plotdir+'population.pdf')
+    r_kpc = [np.array([r.to(u.kpc, equivalencies=eq_kpc_as) for r in sz.flux_data[i][0]])[:,i] for i in range(len(sz.flux_data))]
+    for i in range(len(sz.flux_data)):
+        plt.errorbar(r_kpc[i]/r500[i], sz.flux_data[i][1].value/sz.flux_data[i][1][0])#, yerr=sz.flux_data[i][2].value, fmt='o', linestyle='-', fillstyle='none', label='Observed data')
+        # plt.xlim(0., 50+np.ceil(sz.flux_data[i][0][-1].value))
+        #plt.scatter([(r_kpc[i][-1]/r500[i]).value], [(sz.flux_data[i][1]/sz.flux_data[i][1][0]).value[-1]], marker='d', markersize=[2.])
+        plt.plot(r_kpc[i][-1]/r500[i], sz.flux_data[i][1][-1]/sz.flux_data[i][1][0], marker='o', markersize=10)
+        plt.xlabel('Normalized radius (r/r500)')
+        plt.ylabel('Normalized surface brightness')# ('+str(sz.flux_data[0][1].unit)+')')
+        if knots is not None:
+            [plt.axvline(k/r500[i], linestyle=':') for k in knots[i]]
+    #plt.yscale('log')
+    pdf.savefig(bbox_inches='tight')
+    pdf.close()
+
+def Arnaud_press(r_kpc, press_prof, xmin=6, xmax=1500, plotdir='./'):
+    '''
+    Plot the radial pressure profiles
+    ---------------------------------
+    r_kpc = radius (kpc)
+    press_prof = best fitting pressure profile (median and interval)
+    xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
+    ci = uncertainty level of the interval
+    plotdir = directory where to place the plot
+    '''
+    pdf = PdfPages(plotdir+'press_Arnaud.pdf')
+    for i in range(len(press_prof)):
+        ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
+        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+        # print(press_prof[i][0][e_ind[1:-1]]); import sys; sys.exit()
+        plt.plot(r_kpc[i][e_ind[1:-1]], press_prof[i][0][e_ind[1:-1]])
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
+        plt.ylabel('Pressure (keV cm$^{-3}$)')
+        plt.xlim(xmin, xmax)
+        plt.ylim(1.5e-5, 6e-1)    
+    pdf.savefig(bbox_inches='tight')
+    pdf.close()
+
+def Arnaud_sing_press(cosmo, z, r500, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None, mystep=15*u.arcsec, xmin=85, xmax=820, ymin=1.5e-4, ymax=1e-2, plotdir='./'):
+    import preprofit_funcs as pfuncs
+    kpc_as = cosmo.kpc_proper_per_arcmin(z).to('kpc arcsec-1')
+    eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] 
+    rbins = np.outer([.1,.3,.5,1,2], r500).T#[100, 300, 600, 1000, 2000]*u.kpc
+    pbins = [1e-1, 2e-2, 5e-3, 1e-3, 1e-4]*u.Unit('keV/cm3')
+    nc = 1
+    R_b = 5000*u.kpc
+    press = pfuncs.Press_nonparam_plaw(rbins, pbins, eq_kpc_as)
+    r_kpc = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
+                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)]
+    press.ind_low = [np.maximum(0, np.digitize(r_kpc[i], press.rbins[i])-1) for i in range(nc)] # lower bins indexes
+    press.r_low = [press.rbins[i][press.ind_low[i]] for i in range(nc)] # lower radial bins
+    press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)]# alpha indexes
+    press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=1, r_out=1e3*u.kpc, max_slopeout=-2)
+    univpars = press.get_universal_params(cosmo, z, r500=r500, c500=c500, a=a, b=b, c=c, P0=P0)
+    from pytensor import shared
+    press_prof = press.functional_form(shared(r_kpc[0]), univpars[0], 0)
+    pdf = PdfPages(plotdir+'press_Arnaud_sing.pdf')
+    ind = np.where((r_kpc[0].value > xmin) & (r_kpc[0].value < xmax))
+    e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+    # print(press_prof.eval())#[e_ind[1:-1]]); 
+    # import sys; sys.exit()
+    plt.plot(r_kpc[0][e_ind], (press_prof[0].eval())[e_ind])
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('Radius ('+str(r_kpc[0].unit)+')')
+    plt.ylabel('Pressure (keV cm$^{-3}$)')
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)    
+    pdf.savefig(bbox_inches='tight')
+    pdf.close()
+
+def Romero_plot(cosmo, z, r500, mystep=15*u.arcsec, xmin=85, xmax=820, ymin=1.5e-4, ymax=1e-2, plotdir='./'):
+    import preprofit_funcs as pfuncs
+    kpc_as = cosmo.kpc_proper_per_arcmin(z).to('kpc arcsec-1')
+    eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] 
+    rbins = np.outer([.073,.134,.216,.349,.564,.910], r500).T#[100, 300, 600, 1000, 2000]*u.kpc
+    pbins = [.225, .15, .0744, .0358, .00508, .002]*u.Unit('keV/cm3')
+    nc = 1
+    R_b = 5000*u.kpc
+    press = pfuncs.Press_nonparam_plaw(rbins, pbins, eq_kpc_as)
+    r_kpc = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
+                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)]
+    press.ind_low = [np.maximum(0, np.digitize(r_kpc[i], press.rbins[i])-1) for i in range(nc)] # lower bins indexes
+    press.r_low = [press.rbins[i][press.ind_low[i]] for i in range(nc)] # lower radial bins
+    press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)]# alpha indexes
+    # press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=1, r_out=1e3*u.kpc, max_slopeout=-2)
+    # univpars = press.get_universal_params(cosmo, z, r500=r500, c500=c500, a=a, b=b, c=c, P0=P0)
+    from pytensor import shared
+    pars = [np.log10(x.value) for x in pbins]
+    press_prof = press.functional_form(shared(r_kpc[0]), pars, 0)
+    pdf = PdfPages(plotdir+'press_Romero.pdf')
+    r_kpc = r_kpc/r500
+    ind = np.where((r_kpc[0].value > xmin) & (r_kpc[0].value < xmax))
+    # print(press_prof.eval())#[e_ind[1:-1]]); 
+    # print(ind); import sys; sys.exit()
+    e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+    plt.plot(r_kpc[0][e_ind[1:-1]], (press_prof[0].eval())[e_ind[1:-1]])
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.xlabel('R / R500')
+    plt.ylabel('Pressure (keV cm$^{-3}$)')
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)    
+    pdf.savefig(bbox_inches='tight')
+    pdf.close()
+
+def spaghetti_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, nl=50, ci=95, univpress=None, rbins=None, stef=None, plotdir='./'):
+    '''
+    Plot the radial pressure profiles
+    ---------------------------------
+    r_kpc = radius (kpc)
+    press_prof = best fitting pressure profile (median and interval)
+    xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
+    ci = uncertainty level of the interval
+    plotdir = directory where to place the plot
+    '''
+    plt.clf()
+    pdf = PdfPages(plotdir+'spaghetti_press.pdf')
+    for i in range(len(press_prof)):
+        if len(press_prof) > 1:
+             plt.subplot(221+i%4)
+        plt.title(clus[i])
+        xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
+        ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
+        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+        [plt.plot(r_kpc[i][e_ind], p[e_ind], color='grey', linewidth=.4) for p in press_prof[i][:nl]]
+        if stef is not None:
+            plt.plot(r_kpc[i][e_ind], stef[0][e_ind], color='r', label='Stefano')
+            plt.fill_between(r_kpc[i][e_ind].value, stef[1][e_ind], stef[2][e_ind], color='orange')        
+        plt.ylim(1e-7, 2e-1)
+        plt.xscale('log')
+        plt.yscale('log')
+        if univpress is not None:
+            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
+        if rbins is not None:
+            [plt.axvline(r.value, linestyle=':', color='grey') for r in rbins[i]]
+        if i%4 > 1 or len(press_prof)-i < 3:
+            plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
+        if i%2 == 0:
+            plt.ylabel('Pressure (keV cm$^{-3}$)')
+        if i == 0:
+            plt.suptitle('%s Radial pressure profiles' % str(nl))
+        plt.xlim(xmin, xmax)
+        if (i+1)%4 == 0:
+            pdf.savefig()
+            plt.clf()
+    pdf.savefig(bbox_inches='tight')
+    pdf.close()
+
+def press_compare(r_kpc, p_gnfw, p_plaw, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, stef=None, plotdir='./'):
+    plt.clf()
+    pdf = PdfPages(plotdir+'press_compare.pdf')
+    for i in range(len(p_gnfw)):
+        if len(p_gnfw) > 1:
+             plt.subplot(221+i%4)
+        xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
+        ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
+        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
+        plt.plot(r_kpc[i][e_ind], p_plaw[0][1][e_ind], color='b', label='p-law')
+        plt.fill_between(r_kpc[i][e_ind].value, p_plaw[0][0][e_ind], p_plaw[0][2][e_ind], color='powderblue')
+        plt.plot(r_kpc[i][e_ind], p_gnfw[0][1][e_ind], color='r', label='gnfw')
+        plt.fill_between(r_kpc[i][e_ind].value, p_gnfw[0][0][e_ind], p_gnfw[0][2][e_ind], color='orange', alpha=.3)        
+        plt.ylim(np.max([1e-15, min(np.concatenate([np.array(p_plaw).flatten(), np.array(p_gnfw).flatten()]))]), 1e0)#-1)
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.legend(loc='lower left')
+        if univpress is not None:
+            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
+        if rbins is not None:
+            [plt.axvline(r.to(r_kpc[i].unit).value, linestyle=':', color='grey') for r in rbins[i]]
+        if i%2 == 0:
+            plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
+        if i%2 == 0:
+            plt.ylabel('Pressure (keV cm$^{-3}$)')
+        if i == 0:
+            plt.title('Radial press. prof (median+%i%% CI)' % ci)
+        plt.xlim(xmin, xmax)
+        if (i+1)%4 == 0:
+            pdf.savefig()
+            plt.clf()
     pdf.savefig(bbox_inches='tight')
     pdf.close()
