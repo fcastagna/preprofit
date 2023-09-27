@@ -230,8 +230,8 @@ def main():
             inds = [i for s in [list(np.arange(npar)[nc:][_*nk:_*nk+nk])+
                                 [np.arange(npar)[-nc:][_]] for _ in infs] for i in s]
             pm.draw([model.free_RVs[i] for i in inds])
+        vals = [x.eval() for x in model.free_RVs]
         if type(press) == pfuncs.Press_gNFW:
-            vals = [x.eval() for x in model.free_RVs]
             pars = [[[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
                      for m, m2 in zip(model.continuous_value_vars, model.free_RVs)][i]]+
@@ -242,7 +242,6 @@ def main():
                     [[m2 for m2 in model.free_RVs[-nc:]][i]]
                     for i in range(nc)]
         else:
-            vals = [x.eval() for x in model.free_RVs]
             pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
                      for m, m2, v in zip(model.continuous_value_vars[:nk], model.free_RVs[:nk], vals[:nk])]+
