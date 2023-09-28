@@ -277,7 +277,8 @@ def main():
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j] or press.rbins[j])] for j in range(nc)], plotdir=plotdir)
+                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in 
+                        enumerate(press.__dict__[str(list(press.__dict__.keys())[0])][j])] for j in range(nc)], plotdir=plotdir)
     # pplots.Arnaud_press(sz.r_pp, [p.eval() for p in p_prof])
 
     # MCMC computation
@@ -343,8 +344,8 @@ def main():
     # Best fitting profile on SZ surface brightness
     #rbins = np.tile(np.atleast_2d([50, 150, 300, 500]).T*kpc_as, nc).T.value*u.kpc
     """
-    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots#rbins
-                      , peds=[trace.posterior['peds_'+str(j)].data.mean() for j in range(nc)], fact=1e5, ci=ci, plotdir=plotdir)
+    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.__dict__[str(list(press.__dict__.keys())[0])], 
+                      peds=[trace.posterior['peds_'+str(j)].data.mean() for j in range(nc)], fact=1e5, ci=ci, plotdir=plotdir)
     """
     # Forest plots
     for i in range(nk):
