@@ -101,6 +101,7 @@ class Press_rcs(Pressure):
             if self.r_out[i] < self.knots[i][-1]:
                 raise RuntimeError("Outer radius should be larger than the outermost knot")
             slopes_out = self.functional_form(shared(self.r_out), pars, i, True)
+            if pt.gt(slopes_out, self.max_slopeout).eval(): self.betas[i] = None
             return pt.switch(pt.gt(pt.gt(slopes_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slopes_out[0]
         return pt.as_tensor([0.]), None
         
