@@ -49,7 +49,7 @@ fwhm_beam = [75]*u.arcsec#None # fwhm of the normal distribution for the beam ap
 loc, scale, k = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
 
 # Transfer function provenance (not the instrument, but the team who derived it)
-tf_source_team = 'SPT' # alternatively, 'MUSTANG' or 'SPT'
+tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
 
 ## File names (FITS and ASCII formats are accepted)
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
