@@ -116,7 +116,9 @@ class Press_rcs(Pressure):
                    ((kn[-1]-kn[_])*(x > kn[-2])*(x-kn[-2])**3 
                     -(kn[-2]-kn[_])*(x > kn[-1])*(x-kn[-1])**3) 
                     for _ in range(self.N[i])]
-            return 10**(self.betas[i][0]+self.betas[i][1]*x+pt.sum([self.betas[i][2+_]*svr[_] for _ in range(self.N[i])], axis=0))
+            out = 10**(self.betas[i][0]+self.betas[i][1]*x+pt.sum([self.betas[i][2+_]*svr[_] for _ in range(self.N[i])], axis=0))
+            self.betas[i] = None
+            return out
         return pt.as_tensor([
             self.betas[i][1]+3*(
                 pt.sum([self.betas[i][2+_]*kn[_]**2 for _ in range(self.N[i])], axis=0)
