@@ -241,7 +241,7 @@ def main():
                      for m, m2, v in zip(model.continuous_value_vars[:nps], model.free_RVs[:nps], vals[:nps])]+
                     [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[(2+i)*nps:(3+i)*nps], model.free_RVs[(2+i)*nps:(3+i)*nps], vals[(2+i)*nps:(3+i)*nps])]+
+                     for m, m2 in zip(model.continuous_value_vars[2*nps:][i:nc*nps:nc], model.free_RVs[2*nps:][i:nc*nps:nc])]+
                     [logr_p[i]]+[[m2 for m2 in model.free_RVs[-nc:]][i]] for i in range(nc)]
         else:
             pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
