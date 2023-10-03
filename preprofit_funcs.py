@@ -62,7 +62,7 @@ class Press_gNFW(Pressure):
         pars = set of pressure parameters
         '''
         if self.slope_prior:
-            slopes_out = self.functional_form(shared(self.r_out.value), pars, logder=True)
+            slopes_out = self.functional_form(shared(self.r_out[i].value), pars, logder=True)
             return pt.switch(pt.gt(pt.gt(slopes_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slopes_out[0]
         return pt.as_tensor([0.]), None
 
