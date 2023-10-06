@@ -109,7 +109,7 @@ class Press_rcs(Pressure):
         kn = pt.log10(self.knots[i])
         if self.betas[i] is None:
             sv = [(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2 for _ in range(self.N[i])]
-            X = pt.concatenate((pt.atleast_2d(pt.ones(5)), pt.atleast_2d(kn), pt.as_tensor(sv))).T
+            X = pt.concatenate((pt.atleast_2d(pt.ones(len(kn))), pt.atleast_2d(kn), pt.as_tensor(sv))).T
             self.betas[i] = solve(X, pars)
         if not logder:
             x = pt.log10(r_kpc)
