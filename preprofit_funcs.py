@@ -529,7 +529,7 @@ def int_func_2(map_prof, szrv, szfl):
     sz = class of SZ data
     '''
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    return g(szfl[0])
+    return g(szfl[0].to(u.arcsec))
 
 def whole_lik(pars, press, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pt.as_tensor(pars[-1])
