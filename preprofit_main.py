@@ -81,6 +81,7 @@ logunivpars = press.get_universal_params(cosmology, z, M500=M500)
 press_knots = np.mean(logunivpars, axis=0)
 std_knots = np.std(logunivpars, axis=0)
 
+# Compute P500 according to the definition in Equation (5) from Arnaud's paper
 mu, mu_e, f_b = .59, 1.14, .175
 import astropy.constants as const
 pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
