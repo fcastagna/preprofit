@@ -15,7 +15,6 @@ from pytensor import shared
 from pytensor.tensor.var import TensorVariable
 from pytensor.link.c.type import Generic
 from pytensor.tensor.linalg import solve
-from scipy.optimize import curve_fit
 
 class Pressure:
     '''
