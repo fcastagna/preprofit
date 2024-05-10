@@ -58,7 +58,7 @@ class Press_gNFW(Pressure):
             den = 1+pt.outer(r_kpc, 1/r_p)**a
             return pt.transpose((b-c)/den-b)
 
-    def prior(self, pars, i, shape=1):
+    def prior(self, pars, i):
         '''
         Checks accordance with prior constrains
         ---------------------------------------
