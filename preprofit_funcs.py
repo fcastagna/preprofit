@@ -50,7 +50,7 @@ class Press_gNFW(Pressure):
         P_0, a, b, c = pt.as_tensor([10**p for p in pars[:4]])
         r_p = 10**pars[-1]
         r_p = shared(r_p) if type(r_p) is not TensorVariable else r_p
-        if logder == False:
+        if not logder:
             den1 = pt.outer(r_kpc, 1/r_p)**c
             den2 = (1+pt.outer(r_kpc, 1/r_p)**a)**((b-c)/a)
             return pt.transpose(P_0/(den1*den2))
