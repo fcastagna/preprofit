@@ -171,7 +171,7 @@ def main():
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
                                   cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
-    
+
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
         filtering = fft2(beam_2d)
@@ -183,7 +183,7 @@ def main():
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep, eq_kpc_as) # transfer function matrix
         filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
-    
+
     # Radius definition
     mymaxr = [filtering.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
               mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)][0] # max radius needed
@@ -195,7 +195,7 @@ def main():
                       mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
     r_am = np.arange(0., (mystep*(1+min([len(r) for r in r_pp]))).to(u.arcmin, equivalencies=eq_kpc_as).value,
                      mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
-    
+
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
         temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units)
@@ -415,8 +415,7 @@ def main():
     #                 show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix3_')
     # pplots.triangle(flat_chain[:,i4].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i4], 
     #                 show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix4_')
-    
-    
+
     # pplots.triangle(flat_chain, prs, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/all_')
     # Radial pressure profile
     # pars = [np.log(flat_chain[i,nk:2*nk]) for i in range(flat_chain.shape[0])]
@@ -424,7 +423,7 @@ def main():
     # p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
     # [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
     # import sys; sys.exit()
-    
+
     p_prof = [trace.posterior['press'+str(i)].data.reshape(samples.shape[0], -1) for i in range(nc)]
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
     [np.savetxt('%s/profiles/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
@@ -436,7 +435,7 @@ def main():
     # print(sz.r_pp[0].size); import sys; sys.exit()
     pplots.spaghetti_press(sz.r_pp, p_prof, clus=clus, nl=100, ci=ci, univpress=univpress, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots, stef=stef)
     pplots.plot_press(sz.r_pp, p_quant, clus=clus, ci=ci, univpress=univpress, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots, stef=stef)
-    
+
     # Compare gnfw vs p-law
     index = 0
     '''
