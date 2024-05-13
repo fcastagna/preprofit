@@ -25,72 +25,102 @@ for i, n in enumerate(names):
         clus.append(n)
     except:
         pass
-reps = 1#4#8
 clus_all = clus.copy()
-M500_all = M500.copy()
 
 jj = np.arange(58)
 jj = np.delete(jj, [14, 17, 19, 22, 35, 39, 45, 46, 53])
 jj = jj[:16]
 
+# Get necessary data from each analyzed cluster
 clus = [clus_all[x] for x in jj]
-print(clus)
 nc = len(clus)
-print(nc)
 ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
 z = np.float64(reds)[ind] # redshift
 
 rn = np.loadtxt('./data/r500_ysz.dat')
 r500 = rn[jj]*u.kpc
-# r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 M500 = (4/3*np.pi*cosmology.critical_density(z).to(u.g/u.kpc**3)*500*r500**3).to(u.Msun)
+# M500 = np.float64(M500)[ind]*u.Msun # M500
+# r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
 
+## Beam and transfer function
+# Beam file already includes transfer function?
 beam_and_tf = True
+
+# Beam and transfer function. From input data or Gaussian approximation?
 beam_approx = True
 tf_approx = False
 fwhm_beam = [75]*u.arcsec # fwhm of the normal distribution for the beam approximation
 loc, scale, k = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
-tf_source_team = 'SPT' # alternatively, 'MUSTANG' or 'SPT'
+
+# Transfer function provenance (not the instrument, but the team who derived it)
+tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
+
+
+## File names (FITS and ASCII formats are accepted)
+# NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
+# NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
 files_dir = './data' # files directory
 beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # beam
 tf_filename = None # transfer function
-flux_filename = ['%s/press_data_' % (files_dir if cl not in np.array(clus_all)[[19,38]] 
-                 else './new_k/%s/largerdata/' % cl)+cl+'.dat' for cl in clus]# observed data
+flux_filename = ['%s/press_data_' %files_dir +cl+'.dat' for cl in clus]# observed data
 convert_filename = None # conversion Compton -> observed data
+
+# Temperature used for the conversion factor above
 t_const = 12*u.keV # if conversion is not required, preprofit ignores it
+
+# Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single 
+# measure in the file)
+# NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
+# NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
 beam_units = u.beam # beam units
 flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
+# tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
+# conv_units = [u.keV, u.Jy/u.beam] # conversion units
+
+# Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
 crop_image = False # adopt or do not adopt?
 cropped_side = 200 # side of the cropped image (automatically set to odd value)
-R_b = 5000*u.kpc
+
+# Maximum radius for line-of-sight Abel integration
+ R_b = 5000*u.kpc
+
+# Name for outputs
 name = 'preprofit'
-plotdir = './new_k/joint/'
-savedir = plotdir  # directory for saved files
+plotdir = './' # directory for the plots
+savedir = './' # directory for saved files
+
+## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
 integ_mu = .94/1e3 # from Planck
 integ_sig = .36/1e3 # from Planck
+
+## Prior on the pressure slope at large radii?
 slope_prior = True # apply or do not apply?
 r_out = r500*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
+
+## Pressure modelization
+# 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (restricted cubic spline / power law interpolation)
+# Select your model and please comment the remaining ones
+
+# 1. Generalized Navarro Frenk and White
+# press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+
+# 2. Restricted cubic spline
 knots = np.outer([.1, .4, .7, 1, 1.3], r500).T
 press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+
+# 3. Power law interpolation
+# press = pfuncs.Press_nonparam_plaw(rbins=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
+
+## Get parameters from the universal pressure profile
 logunivpars = press.get_universal_params(cosmology, z, M500=M500)
 press_knots = np.mean(logunivpars, axis=0)
 std_knots = np.std(logunivpars, axis=0)
-
-# Compute P500 according to the definition in Equation (5) from Arnaud's paper
-mu, mu_e, f_b = .59, 1.14, .175
-import astropy.constants as const
-pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
-alpha_P = 1/.561-5/3
-alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
-hz = cosmology.H(z)/cosmology.H0
-def conv(x, i): 
-    return pnorm*hz[i]**(8/3)*(M500[i]/3e14/u.Msun)**(2/3)*(
-        M500[i]/3e14/u.Msun)**(alpha_P+alpha1_P(x))
 
 nk = len(press_knots)
 with pm.Model() as model:
@@ -163,6 +193,16 @@ def main():
         press.r_low = [press.rbins[i][press.ind_low[i]] for i in range(nc)] # lower radial bins
         press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)]# alpha indexes
     
+    # Compute P500 according to the definition in Equation (5) from Arnaud's paper
+    mu, mu_e, f_b = .59, 1.14, .175
+    import astropy.constants as const
+    pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
+    alpha_P = 1/.561-5/3
+    alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
+    hz = cosmology.H(z)/cosmology.H0
+    def conv(x, i): 
+        return pnorm*hz[i]**(8/3)*(M500[i]/3e14/u.Msun)**(2/3)*(
+            M500[i]/3e14/u.Msun)**(alpha_P+alpha1_P(x))
     press.P500 = []
     [press.P500.append([conv(r.value, i).value for r in sz.r_pp[i]/r500[i]]) for i in range(nc)]
     press.r500 = [r for r in r500]
