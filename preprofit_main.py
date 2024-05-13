@@ -59,7 +59,6 @@ loc, scale, k = None, None, None # location, scale and normalization parameters 
 # Transfer function provenance (not the instrument, but the team who derived it)
 tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
 
-
 ## File names (FITS and ASCII formats are accepted)
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
@@ -86,7 +85,7 @@ crop_image = False # adopt or do not adopt?
 cropped_side = 200 # side of the cropped image (automatically set to odd value)
 
 # Maximum radius for line-of-sight Abel integration
- R_b = 5000*u.kpc
+R_b = 5000*u.kpc
 
 # Name for outputs
 name = 'preprofit'
@@ -121,42 +120,52 @@ press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_pri
 logunivpars = press.get_universal_params(cosmology, z, M500=M500)
 press_knots = np.mean(logunivpars, axis=0)
 std_knots = np.std(logunivpars, axis=0)
-
 nk = len(press_knots)
+
+## Model definition
 with pm.Model() as model:
-    shape = 1
+    # Customize the prior distribution of the parameters using pymc distributions
     if type(press) == pfuncs.Press_gNFW:
         nps = 4
         [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nps)]
+        # Population-level parameters
         [pm.Normal(_, mu=logunivpars[0][i], sigma=.1) for i,_ in enumerate(['Ps', 'a', 'b', 'c'])]
-        [pm.Normal("Ps_"+str(i), mu=model['Ps'], sigma=.1#np.log10(3./1.5)
-               ) for i in range(nc)]
-        [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5#np.log10(2/1.5)
-               )#pm.Uniform('a', lower=0.5, upper=50., initval=initval[2,:shape], shape=shape)
-     for i in range(nc)]
-        [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5#np.log10(150/80)
-               )#pm.Uniform('b', lower=3, upper=70, initval=initval[3,:shape], shape=shape)
-     for i in range(nc)]
-        [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5#np.log10(3/2.5)
-               )
-     for i in range(nc)]
+        # Individual-level parameters
+        [pm.Normal("Ps_"+str(i), mu=model['Ps'], sigma=.1) for i in range(nc)]
+        [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5) for i in range(nc)]
+        [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)]
+        [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)]
         c500=1.177
         logr_p = np.log10(r500.value/c500)
     else:
+        # Parameters uncertainty across the population
         [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nk)]
-        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.3, 
-                   initval=press_knots[i]) for i in range(nk)]
+        # Population-level parameters
+        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.3, initval=press_knots[i]) for i in range(nk)]
+        # Individual-level parameters
         [pm.Normal('P'+str(i)+'_'+str(j), mu=model['P'+str(i)], sigma=model['sig'+str(i)],
                    initval=press_knots[i]) for j in range(nc) for i in range(nk)]
 
+# Sampling step
 mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
+# NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
+
+# Uncertainty level
 ci = 68
 
+# -------------------------------------------------------------------------------------------------------------------------------
+# Code
+# -------------------------------------------------------------------------------------------------------------------------------
+
 def main():
+
     
+    # Flux density data
     flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
     maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
     maxr_data = 1080*u.arcsec-3*fwhm_beam#maxr_data.mean()/4*3
+
+    # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
                                   cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
     if beam_and_tf:
