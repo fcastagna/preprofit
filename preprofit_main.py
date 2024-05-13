@@ -237,7 +237,6 @@ def main():
         cloudpickle.dump(sz, f, -1)
 
     ## Sampling
-    mip = model.initial_point()
     ilike = pt.as_tensor([np.inf])
     nn = 0
     npar = len(model.free_RVs)
@@ -245,40 +244,31 @@ def main():
         print('---\nSearching...')
         if nn > 0:
             infs = np.where(infs)[0]
-            inds = [i for s in [list(np.arange(npar)[2*nk:][_*nk:_*nk+nk])+
-                                [np.arange(npar)[-nc:][_]] for _ in infs] for i in s]
+            inds = [i for s in [list(np.arange(npar)[2*nk:][_*nk:_*nk+nk])+[np.arange(npar)[-nc:][_]] for _ in infs] for i in s]
             pm.draw([model.free_RVs[i] for i in inds])
+        vals = [x.eval() for x in model.free_RVs]
         if type(press) == pfuncs.Press_gNFW:
-            vals = [x.eval() for x in model.free_RVs]
             pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
                      for m, m2, v in zip(model.continuous_value_vars[:nps], model.free_RVs[:nps], vals[:nps])]+
                     [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
                      for m, m2 in zip(model.continuous_value_vars[2*nps:][i:nc*nps:nc], model.free_RVs[2*nps:][i:nc*nps:nc])]+
-                    [logr_p[i]]+
-                    [model['peds_%s' %i]]
-                    for i in range(nc)]
+                    [logr_p[i]]+[model['peds_%s' %i]] for i in range(nc)]
         else:
-            vals = [x.eval() for x in model.free_RVs]
             pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
                      for m, m2, v in zip(model.continuous_value_vars[:nk], model.free_RVs[:nk], vals[:nk])]+
                     [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[(2+i)*nk:(3+i)*nk], model.free_RVs[(2+i)*nk:(3+i)*nk], vals[(2+i)*nk:(3+i)*nk])]+#+
-                    [model['peds_%s' %i]]#[model.rvs_to_transforms[model.values_to_rvs[m]].forward(v, *m2.owner.inputs) if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 for m, m2, v in zip(model.continuous_value_vars[-nc:], model.free_RVs[-nc:], vals[-nc:])][i]]
-                    for i in range(nc)]
-        
+                     for m, m2, v in zip(model.continuous_value_vars[(2+i)*nk:(3+i)*nk], model.free_RVs[(2+i)*nk:(3+i)*nk], vals[(2+i)*nk:(3+i)*nk])]+
+                    [model['peds_%s' %i]] for i in range(nc)]        
         with model:
             pars = [p[nps:] for p in pars] if type(press)==pfuncs.Press_gNFW else [p[nk:] for p in pars]
             like, pprof, maps, slopes = zip(*map(
-                lambda i, pr, szr, sza, szl, dm, szfl:
-                    pfuncs.whole_lik(
-                        pr, press, szr, sza, sz.filtering, sz.conv_temp_sb, szl, 
-                        sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
-                    np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data)
-                )
+                lambda i, pr, szr, sza, szl, dm, szfl: pfuncs.whole_lik(
+                    pr, press, szr, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
+                np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             pm.Potential('pv_like'+str(nn), pt.sum(like))
             infs = [int(np.isinf(l.eval())) for l in like]
             print('Are there any estimates violating the prior contraints?')
@@ -310,6 +300,8 @@ def main():
         like = pm.Potential('like', pt.sum(like))
         if slope_prior:
             slope = [pm.Deterministic('slope'+str(i), slopes[i]) for i in range(nc)]
+        with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
+            cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
@@ -326,17 +318,16 @@ def main():
     # trace = az.from_netcdf("%s/trace_mult.nc" % savedir)
     prs = [k for k in trace.posterior.keys()]
     prs = prs[:np.where([p[:2]=='br' for p in prs])[0][0]]
-    # print(prs); import sys; sys.exit()
     samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)))
     for (i, par) in enumerate(prs):
         samples[:,i] = np.array(trace['posterior'][par]).flatten()
-    
+
     # samples = np.zeros((int(sum([trace['posterior'][p].size for p in prs])/2/nc), 2*nc))
     # for i in range(nc):
     #     samples[:,i] = np.array(trace['posterior'][prs[0]])[:,:,i].flatten()
     #     samples[:,nc+i] = np.array(trace['posterior'][prs[1]])[:,:,i].flatten()
     # np.savetxt('%s/trace_mult.txt' % savedir, samples)
-    
+
     # Extract chain of parameters
     flat_chain = samples # ((nwalkers x niter) x nparams)
     # Extract surface brightness profiles
@@ -356,7 +347,7 @@ def main():
     # axes = az.plot_trace(trace, var_names=prs)
     # fig = axes.ravel()[0].figure
     # fig.savefig('%s/tp.pdf' % plotdir)
-    
+
     axes = az.plot_trace(trace, var_names=['sig'+str(i) for i in range(nk)],#prs[-(nk+nc):-nc], 
                          transform=np.log10)
     fig = axes.ravel()[0].figure
@@ -380,10 +371,10 @@ def main():
         fig.savefig('%s/traceplots/traceplot_slopes.pdf' % plotdir)
     # Best fitting profile on SZ surface brightness
     #rbins = np.tile(np.atleast_2d([50, 150, 300, 500]).T*kpc_as, nc).T.value*u.kpc
-    
+
     pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots#rbins
                       , peds=[trace.posterior['peds_'+str(j)].data.mean() for j in range(nc)], fact=1e5, ci=ci, plotdir=plotdir)
-    
+
     # Forest plots
     for i in range(nk):
         axes = az.plot_forest(trace, var_names=['P'+str(i)+'_'+str(j) for j in range(nc)])#prs[i:i+(nc+1)*nk][::nk])
