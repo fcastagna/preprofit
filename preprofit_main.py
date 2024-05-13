@@ -303,7 +303,6 @@ def main():
         with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
-    
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
                       [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] for j in range(nc)], plotdir=plotdir)
     
@@ -334,13 +333,13 @@ def main():
     flat_surbr = np.array([trace.posterior['bright'+str(i)] for i in range(nc)]).reshape(nc, samples.shape[0], -1)
     # Median surface brightness profile + CI
     perc_sz = np.array([pplots.get_equal_tailed(f, ci=ci) for f in flat_surbr])
-    
+
     # Posterior distribution parameters
     param_med = np.median(flat_chain, axis=0)
     param_std = np.std(flat_chain, axis=0)
     pfuncs.print_summary(prs, param_med, param_std, perc_sz[:,1], sz)
     pfuncs.save_summary('%s/%s' % (savedir, name), prs, param_med, param_std, ci=ci)
-     
+
     # sl = sum([x in prs for x in ['a', 'b', 'c']])
     pm.summary(trace, var_names=prs)
     pplots.traceplot_new(trace, prs, nc, trans_ped=lambda x: 1e4*x, plotdir=savedir)
