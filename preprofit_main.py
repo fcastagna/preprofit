@@ -10,6 +10,7 @@ import pymc as pm
 from pytensor import shared
 import arviz as az
 import pytensor.tensor as pt
+import astropy.constants as const
 
 ### Global and local variables
 
@@ -126,15 +127,17 @@ nk = len(press_knots)
 with pm.Model() as model:
     # Customize the prior distribution of the parameters using pymc distributions
     if type(press) == pfuncs.Press_gNFW:
-        nps = 4
+        fitted = ['Ps', 'a', 'b', 'c'] # parameters that we aim to fit
+        nps = len(fitted)
+        # Parameters uncertainty across the population
         [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nps)]
         # Population-level parameters
-        [pm.Normal(_, mu=logunivpars[0][i], sigma=.1) for i,_ in enumerate(['Ps', 'a', 'b', 'c'])]
+        [pm.Normal(_, mu=logunivpars[0][i], sigma=.1) for i,_ in enumerate(fitted)]
         # Individual-level parameters
-        [pm.Normal("Ps_"+str(i), mu=model['Ps'], sigma=.1) for i in range(nc)]
-        [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5) for i in range(nc)]
-        [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)]
-        [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)]
+        [pm.Normal('Ps_'+str(i), mu=model['Ps'], sigma=.1) for i in range(nc)] if 'Ps' in fitted else None
+        [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5) for i in range(nc)] if 'a' in fitted else None
+        [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)] if 'b' in fitted else None
+        [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)] if 'c' in fitted else None
         c500=1.177
         logr_p = np.log10(r500.value/c500)
     else:
@@ -159,25 +162,29 @@ ci = 68
 
 def main():
 
-    
     # Flux density data
     flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
-    maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
-    maxr_data = 1080*u.arcsec-3*fwhm_beam#maxr_data.mean()/4*3
+    # maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
+    # maxr_data = maxr_data.mean()
+    maxr_data = 1080*u.arcsec-3*fwhm_beam
 
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
                                   cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
+    
+    # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
         filtering = fft2(beam_2d)
         if crop_image:
             from scipy.fftpack import fftshift, ifftshift
             filtering = ifftshift(pfuncs.get_central(fftshift(filtering), cropped_side))
     else:
+        # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep, eq_kpc_as) # transfer function matrix
         filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
     
+    # Radius definition
     mymaxr = [filtering.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
               mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)][0] # max radius needed
     radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as)).value, 
@@ -185,45 +192,51 @@ def main():
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
-                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in 
-            range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
+                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
     r_am = np.arange(0., (mystep*(1+min([len(r) for r in r_pp]))).to(u.arcmin, equivalencies=eq_kpc_as).value,
                      mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
+    
+    # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
         temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units)
         conv_fun = interp1d(temp_data, conv_data, 'linear', fill_value='extrapolate')
         conv_temp_sb = conv_fun(t_const)*conv_units[1]
     else:
         conv_temp_sb = 1*u.Unit('')
+
+    # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, 
                         filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
-    if type(press) == pfuncs.Press_nonparam_plaw:
-        press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[i], press.rbins[i])-1) for i in range(nc)] # lower bins indexes
-        press.r_low = [press.rbins[i][press.ind_low[i]] for i in range(nc)] # lower radial bins
-        press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)]# alpha indexes
     
-    # Compute P500 according to the definition in Equation (5) from Arnaud's paper
+    # Add pedestal component to the model
+    with model:
+        [pm.Normal("peds_"+str(i), 0, 10**int(np.round(np.log10(abs(sz.flux_data[0][1].value)), 0)[4:].max()-1)) for i in range(nc)]
+
+    # Compute P500 for each cluster according to the definition in Equation (5) from Arnaud's paper
     mu, mu_e, f_b = .59, 1.14, .175
-    import astropy.constants as const
     pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
     alpha_P = 1/.561-5/3
     alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
     hz = cosmology.H(z)/cosmology.H0
     def conv(x, i): 
-        return pnorm*hz[i]**(8/3)*(M500[i]/3e14/u.Msun)**(2/3)*(
-            M500[i]/3e14/u.Msun)**(alpha_P+alpha1_P(x))
+        return pnorm*hz[i]**(8/3)*(M500[i]/3e14/u.Msun)**(2/3)*(M500[i]/3e14/u.Msun)**(alpha_P+alpha1_P(x))
     press.P500 = []
     [press.P500.append([conv(r.value, i).value for r in sz.r_pp[i]/r500[i]]) for i in range(nc)]
     press.r500 = [r for r in r500]
     
-    with model:
-        [pm.Normal("peds_"+str(i), 0, 10**int(np.round(np.log10(abs(sz.flux_data[0][1].value)), 0)[4:].max()-1)) for i in range(nc)]
+    # Other indexes
+    if type(press) == pfuncs.Press_nonparam_plaw:
+        press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[i], press.rbins[i])-1) for i in range(nc)] # lower bins indexes
+        press.r_low = [press.rbins[i][press.ind_low[i]] for i in range(nc)] # lower radial bins
+        press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)] # alpha indexes
     
+    # Save objects
     with open('%s/press_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(press, f, -1)
     with open('%s/szdata_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
         cloudpickle.dump(sz, f, -1)
-    
+
+    ## Sampling
     mip = model.initial_point()
     ilike = pt.as_tensor([np.inf])
     nn = 0
