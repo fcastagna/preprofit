@@ -29,7 +29,7 @@ class Press_gNFW(Pressure):
     '''
     Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
     -----------------------------------------------------------------------------------------------
-    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
@@ -60,7 +60,7 @@ class Press_gNFW(Pressure):
 
     def prior(self, pars, i):
         '''
-        Checks accordance with prior constrains
+        Checks accordance with prior constraints
         ---------------------------------------
         pars = set of pressure parameters
         '''
@@ -79,9 +79,8 @@ class Press_gNFW(Pressure):
         else:
             r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None
-        univpars = [np.log10([(P0).value, a, b, c, 
-                              (r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(len(z))]
-        return univpars
+        logunivpars = [np.log10([(P0).value, a, b, c, (r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(len(z))]
+        return logunivpars
 
 class Press_cubspline(Pressure):
     '''
@@ -89,7 +88,7 @@ class Press_cubspline(Pressure):
     -------------------------------------------------------------------
     knots = spline knots
     pr_knots = pressure values corresponding to spline knots
-    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
@@ -103,7 +102,7 @@ class Press_cubspline(Pressure):
 
     def prior(self, pars, r_kpc, i):
         '''
-        Checks accordance with prior constrains
+        Checks accordance with prior constraints
         ---------------------------------------
         pars = set of pressure parameters
         '''
@@ -188,8 +187,8 @@ class Press_rcs(Pressure):
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
         new_press = Press_gNFW(self.eq_kpc_as, r_out=self.r_out)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
-        univpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
-        return univpars
+        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
+        return logunivpars
 
 class Press_nonparam_plaw(Pressure):
     '''
@@ -197,7 +196,7 @@ class Press_nonparam_plaw(Pressure):
     -------------------------------------------------------------------------------
     rbins = radial bins
     pbins = pressure values corresponding to radial bins
-    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
     def __init__(self, rbins, pbins, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
@@ -222,21 +221,21 @@ class Press_nonparam_plaw(Pressure):
         out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor([self.q]))
         return out
 
-    def prior(self, pars, r_kpc, i, shape=1, decr_prior=False):
+    def prior(self, pars, r_kpc, i, decr_prior=False):
         '''
-        Checks accordance with prior constrains
+        Checks accordance with prior constraints
         ---------------------------------------
         pars = set of pressure parameters
         '''
-        if self.slope_prior == True:
+        if self.slope_prior:
             pars = pt.as_tensor([10**p for p in pars])
             if decr_prior: # doesn't seem to work
                 decr = pt.all(pt.diff(pars) < 0)
                 if not decr.eval():
                     return pt.as_tensor([np.inf])
             P_n_1, P_n = pars[-2:]
-            slope_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
-            return pt.switch(pt.gt(slope_out, self.max_slopeout), -np.inf, 0.), slope_out
+            slopes_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
+            return pt.switch(pt.gt(slopes_out, self.max_slopeout), -np.inf, 0.), slopes_out
         return pt.as_tensor([0.]), None
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
@@ -249,9 +248,9 @@ class Press_nonparam_plaw(Pressure):
         '''
         new_press = Press_gNFW(self.eq_kpc_as)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
-        univpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.rbins[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
-        return univpars
-    
+        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.rbins[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
+        return logunivpars
+
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
@@ -363,7 +362,6 @@ def mybeam(step, maxr_data, eq_kpc_as, approx=False, filename=None, units=[u.arc
             g = interp1d(r, b1d, 'cubic', bounds_error=False, fill_value=(0., 0.))
             inv_g = lambda x: g(x)-g(0.)/2
             fwhm_beam = 2*optimize.newton(inv_g, x0=50*step.value)*r.unit
-
     maxr = (maxr_data+3*fwhm_beam.to(maxr_data.unit, equivalencies=eq_kpc_as))//step.to(maxr_data.unit, 
                                                                                         equivalencies=eq_kpc_as)*step.to(maxr_data.unit, equivalencies=eq_kpc_as)
     rad = np.arange(0., (maxr+step.to(maxr_data.unit, equivalencies=eq_kpc_as)).value, step.to(maxr_data.unit, equivalencies=eq_kpc_as).value)*maxr.unit
@@ -529,6 +527,7 @@ class SZ_data:
     '''
     Class for the SZ data required for the analysis
     -----------------------------------------------
+    clus = names of analyzed clusters
     step = binning step
     eq_kpc_as = equation for switching between kpc and arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
@@ -580,8 +579,8 @@ def int_func_1(r, pp, sza, szf, szc, szl, szs, dm, output):
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(fftshift(ifft2(fft2(y_2d)*szf), axes=(-2, -1)))
     # Conversion from Compton parameter to mJy/beam
-    map_prof = list(map(lambda x: mean(x, labels=szl, index=np.arange(szs+1)), map_out))#*szc.to(szfl.unit)
-    return map_prof#.value
+    map_prof = list(map(lambda x: mean(x, labels=szl, index=np.arange(szs+1)), map_out))
+    return map_prof
 
 @as_op(itypes=[pt.dvector, pt.dvector, Generic()], otypes=[pt.dvector])
 def int_func_2(map_prof, szrv, szfl):
@@ -600,7 +599,7 @@ def whole_lik(pars, press, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, i, outp
     p_pr, slope = press.prior(pars, szr, i)
     if np.isinf(p_pr.eval()):
         return p_pr, pt.zeros_like(szfl[0]), pt.zeros_like(szfl[0]), slope
-    pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)#.T# for r in sz.r_pp]
+    pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)
     pp = pt.mul(pp, press.P500[i])
     pp = pt.atleast_2d(pp)
     int_prof = int_func_1(shared(szr), pp, shared(sza), shared(szf), shared(szc), 
@@ -669,7 +668,7 @@ def get_outer_slope(trace, flatchain, press, r_out=None, P_0=None, a=None, b=Non
             a = 10**a
             b = 10**b
             c = 10**c
-            den = 1+(r_kpc/r_p)**a
+            den = 1+(r_kpc/r' _p)**a
             return (b-c)/den-b
         slopes = quick_slope(r_out.value, P_0, a, b, c, r_p)
     except:
