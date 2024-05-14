@@ -425,7 +425,7 @@ def press_compare(r_kpc, p_gnfw, p_plaw, xmin=np.nan, xmax=np.nan, ci=95, univpr
             plt.title('Radial press. prof (median+%i%% CI)' % ci)
         plt.xlim(xmin, xmax)
         if (i+1)%4 == 0:
-            pdf.savefig()
+            pdf.savefig(bbox_inches='tight')
             plt.clf()
     pdf.savefig(bbox_inches='tight')
     pdf.close()
