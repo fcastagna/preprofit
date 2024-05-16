@@ -1,9 +1,7 @@
-mbproj2
-PyAbel
 numpy
 scipy
 astropy
-emcee
-six
+pymc
 matplotlib
 corner
+arviz
