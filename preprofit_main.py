@@ -28,21 +28,14 @@ for i, n in enumerate(names):
         pass
 clus_all = clus.copy()
 
-jj = np.arange(58)
-jj = np.delete(jj, [14, 17, 19, 22, 35, 39, 45, 46, 53])
-jj = jj[:16]
-
 # Get necessary data from each analyzed cluster
 clus = [clus_all[x] for x in jj]
 nc = len(clus)
 ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
 z = np.float64(reds)[ind] # redshift
 
-rn = np.loadtxt('./data/r500_ysz.dat')
-r500 = rn[jj]*u.kpc
-M500 = (4/3*np.pi*cosmology.critical_density(z).to(u.g/u.kpc**3)*500*r500**3).to(u.Msun)
-# M500 = np.float64(M500)[ind]*u.Msun # M500
-# r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
+M500 = np.float64(M500)[ind]*u.Msun # M500
+r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
