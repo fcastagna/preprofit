@@ -6,7 +6,6 @@ from astropy import units as u
 from astropy import constants as const
 import warnings
 from scipy import optimize
-from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
 from scipy.ndimage import mean
 import pytensor.tensor as pt
@@ -78,7 +77,7 @@ class Press_gNFW(Pressure):
             M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
             r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
-        P0 = 8.403*h70**(-3/2) if P0 is None
+        P0 = 8.403*h70**(-3/2) if P0 is None else P0
         logunivpars = [np.log10([(P0).value, a, b, c, (r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(len(z))]
         return logunivpars
 
@@ -318,7 +317,8 @@ def get_central(mat, side):
     centre = mat.shape[0]//2
     return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
 
-def mybeam(step, maxr_data, eq_kpc_as, approx=False, filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
+def mybeam(step, maxr_data, eq_kpc_as, approx=False, filename=None, units=[u.arcsec, u.beam], 
+           crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
     '''
     Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
@@ -649,36 +649,3 @@ def save_summary(filename, prs, pmed, pstd, ci):
     '''
     np.savetxt('%s.log' % filename, [pmed, pstd], fmt='%.8e', delimiter='\t', header='This file summarizes MCMC results\n'+
                'Posterior distribution medians + uncertainties (%s%% CI)\n' %ci + ' -- '.join(prs))
-
-def get_outer_slope(trace, flatchain, press, r_out=None, P_0=None, a=None, b=None, c=None, r_p=None):
-    '''
-    Get outer slope values from flatchain
-    -------------------------------------
-    flatchain = chain of parameters (2D format)
-    press = pressure object of the class Pressure
-    r_out = outer radius
-    '''
-    try:
-        P_0 = trace.posterior['Ps_0'].data.flatten() if 'Ps_0' in list(trace.posterior.data_vars) else P_0
-        a = trace.posterior['a'].data.flatten() if 'a' in list(trace.posterior.data_vars) else a
-        b = trace.posterior['b'].data.flatten() if 'b' in list(trace.posterior.data_vars) else b
-        c = trace.posterior['c'].data.flatten() if 'c' in list(trace.posterior.data_vars) else c
-        def quick_slope(r_kpc, P_0, a, b, c, r_p):
-            P_0 = 10**P_0
-            a = 10**a
-            b = 10**b
-            c = 10**c
-            den = 1+(r_kpc/r' _p)**a
-            return (b-c)/den-b
-        slopes = quick_slope(r_out.value, P_0, a, b, c, r_p)
-    except:
-        if type(press) == Press_cubspline:
-            slopes = np.array([rspl(
-                shared(trace.posterior['P'+str(len(press.knots[i])-1)+'_%s' %i].data.flatten()),
-                pt.log10(press.knots[i]), pt.log10(press.r_out[i]), logder=True) for i in range(len(press.knots))])
-        else:
-            slopes = np.array([np.log10(
-                10**trace.posterior['P'+str(len(press.rbins[i])-1)+'_%s' %i].data.flatten()/
-                10**trace.posterior['P'+str(len(press.rbins[i])-2)+'_%s' %i].data.flatten())/
-                np.log10(press.rbins[i][-1]/press.rbins[i][-2]).value for i in range(len(press.rbins))])
-    return slopes
