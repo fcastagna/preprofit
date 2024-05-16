@@ -11,6 +11,7 @@ from pytensor import shared
 import arviz as az
 import pytensor.tensor as pt
 import astropy.constants as const
+from pymc.sampling.mcmc import assign_step_methods
 
 ### Global and local variables
 
@@ -18,23 +19,15 @@ import astropy.constants as const
 H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)	
-names, reds, M500 = np.loadtxt('./data/fullsample_bocquet19.dat', dtype=('str', 'str'), usecols=(0,3,4), unpack=1)
-clus = []
-for i, n in enumerate(names):
-    try:
-        pfuncs.read_data('./data/press_data_%s.dat' %n, ncol=3, units=[u.arcsec, u.Unit(''), u.Unit('')])
-        clus.append(n)
-    except:
-        pass
-clus_all = clus.copy()
+names, reds, M500 = np.loadtxt('./data/fullsample_SPT.txt', dtype=('str', 'str'), usecols=(0,3,4), unpack=1)
 
-# Get necessary data from each analyzed cluster
-clus = [clus_all[x] for x in jj]
+# Cluster
+clus = ['SPT-CLJ0500-5116']
 nc = len(clus)
-ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
-z = np.float64(reds)[ind] # redshift
+ind = np.where(clus==names)[0][0]
+z = np.array([np.float64(reds)[ind]]) # redshift
 
-M500 = np.float64(M500)[ind]*u.Msun # M500
+M500 = np.array([np.float64(M500)[ind]])*u.Msun # M500
 r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
@@ -122,25 +115,15 @@ with pm.Model() as model:
     if type(press) == pfuncs.Press_gNFW:
         fitted = ['Ps', 'a', 'b', 'c'] # parameters that we aim to fit
         nps = len(fitted)
-        # Parameters uncertainty across the population
-        [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nps)]
-        # Population-level parameters
-        [pm.Normal(_, mu=logunivpars[0][i], sigma=.1) for i,_ in enumerate(fitted)]
-        # Individual-level parameters
-        [pm.Normal('Ps_'+str(i), mu=model['Ps'], sigma=.1) for i in range(nc)] if 'Ps' in fitted else None
+        [pm.Normal('Ps_'+str(i), mu=logunivpars[0][i], sigma=.1) for i in range(nc)] if 'Ps' in fitted else None
         [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5) for i in range(nc)] if 'a' in fitted else None
         [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)] if 'b' in fitted else None
         [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)] if 'c' in fitted else None
         c500=1.177
         logr_p = np.log10(r500.value/c500)
     else:
-        # Parameters uncertainty across the population
-        [pm.HalfNormal('sig'+str(i), sigma=.5, initval=.5) for i in range(nk)]
-        # Population-level parameters
-        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.3, initval=press_knots[i]) for i in range(nk)]
-        # Individual-level parameters
-        [pm.Normal('P'+str(i)+'_'+str(j), mu=model['P'+str(i)], sigma=model['sig'+str(i)],
-                   initval=press_knots[i]) for j in range(nc) for i in range(nk)]
+        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.5, initval=press_knots[i]) 
+         for i in range(nk)]
 
 # Sampling step
 mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
@@ -162,8 +145,8 @@ def main():
     maxr_data = 1080*u.arcsec-3*fwhm_beam
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, 
-                                  cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, 
+                                  crop_image=crop_image, cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
@@ -184,8 +167,10 @@ def main():
                        mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
-    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
-                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
+    # radius in kpc used to compute the pressure profile (radius 0 excluded)
+    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, 
+                      (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
+                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] 
     r_am = np.arange(0., (mystep*(1+min([len(r) for r in r_pp]))).to(u.arcmin, equivalencies=eq_kpc_as).value,
                      mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
 
@@ -198,8 +183,8 @@ def main():
         conv_temp_sb = 1*u.Unit('')
 
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, 
-                        filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
+    sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
+                        r_pp=r_pp, r_am=r_am, filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
     
     # Add pedestal component to the model
     with model:
@@ -257,19 +242,14 @@ def main():
                      for m, m2, v in zip(model.continuous_value_vars[(2+i)*nk:(3+i)*nk], model.free_RVs[(2+i)*nk:(3+i)*nk], vals[(2+i)*nk:(3+i)*nk])]+
                     [model['peds_%s' %i]] for i in range(nc)]        
         with model:
-            pars = [p[nps:] for p in pars] if type(press)==pfuncs.Press_gNFW else [p[nk:] for p in pars]
             like, pprof, maps, slopes = zip(*map(
                 lambda i, pr, szr, sza, szl, dm, szfl: pfuncs.whole_lik(
                     pr, press, szr, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
                 np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             pm.Potential('pv_like'+str(nn), pt.sum(like))
             infs = [int(np.isinf(l.eval())) for l in like]
-            print('Are there any estimates violating the prior contraints?')
-            print(infs)
             print('likelihood:')
             print(pt.sum(like).eval())
-            print('%i cluster-specific infinite likelihoods' % np.sum(infs))
-            vals = np.loadtxt('%s/starting_point.dat' % savedir)
             [model.set_initval(n, v) for n, v in zip(model.free_RVs, vals)]
         if np.sum(infs) == 0:
             check = pt.sum(like).eval()#model.compile_fn(factor_logps_fn)(model.initial_point())
@@ -292,17 +272,17 @@ def main():
         p_prof = [pm.Deterministic('press'+str(i), pprof[i]) for i in range(nc)]
         like = pm.Potential('like', pt.sum(like))
         if slope_prior:
-            slope = [pm.Deterministic('slope'+str(i), slopes[i]) for i in range(nc)]
-        with open('%s/model_%s.pickle' % (savedir, nc), 'wb') as m:
+            [pm.Deterministic('slope'+str(i), slopes[i]) for i in range(nc)]
+        with open('%s/model.pickle' % savedir, 'wb') as m:
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] for j in range(nc)], plotdir=plotdir)
+                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] for j in range(nc)], 
+                      plotdir=plotdir)
     
     with model:
-        from pymc.sampling.mcmc import assign_step_methods
         step = assign_step_methods(model, None, methods=pm.STEP_METHODS, step_kwargs={})
-        trace = pm.sample(draws=int(1000), tune=int(200*5), chains=8, cores=16, 
+        trace = pm.sample(draws=1000, tune=1000, chains=8, cores=16, 
                           return_inferencedata=True, step=step,
                           initvals=model.initial_point())
     
@@ -313,12 +293,6 @@ def main():
     samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)))
     for (i, par) in enumerate(prs):
         samples[:,i] = np.array(trace['posterior'][par]).flatten()
-
-    # samples = np.zeros((int(sum([trace['posterior'][p].size for p in prs])/2/nc), 2*nc))
-    # for i in range(nc):
-    #     samples[:,i] = np.array(trace['posterior'][prs[0]])[:,:,i].flatten()
-    #     samples[:,nc+i] = np.array(trace['posterior'][prs[1]])[:,:,i].flatten()
-    # np.savetxt('%s/trace_mult.txt' % savedir, samples)
 
     # Extract chain of parameters
     flat_chain = samples # ((nwalkers x niter) x nparams)
@@ -333,117 +307,40 @@ def main():
     pfuncs.print_summary(prs, param_med, param_std, perc_sz[:,1], sz)
     pfuncs.save_summary('%s/%s' % (savedir, name), prs, param_med, param_std, ci=ci)
 
-    # sl = sum([x in prs for x in ['a', 'b', 'c']])
     pm.summary(trace, var_names=prs)
-    pplots.traceplot_new(trace, prs, nc, trans_ped=lambda x: 1e4*x, plotdir=savedir)
-    # axes = az.plot_trace(trace, var_names=prs)
-    # fig = axes.ravel()[0].figure
-    # fig.savefig('%s/tp.pdf' % plotdir)
+    pplots.traceplot(trace, prs, nc, trans_ped=lambda x: 1e4*x, plotdir=savedir)
 
-    axes = az.plot_trace(trace, var_names=['sig'+str(i) for i in range(nk)],#prs[-(nk+nc):-nc], 
-                         transform=np.log10)
-    fig = axes.ravel()[0].figure
-    fig.savefig('%s/traceplots/traceplot_logsigmas.pdf' % plotdir)
-    axes = az.plot_trace(trace, var_names=['P'+str(i) for i in range(nk)])
-    fig = axes.ravel()[0].figure
-    fig.savefig('%s/traceplots/traceplot_Ps_joint.pdf' % plotdir)
-    for i in range(nc):
-        axes = az.plot_trace(trace, var_names=['P'+str(i)+'_'+str(j) for j in range(nc) for i in range(nk)],#prs[(i+1)*nk:(i+2)*nk], 
-                             transform=lambda x: 10**x) if type(press) == pfuncs.Press_gNFW else az.plot_trace(trace, var_names=prs[(i+1)*nk:(i+2)*nk])#, transform=np.log10)#lambda x: 10**x)#np.exp)
-        fig = axes.ravel()[0].figure
-        fig.savefig('%s/traceplots/traceplot_logP%ss.pdf' % (plotdir, i))
-    fig = axes.ravel()[0].figure
-    axes = az.plot_trace(trace, var_names=['peds_'+str(i) for i in range(nc)], transform=lambda x: 1e5*x)
-    fig.suptitle('ped (10^5)')
-    fig.savefig('%s/traceplots/traceplot_peds.pdf' % plotdir)
-    if sl != 0:
-        axes = az.plot_trace(trace, var_names=['a', 'b', 'c'],#prs[nc:nc+sl], 
-                             transform=lambda x: 10**x)#np.exp)
-        fig = axes.ravel()[0].figure
-        fig.savefig('%s/traceplots/traceplot_slopes.pdf' % plotdir)
     # Best fitting profile on SZ surface brightness
-    #rbins = np.tile(np.atleast_2d([50, 150, 300, 500]).T*kpc_as, nc).T.value*u.kpc
-
-    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots#rbins
-                      , peds=[trace.posterior['peds_'+str(j)].data.mean() for j in range(nc)], fact=1e5, ci=ci, plotdir=plotdir)
+    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots.to(u.arcsec, equivalencies=eq_kpc_as).value,
+                      peds=[trace.posterior['peds_'+str(j)].data.mean() for j in range(nc)], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Forest plots
     for i in range(nk):
-        axes = az.plot_forest(trace, var_names=['P'+str(i)+'_'+str(j) for j in range(nc)])#prs[i:i+(nc+1)*nk][::nk])
+        axes = az.plot_forest(trace, var_names=['P'+str(i)])
         fig = axes.ravel()[0].figure
-        fig.savefig('%s/forests/forest_P%s.pdf' % (plotdir, i))
-    axes = az.plot_forest(trace, var_names=['sig'+str(i) for i in range(nk)]#prs[-nc-nk:-nc]
-                          , transform=np.log10)
-    fig = axes.ravel()[0].figure
-    fig.savefig('%s/forests/forest_sigmas.pdf' % plotdir)
-    axes = az.plot_forest(trace, var_names=['peds_'+str(i) for i in range(nc)],#prs[-nc:], 
+        fig.savefig('%s/forest_P%s.pdf' % (plotdir, i))
+    axes = az.plot_forest(trace, var_names=['peds_'+str(i) for i in range(nc)],
                           transform=lambda x: 1e5*x)
     fig = axes.ravel()[0].figure
-    fig.savefig('%s/forests/forest_peds.pdf' % plotdir)
+    fig.savefig('%s/forest_peds.pdf' % plotdir)
+
     # Cornerplots
-    #flat_chain[:,:-nc] = 10**(flat_chain[:,:-nc])#np.exp(flat_chain[:,:-nc])
-    if type(press) == pfuncs.Press_gNFW:
-        pplots.triangle(flat_chain[:,np.where([p[:3]=='sig' for p in prs])[0]#:nc
-                                   ], ['log'+x for x in prs[:nc]], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/logP0_')
-    else:
-        pplots.triangle(flat_chain[:,np.where([p[:3]=='sig' for p in prs])[0]], ['sig_'+str(i) for i in range(nk)], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/sigmas_')
-        pplots.triangle(flat_chain[:,[np.where([p=='P'+str(i) for p in prs])[0][0] for i in range(nk)]], ['logP'+str(i) for i in range(nk)], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/logPs_joint_')
-        # pplots.triangle(flat_chain[:,-(nk+nc):-nc], ['log'+x for x in prs[-(nk+nc):-nc]], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/sigmas_')
-        # pplots.triangle(flat_chain[:,:nk], ['log'+x for x in prs[:nk]], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/logPs_joint_')
-        for i in range(nc):
-            pplots.triangle(flat_chain[:,[np.where([p=='P'+str(j)+'_'+str(i) for p in prs])[0][0] for j in range(nk)]], ['logP'+str(j)+'_'+str(i) for j in range(nk)], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/logP%ss_' % str(i))
-            # pplots.triangle(flat_chain[:,(i+1)*nk:(i+2)*nk], ['log'+x for x in prs[(i+1)*nk:(i+2)*nk]], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/logP%ss_' % str(i))
-    if sl != 0:
-        pplots.triangle(10**flat_chain[:,nc:nc+sl], prs[nc:nc+sl], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/slopes_')
-    pplots.triangle(flat_chain[:,[np.where([p=='peds_'+str(i) for p in prs])[0][0] for i in range(nc)]]*1e5, ['peds_'+str(i) for i in range(nc)], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/peds_')
-    # i1 = [it for s in [[x for x in np.arange(nc//2)], [x for x in np.arange(nc,nc+sl+nc//2)]] for it in s]
-    # i2 = [it for s in [[x for x in np.arange(nc//2)], [x for x in np.arange(nc,nc+sl)], [x for x in np.arange(nc+sl+nc//2,2*nc+sl)]] for it in s]
-    # i3 = [x for x in np.arange(nc//2,nc+sl+nc//2)]
-    # i4 = [it for s in [[x for x in np.arange(nc//2,nc+sl)], [x for x in np.arange(nc+sl+nc//2,2*nc+sl)]] for it in s]
-    # pplots.triangle(flat_chain[:,i1].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i1], 
-    #                 show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix1_')
-    # pplots.triangle(flat_chain[:,i2].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i2], 
-    #                 show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix2_')
-    # pplots.triangle(flat_chain[:,i3].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i3],
-    #                 show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix3_')
-    # pplots.triangle(flat_chain[:,i4].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i4], 
-    #                 show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix4_')
+    pplots.triangle(flat_chain[:,[np.where([p=='P'+str(j) for p in prs])[0][0] for j in range(nk)]], ['logP'+str(j) for j in range(nk)], 
+                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/logPs')
+    pplots.triangle(flat_chain[:,[np.where([p=='peds_'+str(i) for p in prs])[0][0] for i in range(nc)]]*1e5, ['peds_'+str(i) for i in range(nc)], 
+                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/peds_')
 
-    # pplots.triangle(flat_chain, prs, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/cornerplots/all_')
     # Radial pressure profile
-    # pars = [np.log(flat_chain[i,nk:2*nk]) for i in range(flat_chain.shape[0])]
-    # p_prof = [[press.functional_form(shared(sz.r_pp[i]), pars[i], i) for i in range(nk)] for j in range(len(pars))]
-    # p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
-    # [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
-    # import sys; sys.exit()
-
     p_prof = [trace.posterior['press'+str(i)].data.reshape(samples.shape[0], -1) for i in range(nc)]
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
-    [np.savetxt('%s/profiles/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
-    # univpress=None
-    gpress = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-    logunivpars = gpress.get_universal_params(cosmology, z, M500=M500)
-    univpress = [gpress.functional_form(shared(sz.r_pp[i]), logunivpars[i], i).eval()[0] for i in range(nc)]
-    stef = None#np.loadtxt('%s/press_fit_gtm2_flat.dat' % savedir).T[1:]
-    # print(sz.r_pp[0].size); import sys; sys.exit()
-    pplots.spaghetti_press(sz.r_pp, p_prof, clus=clus, nl=100, ci=ci, univpress=univpress, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots, stef=stef)
-    pplots.plot_press(sz.r_pp, p_quant, clus=clus, ci=ci, univpress=univpress, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots, stef=stef)
+    [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
+    univpress=None
+    pplots.spaghetti_press(sz.r_pp, p_prof, clus=clus, nl=100, ci=ci, univpress=univpress, plotdir=plotdir, 
+                           rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
+    pplots.plot_press(sz.r_pp, p_quant, clus=clus, ci=ci, univpress=univpress, plotdir=plotdir, 
+                      rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
 
-    # Compare gnfw vs p-law
-    index = 0
-    '''
-    t_g = az.from_netcdf('./%s/%s/trace_mult.nc' % ('gnfw', clus[index]))
-    t_p = az.from_netcdf('./%s/%s/trace_mult.nc' % ('plaw', clus[index]))
-    #print(t_g.posterior['a'].data.shape);# import sys; sys.exit()
-    #print(t_p.posterior['P0'].data.shape); import sys; sys.exit()
-    p_g = [t_g.posterior['press'+str(i)].data.reshape(samples.shape[0], -1) for i in range(nc)]
-    p_p = [t_p.posterior['press'+str(i)].data.reshape(samples.shape[0], -1) for i in range(nc)]
-    p_g = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_g]
-    p_p = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_p]
-    pplots.press_compare(sz.r_pp, p_g, p_p, ci=ci, univpress=None, plotdir=plotdir, rbins=rbins, stef=stef)
-    '''
     # Outer slope posterior distribution
-    # slopes = pfuncs.get_outer_slope(trace, flat_chain, press, r_out=press.r_out if type(press)==pfuncs.Press_gNFW else None, r_p = r500.value/c500 if type(press)==pfuncs.Press_gNFW else None)
     slopes = np.array([trace.posterior['slope'+str(i)].data.flatten() for i in range(nc)]).flatten()
     pplots.hist_slopes(slopes.flatten(), ci=ci, plotdir=plotdir)
 
