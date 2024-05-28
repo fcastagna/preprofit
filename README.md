@@ -6,8 +6,7 @@
 
 `preprofit` is embedded in [`JoXSZ`](https://github.com/fcastagna/JoXSZ), our complete program that allows to jointly fit the thermodynamic profiles of galaxy clusters from both SZ and X-ray data.
 
-As an example, we show the application of `preprofit` on the high-redshift cluster of galaxies CL J1226.9+3332 (z = 0.89).
-Beam data and transfer function data come from the [NIKA data release](http://lpsc.in2p3.fr/NIKA2LPSZ/nika2sz.release.php).
+As an example, we show the application of `preprofit` on the high-redshift cluster of galaxies SPT-CLJ0500-5116.
 
 PLEASE NOTE that the transfer function filtering method has been changed on March 30th, 2020.
 
