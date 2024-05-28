@@ -1,50 +1,64 @@
-import preprofit_funcs as pfuncs
-import preprofit_plots as pplots
+import ppf_mult_funcs as pfuncs
+import ppf_mult_plots as pplots
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
+from astropy import constants as const
 from scipy.interpolate import interp1d
 from scipy.fftpack import fft2
+import h5py
 import cloudpickle
-import pymc as pm
-from pytensor import shared
+import pymc3 as pm
+import pymc3_ext as pmx
+from theano import shared
 import arviz as az
-import pytensor.tensor as pt
-import astropy.constants as const
-from pymc.sampling.mcmc import assign_step_methods
 
 ### Global and local variables
 
 ## Cluster cosmology
 H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
-cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)	
-names, reds, M500 = np.loadtxt('./data/fullsample_SPT.txt', dtype=('str', 'str'), usecols=(0,3,4), unpack=1)
-
-# Cluster
-clus = ['SPT-CLJ0500-5116']
+names, reds, M500 = np.loadtxt('data/fullsample_SPT.txt', skiprows=1, dtype=('str', 'str'), usecols=(0,3,4), unpack=1)[:,:40]
+clus = []
+for i, n in enumerate(names):
+    try:
+        pfuncs.read_data('data/press_data_'+n+'.dat', ncol=3, units=[u.arcsec, u.Unit(''), u.Unit('')])
+        clus.append(n)
+    except:
+        pass
 nc = len(clus)
-ind = np.where(clus==names)[0][0]
-z = np.array([np.float64(reds)[ind]]) # redshift
+ind = [np.where(clus[i]==names)[0][0] for i in range(nc)]
+z = np.float64(reds)[ind] # redshift
+M500 = np.float64(M500)[ind]*u.Msun # M500
 
-M500 = np.array([np.float64(M500)[ind]])*u.Msun # M500
-r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
-
+cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)	
 kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
 eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
+
+
+# def r500fromM500(M500, z,omegam,omegal,omegak):
+#     "Compute r500 in Mpc given M500 in msol"
+#     Ez=np.sqrt(omegam*(1+z)**3+omegak*(1+z)**2+omegal)
+#     r500 = (3/4* M500/(500. * 2.775e11*0.7*0.7 *Ez**2 * np.pi))**(1/3)
+#     return r500
+r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
+c500 = 1.177
+pnorm = .59/1.14*.175*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
+hz = cosmology.H(z)/cosmology.H0
+P500 = pnorm*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)
 
 ## Beam and transfer function
 # Beam file already includes transfer function?
 beam_and_tf = True
 
 # Beam and transfer function. From input data or Gaussian approximation?
-beam_approx = True
+beam_approx = False
 tf_approx = False
-fwhm_beam = [75]*u.arcsec # fwhm of the normal distribution for the beam approximation
+fwhm_beam = None # fwhm of the normal distribution for the beam approximation
 loc, scale, k = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
 
 # Transfer function provenance (not the instrument, but the team who derived it)
-tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
+tf_source_team = 'SPT' # alternatively, 'MUSTANG' or 'SPT'
 
 ## File names (FITS and ASCII formats are accepted)
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
@@ -68,7 +82,7 @@ flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
 # conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
 # Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
-crop_image = False # adopt or do not adopt?
+crop_image = True # adopt or do not adopt?
 cropped_side = 200 # side of the cropped image (automatically set to odd value)
 
 # Maximum radius for line-of-sight Abel integration
@@ -76,58 +90,108 @@ R_b = 5000*u.kpc
 
 # Name for outputs
 name = 'preprofit'
-plotdir = './' # directory for the plots
-savedir = './' # directory for saved files
+plotdir = './multi/nonparamlaw/' # directory for the plots
+savedir = '%s/save/' % plotdir # directory for saved files
 
 ## Prior on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
 integ_mu = .94/1e3 # from Planck
-integ_sig = .36/1e3 # from Planck
 
+integ_sig = .36/1e3 # from Planck
 ## Prior on the pressure slope at large radii?
-slope_prior = True # apply or do not apply?
-r_out = r500*1.4 # large radius for the slope prior
-max_slopeout = 0. # maximum value for the slope at r_out
+slope_prior = 0#True # apply or do not apply?
+r_out = 1e3*u.kpc # large radius for the slope prior
+max_slopeout = -2. # maximum value for the slope at r_out
 
 ## Pressure modelization
-# 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (restricted cubic spline / power law interpolation)
-# Select your model and please comment the remaining ones
+# 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (cubic spline / power law interpolation)
 
-# 1. Generalized Navarro Frenk and White
-# press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+# Generalized Navarro Frenk and White
+press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
-# 2. Restricted cubic spline
-knots = np.outer([.1, .4, .7, 1, 1.3], r500).T
-press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-
-# 3. Power law interpolation
-# press = pfuncs.Press_nonparam_plaw(rbins=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
-
-## Get parameters from the universal pressure profile
-logunivpars = press.get_universal_params(cosmology, z, M500=M500)
-press_knots = np.mean(logunivpars, axis=0)
-std_knots = np.std(logunivpars, axis=0)
-nk = len(press_knots)
-
-## Model definition
+## Parameters setup
+hz = cosmology.H(z)/cosmology.H0
+h70 = cosmology.H0/(70*cosmology.H0.unit)
+P500 = 1.65e-3*hz**(8/3)*(M500/(3e14*h70**-1*u.Msun))**(2/3)*h70**2*u.keV/u.cm**3
+univpars = [[(8.403*h70**(-3/2)*P500).value[i], 1.051, 5.4905, 0.3081, 
+             (r500.to(u.kpc, equivalencies=eq_kpc_as).value/c500)[i]] for i in range(nc)]
 with pm.Model() as model:
-    # Customize the prior distribution of the parameters using pymc distributions
-    if type(press) == pfuncs.Press_gNFW:
-        fitted = ['Ps', 'a', 'b', 'c'] # parameters that we aim to fit
-        nps = len(fitted)
-        [pm.Normal('Ps_'+str(i), mu=logunivpars[0][i], sigma=.1) for i in range(nc)] if 'Ps' in fitted else None
-        [pm.Normal('a_'+str(i), mu=model['a'], sigma=.5) for i in range(nc)] if 'a' in fitted else None
-        [pm.Normal('b_'+str(i), mu=model['b'], sigma=.5) for i in range(nc)] if 'b' in fitted else None
-        [pm.Normal('c_'+str(i), mu=model['c'], sigma=.5) for i in range(nc)] if 'c' in fitted else None
-        c500=1.177
-        logr_p = np.log10(r500.value/c500)
-    else:
-        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.5, initval=press_knots[i]) 
-         for i in range(nk)]
+    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as testval
+    # To exclude a parameter from the fit, just set it at a fixed value 
+    shape = 1
+    # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
+    testval = np.array([[0., -4.74017024e-05], [5.26077081e-01, .5], [4.25946548e+00, 4], [5.48547959e+00, 5.5],  [8.47405222e+02, 800]])
+    # P_0 = pm.Uniform("P_0", lower=0, upper=1, testval=testval[1,:shape], shape=shape)
+    Ps = pm.Normal("Ps", mu=np.log(1.5), sigma=np.log(3./1.5), shape=nc, testval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598])) #np.array([u[0] for u in univpars])/10))#np.array([1.01714532, 1.82576668, 1.20201582, 0.5638314, 0.2233534, 0.16041357, 0.83527021, 0.36059494, 1.00501252, 0.44485807])/25))
+    a = 1.051#pm.Normal('a', mu=np.log(1.5), sigma=np.log(2/1.5), testval=np.log(1.5))#pm.Uniform('a', lower=0.5, upper=50., testval=testval[2,:shape], shape=shape)
+    b = 5.4905#pm.Normal('b', mu=np.log(80), sigma=np.log(150/80), testval=np.log(80))#pm.Uniform('b', lower=3, upper=70, testval=testval[3,:shape], shape=shape)
+    c = 0.3081#pm.Normal('c', mu=np.log(2.5), sigma=np.log(3/2.5), testval=np.log(2.5))
+    # r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=testval[4,:shape], shape=shape)
+    r_p = r500.value/c500
+    for i in range(nc):
+        # pm.Uniform("P_"+str(i+1), lower=0, upper=1, testval=.5, shape=shape)
+        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, testval=0., shape=shape)
+
+pars = [[Ps[i],#model["P_"+str(i+1)],
+         a,
+         b,
+         c,
+         r_p[i],
+         model["ped"+str(i+1)]] for i in range(nc)]
+
+'''
+# Cubic spline
+knots = [100, 300, 600, 1000, 2000]*u.kpc
+press_knots = [9e-1, 8e-1, 2e-1, 5e-2, 5e-3]*u.Unit('keV/cm3')
+press = pfuncs.Press_cubspline(knots=knots, pr_knots=press_knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+
+# Power law interpolation
+rbins = [100, 300, 600, 1000, 2000]*u.kpc
+pbins = [1e-1, 2e-2, 5e-3, 1e-3, 1e-4]*u.Unit('keV/cm3')
+press = pfuncs.Press_nonparam_plaw(rbins=rbins, pbins=pbins, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
+press_knots = np.array([8.72610158e-01, 9.61980539e-01, 3.72659125e-01, 1.98599309e-03, 3.02911941e-04])#pbins.value
+
+# ## Parameters setup
+with pm.Model() as model:
+    # Customize the prior distribution of the parameters using Pymc3 distributions, optionally setting the starting value as testval
+    # To exclude a parameter from the fit, just set it at a fixed value 
+    shape = 1
+    # testval = np.array([[0., .5], [.15, .5], [2.81, 4], [6.29, 3.5], [380, 700]])
+    testval = np.tile(press_knots, (shape,1)) if shape > 1 else press_knots
+    for i in range(len(press_knots)):
+        # pm.Uniform("P_"+str(i), lower=0., upper=1., testval=testval[i], shape=shape) 
+        pm.Normal("P"+str(i)+"s", mu=np.log(press_knots[i]), sigma=np.log(5), shape=nc)#, testval=np.log([2.60908608, 2.03602627, 2.84339852, 1.71772373, 0.72905945, 0.68454561, 1.48586932, 0.65181141, 2.34198767, 1.574598]))
+    for i in range(nc):
+        pm.Uniform("ped"+str(i+1), lower=-1, upper=1, testval=0., shape=shape)
+pars = [[model['P'+str(i)+'s'][j] for i in range(len(press_knots))] for j in range(nc)]
+[p.append(model['ped'+str(i+1)]) for i, p in enumerate(pars)]
+'''
+# To start the MCMC not too far from the peak of the posterior, you can guess a value of r500 and
+# JoXSZ will automatically apply the parameters of the universal pressure profile defined in Arnaud et al. 2010
+# NOTE: this option is available for both parametric and non parametric pressure models
+# press.set_universal_params(r500=600*u.kpc, cosmo=cosmology, z=z)
+
+# Otherwise, you can customize your set of parameters
+# For each parameter, use the following to change the values of the prior distribution, either altogether...
+#press.pars['P_0'] = pfuncs.Param(val=1.5, minval=0.1, maxval=10., frozen=False, unit=u.Unit('keV cm-3'))
+# ... or separately
+#press.pars['P_0'].val = 1.5
+#press.pars['P_0'].minval = 0.1
+#press.pars['P_0'].maxval = 10.
+# To adopt a Gaussian prior:
+#press.pars['r_p'] = pfuncs.ParamGaussian(400., prior_mu=300., prior_sigma=50, minval=0.1, unit=u.kpc)
 
 # Sampling step
 mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
+
+# MCMC parameters
+nburn = 2000 # number of burn-in iterations
+nlength = 5000 # number of chain iterations (after burn-in)
+nwalkers = 30 # number of random walkers
+nthreads = 8 # number of processes/threads
+nthin = 50 # thinning
+seed = None # random seed
 
 # Uncertainty level
 ci = 68
@@ -138,42 +202,44 @@ ci = 68
 
 def main():
 
+    # Parameter definition
+    # press.fit_pars =  [x for x in press.pars if not press.pars[x].frozen]
+    # press.max_val = [press.pars[name].maxval for name in press.fit_pars]
+    # press.min_val = [press.pars[name].minval for name in press.fit_pars]
+    # ndim = len(press.fit_pars)
+    # press.indexes = {'ind_'+x: np.array(press.fit_pars)==x if x in press.fit_pars else press.pars[x].val for x in name_pars}
+
     # Flux density data
     flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
-    # maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
-    # maxr_data = maxr_data.mean()
-    maxr_data = 1080*u.arcsec-3*fwhm_beam
+    maxr_data = [flux_data[i][0][-1].value for i in range(len(flux_data))]*flux_data[0][0][-1].unit # largest radius in the data
+    maxr_data = maxr_data.mean()
+    # press.pars['pedestal'].unit = flux_data[1].unit # automatically update pedestal parameter unit
 
     # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, 
-                                  crop_image=crop_image, cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
+    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, crop_image=crop_image, cropped_side=cropped_side, 
+                                  normalize=True, fwhm_beam=fwhm_beam)
 
     # The following depends on whether the beam image already includes the transfer function
     if beam_and_tf:
-        filtering = fft2(beam_2d)
-        if crop_image:
-            from scipy.fftpack import fftshift, ifftshift
-            filtering = ifftshift(pfuncs.get_central(fftshift(filtering), cropped_side))
+        filtering = np.abs(fft2(beam_2d))
     else:
         # Transfer function
         wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
         filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep, eq_kpc_as) # transfer function matrix
-        filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
+        filtering = np.abs(fft2(beam_2d))*filt_tf # filtering matrix including both PSF and transfer function
 
     # Radius definition
-    mymaxr = [filtering.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
+    mymaxr = [beam_2d.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
               mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)][0] # max radius needed
     radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as)).value, 
                        mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
-    # radius in kpc used to compute the pressure profile (radius 0 excluded)
-    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, 
-                      (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value, 
-                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] 
+    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value, (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]).value,
+                     mystep.to(u.kpc, equivalencies=eq_kpc_as)[i].value)*u.kpc for i in range(nc)] # radius in kpc used to compute the pressure profile (radius 0 excluded)
     r_am = np.arange(0., (mystep*(1+min([len(r) for r in r_pp]))).to(u.arcmin, equivalencies=eq_kpc_as).value,
                      mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
-
+    
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
         temp_data, conv_data = pfuncs.read_data(convert_filename, 2, conv_units)
@@ -181,118 +247,68 @@ def main():
         conv_temp_sb = conv_fun(t_const)*conv_units[1]
     else:
         conv_temp_sb = 1*u.Unit('')
-
+    
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
-                        r_pp=r_pp, r_am=r_am, filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
-    
-    # Add pedestal component to the model
-    with model:
-        [pm.Normal("peds_"+str(i), 0, 10**int(np.round(np.log10(abs(sz.flux_data[0][1].value)), 0)[4:].max()-1)) for i in range(nc)]
+    sz = pfuncs.SZ_data(step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, r_pp=r_pp, r_am=r_am, 
+                        filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
-    # Compute P500 for each cluster according to the definition in Equation (5) from Arnaud's paper
-    mu, mu_e, f_b = .59, 1.14, .175
-    pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
-    alpha_P = 1/.561-5/3
-    alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
-    hz = cosmology.H(z)/cosmology.H0
-    def conv(x, i): 
-        return pnorm*hz[i]**(8/3)*(M500[i]/3e14/u.Msun)**(2/3)*(M500[i]/3e14/u.Msun)**(alpha_P+alpha1_P(x))
-    press.P500 = []
-    [press.P500.append([conv(r.value, i).value for r in sz.r_pp[i]/r500[i]]) for i in range(nc)]
-    press.r500 = [r for r in r500]
-    
-    # Other indexes
     if type(press) == pfuncs.Press_nonparam_plaw:
-        press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[i], press.rbins[i])-1) for i in range(nc)] # lower bins indexes
-        press.r_low = [press.rbins[i][press.ind_low[i]] for i in range(nc)] # lower radial bins
-        press.alpha_ind = [np.minimum(press.ind_low[i], len(press.rbins[i])-2) for i in range(nc)] # alpha indexes
+        press.ind_low = [np.maximum(0, np.digitize(r, press.rbins)-1) for r in sz.r_pp]# lower bins indexes
+        press.r_low = [press.rbins[i] for i in press.ind_low] # lower radial bins
+        press.alpha_ind = [np.minimum(i, len(press.rbins)-2) for i in press.ind_low]# alpha indexes
+
+    
+    # Modeled profile resulting from starting parameters VS observed data (useful to adjust parameters if they are way off the target
+    # with model:
+    #     ll = (pfuncs.mylog_lik(shared(r_pp), P_0, a, b, c, r_p, ped, press, sz))
+    #     try:
+    #         np.isfinite(pmx.eval_in_model(ll))
+    #         sb = pmx.eval_in_model(pfuncs.mylog_lik(shared(r_pp), P_0, a, b, c, r_p, ped, press, sz, output='bright'))
+    #     except:
+    #         raise Warning('The starting parameters are not in accordance with the prior distributions. Better change them!')
     
     # Save objects
-    with open('%s/press_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
+    with open('%s/press_obj_mult.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(press, f, -1)
-    with open('%s/szdata_obj_mult_%s.pickle' % (savedir, nc), 'wb') as f:
+    with open('%s/szdata_obj_mult.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(sz, f, -1)
-
-    ## Sampling
-    ilike = pt.as_tensor([np.inf])
-    nn = 0
-    npar = len(model.free_RVs)
-    while np.isinf(pt.sum(ilike).eval()):
-        print('---\nSearching...')
-        if nn > 0:
-            infs = np.where(infs)[0]
-            inds = [i for s in [list(np.arange(npar)[2*nk:][_*nk:_*nk+nk])+[np.arange(npar)[-nc:][_]] for _ in infs] for i in s]
-            pm.draw([model.free_RVs[i] for i in inds])
-        vals = [x.eval() for x in model.free_RVs]
-        if type(press) == pfuncs.Press_gNFW:
-            pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[:nps], model.free_RVs[:nps], vals[:nps])]+
-                    [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
-                     for m, m2 in zip(model.continuous_value_vars[2*nps:][i:nc*nps:nc], model.free_RVs[2*nps:][i:nc*nps:nc])]+
-                    [logr_p[i]]+[model['peds_%s' %i]] for i in range(nc)]
-        else:
-            pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[:nk], model.free_RVs[:nk], vals[:nk])]+
-                    [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[(2+i)*nk:(3+i)*nk], model.free_RVs[(2+i)*nk:(3+i)*nk], vals[(2+i)*nk:(3+i)*nk])]+
-                    [model['peds_%s' %i]] for i in range(nc)]        
-        with model:
-            like, pprof, maps, slopes = zip(*map(
-                lambda i, pr, szr, sza, szl, dm, szfl: pfuncs.whole_lik(
-                    pr, press, szr, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
-                np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
-            pm.Potential('pv_like'+str(nn), pt.sum(like))
-            infs = [int(np.isinf(l.eval())) for l in like]
-            print('likelihood:')
-            print(pt.sum(like).eval())
-            [model.set_initval(n, v) for n, v in zip(model.free_RVs, vals)]
-        if np.sum(infs) == 0:
-            check = pt.sum(like).eval()#model.compile_fn(factor_logps_fn)(model.initial_point())
-            print('logp: %f' % check)#[-1])
-            df = np.array(pars).flatten().size
-            red_chisq = -2*check/df#[-1]/df
-            print('Reduced chisq: %f' % red_chisq)
-            if red_chisq > 100:
-                print('Too high! Retry')
-                pm.draw([m for m in model.free_RVs])
-            else:
-                np.savetxt('%s/starting_point.dat' % savedir, np.array(vals))
-                ilike = pt.sum([shared(check)])
-        nn += 1
-        if nn == 1000:
-            raise RuntimeError('Valid starting point not found after 100 attempts. Execution stopped')
-    
+    #print(model.test_point); import sys; sys.exit()
     with model:
-        map_prof = [pm.Deterministic('bright'+str(i), maps[i]) for i in range(nc)]
-        p_prof = [pm.Deterministic('press'+str(i), pprof[i]) for i in range(nc)]
-        like = pm.Potential('like', pt.sum(like))
-        if slope_prior:
-            [pm.Deterministic('slope'+str(i), slopes[i]) for i in range(nc)]
+        # print(len(pmx.eval_in_model(pfuncs.log_lik(P_0, a, b, c, r_p, model, press, sz, 'bright'))))
         with open('%s/model.pickle' % savedir, 'wb') as m:
             cloudpickle.dump(model, m, -1)
-        start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
-    pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] for j in range(nc)], 
-                      plotdir=plotdir)
-    
+        pp = [pm.Deterministic('press'+str(i), pfuncs.log_lik_press(pr, press, model, sz, i)) for i, pr in enumerate(pars)]
+        map_prof = [pm.Deterministic('bright'+str(i), pfuncs.log_lik_prof(pr, p, shape, sz, i)) for i, (pr, p) in enumerate(zip(pars, pp))]
+        # map_prof = pm.Potential('br', pfuncs.log_lik_prof(pars, pp, shape, sz))
+        # map_prof2 = [pm.Deterministic('br'+str(i), pfuncs.log_lik_prof2(m, sz, i)) for i, m in enumerate(map_prof)]
+        like = pm.Potential('like', pfuncs.log_lik_final(map_prof, sz))
+        ll = pm.Deterministic('loglik', model.logpt)
+        start_guess = pmx.eval_in_model(map_prof)
+        # print(start_guess[:3])
+    pplots.plot_guess(start_guess, sz, plotdir=plotdir)
+    # import sys; sys.exit()
     with model:
-        step = assign_step_methods(model, None, methods=pm.STEP_METHODS, step_kwargs={})
-        trace = pm.sample(draws=1000, tune=1000, chains=8, cores=16, 
-                          return_inferencedata=True, step=step,
-                          initvals=model.initial_point())
-    
-    trace.to_netcdf("%s/trace_mult.nc" % savedir)
+        start = pm.find_MAP(start=model.test_point, model = model)
+        trace = pm.sample(draws=1000
+                          , tune=300
+                          , chains=4, return_inferencedata=True, step=pm.Slice(), start=start)
+
+    trace.to_netcdf("%s/trace_mult.nc" % savedir)#; import sys; sys.exit()
     # trace = az.from_netcdf("%s/trace_mult.nc" % savedir)
     prs = [k for k in trace.posterior.keys()]
-    prs = prs[:np.where([p[:2]=='br' for p in prs])[0][0]]
-    samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)))
-    for (i, par) in enumerate(prs):
-        samples[:,i] = np.array(trace['posterior'][par]).flatten()
+    prs = prs[:np.where([p[:2]=='pr' for p in prs])[0][0]]
+    
+
+    # samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)))
+    # for (i, par) in enumerate(prs):
+    #     samples[:,i] = np.array(trace['posterior'][par]).flatten()
+
+    samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)+9))
+    for i in range(10):
+        samples[:,i] = np.array(trace['posterior'][prs[0]])[:,:,i].flatten()
+    for (i, par) in enumerate(prs[1:]):
+        i = i+10;samples[:,i] = np.array(trace['posterior'][par]).flatten() 
+    np.savetxt('%s/trace_mult.txt' % savedir, samples)
 
     # Extract chain of parameters
     flat_chain = samples # ((nwalkers x niter) x nparams)
@@ -307,42 +323,71 @@ def main():
     pfuncs.print_summary(prs, param_med, param_std, perc_sz[:,1], sz)
     pfuncs.save_summary('%s/%s' % (savedir, name), prs, param_med, param_std, ci=ci)
 
+
+    sl = sum([x in prs for x in ['a', 'b', 'c']])
     pm.summary(trace, var_names=prs)
-    pplots.traceplot(trace, prs, nc, trans_ped=lambda x: 1e4*x, plotdir=savedir)
+    # axes = az.plot_trace(trace, var_names=prs)
+    # fig = axes.ravel()[0].figure
+    # fig.savefig('%s/tp.pdf' % plotdir)
+    axes = az.plot_trace(trace, var_names=prs[0], transform=np.exp)
+    fig = axes.ravel()[0].figure
+    fig.savefig('%s/traceplot_P0.pdf' % plotdir)
+    axes = az.plot_trace(trace, var_names=prs[1+sl:])
+    fig = axes.ravel()[0].figure
+    fig.savefig('%s/traceplot_peds.pdf' % plotdir)
+    if sl != 0:
+        axes = az.plot_trace(trace, var_names=prs[1:1+sl], transform=np.exp)
+        fig = axes.ravel()[0].figure
+        fig.savefig('%s/traceplot_slopes.pdf' % plotdir)
+    # Cornerplots
+    prs_new = ['P0_'+str(i+1) for i in range(nc)]
+    [prs_new.append(p) for p in prs[1:]]
+    flat_chain[:,:nc+sl] = np.exp(flat_chain[:,:nc+sl])  
+    pplots.triangle(flat_chain[:,:nc], prs_new[:nc], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'P0s_')
+    if sl != 0:
+        pplots.triangle(flat_chain[:,nc:nc+sl], prs_new[nc:nc+sl], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'slopes_')
+    pplots.triangle(flat_chain[:,nc+sl:], prs_new[nc+sl:], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'peds_')
+    i1 = [it for s in [[x for x in np.arange(nc//2)], [x for x in np.arange(nc,nc+sl+nc//2)]] for it in s]
+    i2 = [it for s in [[x for x in np.arange(nc//2)], [x for x in np.arange(nc,nc+sl)], [x for x in np.arange(nc+sl+nc//2,2*nc+sl)]] for it in s]
+    i3 = [x for x in np.arange(nc//2,nc+sl+nc//2)]
+    i4 = [it for s in [[x for x in np.arange(nc//2,nc+sl)], [x for x in np.arange(nc+sl+nc//2,2*nc+sl)]] for it in s]
+    pplots.triangle(flat_chain[:,i1].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i1], 
+                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix1_')
+    pplots.triangle(flat_chain[:,i2].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i2], 
+                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix2_')
+    pplots.triangle(flat_chain[:,i3].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i3],
+                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix3_')
+    pplots.triangle(flat_chain[:,i4].reshape(flat_chain.shape[0], nc+sl), [prs_new[x] for x in i4], 
+                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'mix4_')
 
     # Best fitting profile on SZ surface brightness
-    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots.to(u.arcsec, equivalencies=eq_kpc_as).value,
-                      peds=[trace.posterior['peds_'+str(j)].data.mean() for j in range(nc)], fact=1e5, ci=ci, plotdir=plotdir)
-
-    # Forest plots
-    for i in range(nk):
-        axes = az.plot_forest(trace, var_names=['P'+str(i)])
-        fig = axes.ravel()[0].figure
-        fig.savefig('%s/forest_P%s.pdf' % (plotdir, i))
-    axes = az.plot_forest(trace, var_names=['peds_'+str(i) for i in range(nc)],
-                          transform=lambda x: 1e5*x)
-    fig = axes.ravel()[0].figure
-    fig.savefig('%s/forest_peds.pdf' % plotdir)
-
-    # Cornerplots
-    pplots.triangle(flat_chain[:,[np.where([p=='P'+str(j) for p in prs])[0][0] for j in range(nk)]], ['logP'+str(j) for j in range(nk)], 
-                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/logPs')
-    pplots.triangle(flat_chain[:,[np.where([p=='peds_'+str(i) for p in prs])[0][0] for i in range(nc)]]*1e5, ['peds_'+str(i) for i in range(nc)], 
-                    show_lines=True, col_lines='r', ci=ci, plotdir=plotdir+'/peds_')
+    pplots.fitwithmod(sz, perc_sz, ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
     p_prof = [trace.posterior['press'+str(i)].data.reshape(samples.shape[0], -1) for i in range(nc)]
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
     [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
-    univpress=None
-    pplots.spaghetti_press(sz.r_pp, p_prof, clus=clus, nl=100, ci=ci, univpress=univpress, plotdir=plotdir, 
-                           rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
-    pplots.plot_press(sz.r_pp, p_quant, clus=clus, ci=ci, univpress=univpress, plotdir=plotdir, 
-                      rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
+    pplots.plot_press(sz.r_pp, p_quant, ci=ci, plotdir=plotdir)
+
+    with model:
+        univpress = [pmx.eval_in_model(press.functional_form(shared(sz.r_pp[i]), univpars[i]))[:,0] 
+                     for i in range(nc)]
 
     # Outer slope posterior distribution
-    slopes = np.array([trace.posterior['slope'+str(i)].data.flatten() for i in range(nc)]).flatten()
-    pplots.hist_slopes(slopes.flatten(), ci=ci, plotdir=plotdir)
+    # slopes = np.zeros(flat_chain.shape[0])
+    # for i in range(slopes.size):
+    #     with pm.Model() as mod:
+    #         P_0 = pm.Uniform("P_0", lower=0, upper=1, testval=flat_chain[i,0])
+    #         a = pm.Uniform('a', lower=0.5, upper=10., testval=flat_chain[i,1])
+    #         b = pm.Uniform('b', lower=3, upper=20, testval=flat_chain[i,2])
+    #         c = .014#pm.Deterministic('c', shared(np.repeat(.014, shape)))
+    #         r_p = pm.Uniform('r_p', lower=100., upper=1000., testval=flat_chain[i,3])
+    #         ped = pm.Uniform("ped", lower=-1, upper=1, testval=flat_chain[i,4])
+    #         pars = P_0, a, b, c, r_p, ped
+    #         slopes[i] = pmx.eval_in_model(press.functional_form(press.r_out, pars, logder=True))
+
+    # slopes = pfuncs.get_outer_slope(flat_chain, press, press.r_out)
+    # pplots.hist_slopes(slopes, ci=ci, plotdir=plotdir)
 
 if __name__ == '__main__':
     main()

@@ -2,13 +2,12 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
 import corner
-import arviz as az
 
 plt.style.use('classic')
-font = {'size': 10}
+font = {'size': 20}
 plt.rc('font', **font)
 
-def plot_guess(out_prof, sz, knots=None, plotdir='./'):
+def plot_guess(out_prof, sz,  plotdir='./'):
     '''
     Modeled profile resulting from starting parameters VS observed data
     -------------------------------------------------------------------
@@ -16,19 +15,15 @@ def plot_guess(out_prof, sz, knots=None, plotdir='./'):
     sz = class of SZ data
     plotdir = directory where to place the plot
     '''
-    plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
     for i in range(len(sz.flux_data)):
-        if len(sz.flux_data) > 1:
-            plt.subplot(221+i%4)
+        plt.subplot(221+i%4)
         plt.plot(sz.radius[sz.sep:], out_prof[i][0], color='r', label='Starting guess')
-        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value, yerr=sz.flux_data[i][2].value,
+        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value, yerr=sz.flux_data[i][2].value, 
                      fmt='o', fillstyle='none', color='black', label='Observed data')
-        if knots is not None:
-            [plt.axvline(k, linestyle=':') for k in knots[i]]
         if i == 0:
             plt.legend()
-        plt.ylim(np.min([fl[1].min() for fl in sz.flux_data]), np.max([fl[1].max() for fl in sz.flux_data]))
+        plt.ylim(np.min([fl[1].value for fl in sz.flux_data]), np.max([fl[1].value for fl in sz.flux_data]))
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
         if i%4 > 1:
             plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
@@ -37,26 +32,48 @@ def plot_guess(out_prof, sz, knots=None, plotdir='./'):
         if (i+1)%4 == 0:
             pdf.savefig()
             plt.clf()
-    pdf.savefig()
+    pdf.savefig()        
     pdf.close()
 
-def traceplot(trace, prs, nc, nk=5, trans_ped=None, ppp=10, div=None, plotdir='./'):
+def traceplot(cube_chain, param_names, plotw=20, seed=None, ppp=4, labsize=18., ticksize=10., plotdir='./'):
     '''
+    Traceplot of the MCMC
+    ---------------------
+    cube_chain = 3d array of sampled values (nw x niter x nparam)
+    param_names = names of the parameters
+    plotw = number of random walkers that we wanna plot (default is 20)
+    seed = random seed (default is None)
+    ppp = number of plots per page
+    labsize = label font size
+    ticksize = ticks font size
+    plotdir = directory where to place the plot
     '''
     plt.clf()
-    prs_latex = ['${}$'.format(i) for i in prs]
+    nw, nsteps = cube_chain.shape[:2]
+    np.random.seed(seed)
+    ind_w = np.random.choice(nw, plotw, replace=False)
+    param_latex = ['${}$'.format(i) for i in param_names]
     pdf = PdfPages(plotdir+'traceplot.pdf')
-    for i in range(int((len(prs)-.5)//ppp)+1):
-        axes = az.plot_trace(trace, var_names=prs[i*ppp:min((i+1)*ppp,len(prs))], divergences=div)
-        [axes[_][j].set_title('') for j in [0,1] for _ in range(len(axes))]
-        [axes[_][0].set_ylabel(prs_latex[i*ppp:min((i+1)*ppp,len(prs))][_], fontdict={'fontsize':20}) for _ in range(len(axes))]
-        axes[-1][0].set_xlabel('Value')
-        axes[-1][1].set_xlabel('Iteration')
-        pdf.savefig(bbox_inches='tight')
-    plt.clf()
+    for i in np.arange(cube_chain.shape[2]):
+        plt.subplot(ppp, 1, i%ppp+1)
+        for j in ind_w:
+            plt.plot(np.arange(nsteps)+1, cube_chain[j,:,i], linewidth=.2)
+            plt.tick_params(labelbottom=False)
+        plt.ylabel('%s' %param_latex[i], fontdict={'fontsize': labsize})
+        plt.tick_params('y', labelsize=ticksize)
+        if (abs((i+1)%ppp) < 0.01):
+            plt.tick_params(labelbottom=True)
+            plt.xlabel('Iteration number')
+            pdf.savefig(bbox_inches='tight')
+            if i+1 < cube_chain.shape[2]:
+                plt.clf()
+        elif i+1 == cube_chain.shape[2]:
+            plt.tick_params(labelbottom=True)
+            plt.xlabel('Iteration number')
+            pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
+def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
@@ -69,15 +86,15 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
     titsize = titles font size
     plotdir = directory where to place the plot
     '''
-    pdf = PdfPages(plotdir+'cornerplot.pdf')
     plt.clf()
+    pdf = PdfPages(plotdir+'cornerplot.pdf')
     param_latex = ['${}$'.format(i) for i in param_names]
     fig = corner.corner(mat_chain, labels=param_latex, title_kwargs={'fontsize': titsize}, label_kwargs={'fontsize': labsize})
     axes = np.array(fig.axes).reshape((len(param_names), len(param_names)))
     plb, pmed, pub = get_equal_tailed(mat_chain, ci=ci)
     for i in range(len(param_names)):
         l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
-        axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
+        axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[i], pmed[i], l_err, u_err))
         if show_lines:
             axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
             axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
@@ -94,7 +111,7 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
                     axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-            if legend: fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=titsize+len(param_names))
+            fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=titsize+len(param_names))
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
@@ -109,7 +126,7 @@ def get_equal_tailed(data, ci=95):
     low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
     return np.array([low, med, upp])
 
-def fitwithmod(sz, perc_sz, eq_kpc_as, clus, rbins=None, peds=None, fact=1, ci=95, plotdir='./'):
+def fitwithmod(sz, perc_sz, ci=95, plotdir='./'):
     '''
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties
     -----------------------------------------------------------------------------------------------
@@ -118,26 +135,28 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, clus, rbins=None, peds=None, fact=1, ci=9
     ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
+    plt.clf()
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
     for i in range(len(sz.flux_data)):
-        plt.clf()
-        plt.title(clus[i])
-        lsz, msz, usz = perc_sz[i]*fact
+        plt.subplot(221+i%4)
+        lsz, msz, usz = perc_sz[i]
         plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
         plt.fill_between(sz.radius[sz.sep:].value, lsz, usz, color='gold', label='%i%% CI' % ci)
-        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value*fact, yerr=sz.flux_data[i][2].value*fact, fmt='o', 
-                     fillstyle='none', color='black', label='Observed data')
+        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value, yerr=sz.flux_data[i][2].value, fmt='o', fillstyle='none', color='black', label='Observed data')
         plt.xlim(0., 50+np.ceil(sz.flux_data[i][0][-1].value))
-        if rbins is not None:
-            [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
-        if peds is not None:
-            plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
-        plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
-        plt.ylabel('Surface brightness ('+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$)' % np.log10(fact) if fact != 1 else '')
-        pdf.savefig()
+        if i == 0:
+            plt.legend()
+        if i%4 > 1:
+            plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
+        if i%2 == 0:
+            plt.ylabel('Surface brightness ('+str(sz.flux_data[i][1].unit)+')')
+        if (i+1)%4 == 0:
+            pdf.savefig()
+            plt.clf()
+    pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, plotdir='./'):
+def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, univpress=None, ci=95, plotdir='./'):
     '''
     Plot the radial pressure profiles
     ---------------------------------
@@ -147,33 +166,33 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
     ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
-    plt.style.use('classic')
-    font = {'size': 10}
-    plt.rc('font', **font)
     pdf = PdfPages(plotdir+'press_fit.pdf')
+    plt.clf()
     for i in range(len(press_prof)):
-        plt.clf()
-        plt.title(clus[i])
+        plt.subplot(221+i%4)
         l_press, m_press, u_press = press_prof[i]
         xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
         ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
         e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
         plt.plot(r_kpc[i][e_ind], m_press[e_ind])
-        plt.fill_between(r_kpc[i][e_ind].value, l_press[e_ind], u_press[e_ind], color='powderblue', label='_nolegend_')
-        if rbins is not None:
-            [plt.axvline(r.value, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
+        plt.fill_between(r_kpc[i][e_ind].value, l_press[e_ind], u_press[e_ind], color='powderblue')
         plt.xscale('log')
         plt.yscale('log')
         if univpress is not None:
             plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
-        plt.ylim(1e-5, 1e-1)
-        plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
-        plt.ylabel('Pressure (keV cm$^{-3}$)')
-        plt.suptitle('Radial pressure profile (median + %i%% CI)' % ci)
-        if univpress is not None:
-            plt.legend(('fitted', 'universal'), loc='lower left')
+        if i%4 > 1:
+            plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
+        if i%2 == 0:
+            plt.ylabel('Pressure (keV cm$^{-3}$)')
+        if i == 0:
+            plt.title('Radial pressure profile (median with %i%% CI)' % ci)
+            if univpress is not None:
+                plt.legend(('fitted', 'universal'))
         plt.xlim(xmin, xmax)
-        pdf.savefig()
+        if (i+1)%4 == 0:
+            pdf.savefig()
+            plt.clf()
+    pdf.savefig(bbox_inches='tight')
     pdf.close()
 
 def hist_slopes(slopes, ci=95, plotdir='./'):
@@ -184,10 +203,10 @@ def hist_slopes(slopes, ci=95, plotdir='./'):
     ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
+    low, med, upp = get_equal_tailed(slopes, ci=ci)
     pdf = PdfPages(plotdir+'outer_slopes.pdf')
     plt.clf()
     plt.title('Outer slope - Posterior distribution')
-    low, med, upp = get_equal_tailed(slopes, ci=ci)
     plt.hist(slopes, density=True, histtype='step', color='black')
     plt.axvline(med, color='black', linestyle='--', label='Median')
     plt.axvline(low, color='black', linestyle='-.', label='%i%% CI' % ci)
@@ -195,36 +214,4 @@ def hist_slopes(slopes, ci=95, plotdir='./'):
     plt.xlabel('Outer slope')
     plt.ylabel('Density')
     pdf.savefig(bbox_inches='tight')
-    pdf.close()
-
-def spaghetti_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, nl=50, ci=95, univpress=None, rbins=None, plotdir='./'):
-    '''
-    Plot the radial pressure profiles
-    ---------------------------------
-    r_kpc = radius (kpc)
-    press_prof = best fitting pressure profile (median and interval)
-    xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
-    ci = uncertainty level of the interval
-    plotdir = directory where to place the plot
-    '''
-    pdf = PdfPages(plotdir+'spaghetti_press.pdf')
-    for i in range(len(press_prof)):
-        plt.clf()
-        plt.title(clus[i])
-        xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
-        ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
-        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
-        [plt.plot(r_kpc[i][e_ind], p[e_ind], color='grey', linewidth=.4) for p in press_prof[i][:nl]]
-        plt.ylim(1e-7, 2e-1)
-        plt.xscale('log')
-        plt.yscale('log')
-        if univpress is not None:
-            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
-        if rbins is not None:
-            [plt.axvline(r.value, linestyle=':', color='grey') for r in rbins[i]]
-        plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
-        plt.ylabel('Pressure (keV cm$^{-3}$)')
-        plt.suptitle('%s Radial pressure profiles' % str(nl))
-        plt.xlim(xmin, xmax)
-        pdf.savefig()
     pdf.close()
