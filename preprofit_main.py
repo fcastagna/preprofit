@@ -190,7 +190,7 @@ def main():
     with model:
         [pm.Normal("peds_"+str(i), 0, 10**int(np.round(np.log10(abs(sz.flux_data[0][1].value)), 0)[4:].max()-1)) for i in range(nc)]
 
-    # Compute P500 for each cluster according to the definition in Equation (5) from Arnaud's paper
+    # Compute P500 according to the definition in Equation (5) from Arnaud's paper
     mu, mu_e, f_b = .59, 1.14, .175
     pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
     alpha_P = 1/.561-5/3
