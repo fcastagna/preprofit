@@ -123,8 +123,7 @@ with pm.Model() as model:
         c500=1.177
         logr_p = np.log10(r500.value/c500)
     else:
-        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.5, initval=press_knots[i]) 
-         for i in range(nk)]
+        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.5, initval=press_knots[i]) for i in range(nk)]
 
 # Sampling step
 mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
