@@ -50,22 +50,22 @@ class Press_gNFW(Pressure):
         r_p = 10**pars[-1]
         r_p = shared(r_p) if type(r_p) is not TensorVariable else r_p
         if not logder:
-            den1 = pt.outer(r_kpc, 1/r_p)**c
-            den2 = (1+pt.outer(r_kpc, 1/r_p)**a)**((b-c)/a)
-            return pt.transpose(P_0/(den1*den2))
+            den1 = pt.mul(r_kpc, 1/r_p)**c
+            den2 = (1+pt.mul(r_kpc, 1/r_p)**a)**((b-c)/a)
+            return P_0/(den1*den2)
         else:
-            den = 1+pt.outer(r_kpc, 1/r_p)**a
-            return pt.transpose((b-c)/den-b)
+            den = 1+pt.mul(r_kpc, 1/r_p)**a
+            return (b-c)/den-b
 
-    def prior(self, pars, i):
+    def prior(self, pars, r_kpc, i):
         '''
         Checks accordance with prior constraints
         ---------------------------------------
         pars = set of pressure parameters
         '''
         if self.slope_prior:
-            slopes_out = self.functional_form(shared(self.r_out[i].value), pars, logder=True)
-            return pt.switch(pt.gt(slopes_out, self.max_slopeout), -np.inf, 0.), slopes_out
+            slope_out = self.functional_form(shared(self.r_out[i].value), pars, logder=True)
+            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
@@ -81,66 +81,6 @@ class Press_gNFW(Pressure):
         logunivpars = [np.log10([(P0).value, a, b, c, (r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(len(z))]
         return logunivpars
 
-class Press_cubspline(Pressure):
-    '''
-    Class to parametrize the pressure profile with a cubic spline model
-    -------------------------------------------------------------------
-    knots = spline knots
-    pr_knots = pressure values corresponding to spline knots
-    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
-    r_out = outer radius (serves for outer slope determination)
-    max_slopeout = maximum allowed value for the outer slope
-    '''
-    def __init__(self, knots, pr_knots, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
-        self.pr_knots = pr_knots
-        Pressure.__init__(self, eq_kpc_as)
-        self.slope_prior = slope_prior
-        self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
-        self.max_slopeout = max_slopeout
-
-    def prior(self, pars, r_kpc, i):
-        '''
-        Checks accordance with prior constraints
-        ---------------------------------------
-        pars = set of pressure parameters
-        '''
-        pars = pt.as_tensor(pars)
-        if self.slope_prior == True:
-            r_outs = r_kpc[r_kpc > self.r_out[i]]
-            slopes_out = self.functional_form(shared(self.knots[i]), shared(r_outs), pars, shared(i), shared(1))
-            return pt.switch(pt.gt(pt.gt(slopes_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slopes_out[0]
-        return pt.as_tensor([0.]), None
-    
-    @as_op(itypes=[pt.dvector, pt.dvector, pt.dvector, pt.lscalar, pt.lscalar], otypes=[pt.dvector])
-    def functional_form(knots, r_kpc, pars, i, logder=False):
-        '''
-        Functional form expression for pressure calculation
-        ---------------------------------------------------
-        r_kpc = radius (kpc)
-        pars = set of pressure parameters
-        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
-        '''
-        ff = interp1d(np.log10(knots), pars, kind='cubic', bounds_error=False, fill_value='extrapolate')
-        if not logder:
-            out = 10**ff(np.log10(r_kpc))
-        else:
-            out = ff._spline.derivative()(np.log10(r_kpc))[:,0]
-        return out
-
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        new_press = Press_gNFW(self.eq_kpc_as, slope_prior=self.slope_prior, r_out=self.r_out, max_slopeout=self.max_slopeout)
-        gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
-        univpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
-        return univpars
-
 class Press_rcs(Pressure):
 
     def __init__(self, knots, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
@@ -154,15 +94,15 @@ class Press_rcs(Pressure):
 
     def prior(self, pars, r_kpc, i):
         pars = pt.as_tensor(pars)
-        if self.slope_prior == True:
+        if self.slope_prior:
             if self.r_out[i] < self.knots[i][-1]:
                 raise RuntimeError("Outer radius should be larger than the outermost knot")
-            slopes_out = self.functional_form(shared(self.r_out), pars, i, True)
-            if pt.gt(slopes_out, self.max_slopeout).eval(): self.betas[i] = None
-            return pt.switch(pt.gt(pt.gt(slopes_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slopes_out[0]
+            slope_out = self.functional_form(shared(self.r_out), pars, i, True)
+            if pt.gt(slope_out, self.max_slopeout).eval(): self.betas[i] = None
+            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
         
-    def functional_form(self, r_kpc, pars, i, logder=False):
+    def functional_form(self, r_kpc, pars, i=None, logder=False):
         kn = pt.log10(self.knots[i]/self.r500[i])
         if self.betas[i] is None:
             sv = [(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2 for _ in range(self.N[i])]
@@ -177,11 +117,11 @@ class Press_rcs(Pressure):
             out = 10**(self.betas[i][0]+self.betas[i][1]*x+pt.sum([self.betas[i][2+_]*svr[_] for _ in range(self.N[i])], axis=0))
             self.betas[i] = None
             return out
-        return pt.as_tensor([
+        return pt.as_tensor(
             self.betas[i][1]+3*(
                 pt.sum([self.betas[i][2+_]*kn[_]**2 for _ in range(self.N[i])], axis=0)
                 -kn[-2:].sum()*
-                pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum())])
+                pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
         new_press = Press_gNFW(self.eq_kpc_as, r_out=self.r_out)
@@ -193,21 +133,20 @@ class Press_nonparam_plaw(Pressure):
     '''
     Class to parametrize the pressure profile with a non parametric power-law model
     -------------------------------------------------------------------------------
-    rbins = radial bins
+    knots = radial bins
     pbins = pressure values corresponding to radial bins
     slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, rbins, pbins, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
-        self.rbins = rbins.to(u.kpc, equivalencies=eq_kpc_as)
-        self.pbins = pbins
+    def __init__(self, knots, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
+        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
         Pressure.__init__(self, eq_kpc_as)
-        self.alpha = pt.ones_like(self.rbins)
-        self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.rbins] # denominator for alpha
+        self.alpha = pt.ones_like(self.knots)
+        self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots] # denominator for alpha
 
-    def functional_form(self, pbins, r_kpc, pars, i, logder=False):
+    def functional_form(self, r_kpc, pars, i=None, logder=False):
         '''
         Functional form expression for pressure calculation
         ---------------------------------------------------
@@ -216,8 +155,8 @@ class Press_nonparam_plaw(Pressure):
         '''
         pars = pt.as_tensor([10**p for p in pars])
         self.alpha = (pt.log10(pt.mul(pars[1:], 1/pars[:-1]))/self.alpha_den[i])[self.alpha_ind[i]]
-        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.rbins[i][self.alpha_ind[i]]))#self.r_low[i]))
-        out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor([self.q]))
+        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.knots[i][self.alpha_ind[i]]))#self.r_low[i]))
+        out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor(self.q))
         return out
 
     def prior(self, pars, r_kpc, i, decr_prior=False):
@@ -233,8 +172,8 @@ class Press_nonparam_plaw(Pressure):
                 if not decr.eval():
                     return pt.as_tensor([np.inf])
             P_n_1, P_n = pars[-2:]
-            slopes_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
-            return pt.switch(pt.gt(slopes_out, self.max_slopeout), -np.inf, 0.), slopes_out
+            slope_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
+            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
@@ -247,7 +186,7 @@ class Press_nonparam_plaw(Pressure):
         '''
         new_press = Press_gNFW(self.eq_kpc_as)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
-        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.rbins[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
+        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
 
 def read_data(filename, ncol=1, units=u.Unit('')):
@@ -600,8 +539,7 @@ def whole_lik(pars, press, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, i, outp
     if np.isinf(p_pr.eval()):
         return p_pr, pt.zeros_like(szfl[0]), pt.zeros_like(szfl[0]), slope
     pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)
-    pp = pt.mul(pp, press.P500[i])
-    pp = pt.atleast_2d(pp)
+    pp = pt.atleast_2d(pt.mul(pp, press.P500[i]))
     int_prof = int_func_1(shared(szr), pp, shared(sza), shared(szf), shared(szc), 
                           shared(szl), shared(szs), shared(dm), shared(output))
     int_prof = int_prof+ped

@@ -28,7 +28,7 @@ def plot_guess(out_prof, sz, knots=None, plotdir='./'):
             [plt.axvline(k, linestyle=':') for k in knots[i]]
         if i == 0:
             plt.legend()
-        plt.ylim(np.min([fl[1].min() for fl in sz.flux_data]), np.max([fl[1].max() for fl in sz.flux_data]))
+        plt.ylim(np.min([(fl[1]-fl[2]).min() for fl in sz.flux_data]), np.max([(fl[1]+fl[2]).max() for fl in sz.flux_data]))
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
         if i%4 > 1:
             plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
