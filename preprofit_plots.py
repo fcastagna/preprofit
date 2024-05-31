@@ -121,7 +121,7 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, clus, rbins=None, peds=None, fact=1, ci=9
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
     for i in range(len(sz.flux_data)):
         plt.clf()
-        plt.title(clus[i])
+        plt.title(np.atleast_1d(clus)[i])
         lsz, msz, usz = perc_sz[i]*fact
         plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
         plt.fill_between(sz.radius[sz.sep:].value, lsz, usz, color='gold', label='%i%% CI' % ci)
@@ -153,7 +153,7 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
     pdf = PdfPages(plotdir+'press_fit.pdf')
     for i in range(len(press_prof)):
         plt.clf()
-        plt.title(clus[i])
+        plt.title(np.atleast_1d(clus)[i])
         l_press, m_press, u_press = press_prof[i]
         xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
         ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
@@ -210,7 +210,7 @@ def spaghetti_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, nl=50, ci
     pdf = PdfPages(plotdir+'spaghetti_press.pdf')
     for i in range(len(press_prof)):
         plt.clf()
-        plt.title(clus[i])
+        plt.title(np.atleast_1d(clus)[i])
         xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
         ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
         e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
