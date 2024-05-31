@@ -19,17 +19,14 @@ from pymc.sampling.mcmc import assign_step_methods
 H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)	
-names, reds, M500 = np.loadtxt('./data/fullsample_SPT.txt', dtype=('str', 'str'), usecols=(0,3,4), unpack=1)
 
 # Cluster
-clus = ['SPT-CLJ0500-5116']
-ind = np.where(clus==names)[0][0]
-z = np.array([np.float64(reds)[ind]]) # redshift
-
-M500 = np.array([np.float64(M500)[ind]])*u.Msun # M500
+clus = 'SPT-CLJ0500-5116'
+z = 0.11 # redshift
+M500 = 4.2e14*u.Msun  # M500
 r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
-kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
+kpc_as = cosmology.kpc_proper_per_arcmin([z]).to('kpc arcsec-1') # number of kpc per arcsec
 eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
 
 ## Beam and transfer function
@@ -51,11 +48,11 @@ tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
 files_dir = './data' # files directory
 beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # beam
 tf_filename = None # transfer function
-flux_filename = ['%s/press_data_' %files_dir +cl+'.dat' for cl in clus]# observed data
+flux_filename = '%s/press_data_%s.dat' % (files_dir, clus) # observed data
 convert_filename = None # conversion Compton -> observed data
 
 # Temperature used for the conversion factor above
-t_const = 12*u.keV # if conversion is not required, preprofit ignores it
+t_const = 8*u.keV # if conversion is not required, preprofit ignores it
 
 # Units (here users have to specify units of measurements for the input data, either a list of units for multiple columns or a single unit for a single 
 # measure in the file)
@@ -85,7 +82,7 @@ calc_integ = False # apply or do not apply?
 integ_mu = .94/1e3 # from Planck
 integ_sig = .36/1e3 # from Planck
 
-## Prior on the pressure slope at large radii?
+## Prior on the pressure slope at large radii? (for example from Planck)
 slope_prior = True # apply or do not apply?
 r_out = r500*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
@@ -104,7 +101,7 @@ press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_pri
 # 3. Power law interpolation
 # press = pfuncs.Press_nonparam_plaw(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
-## Get parameters from the universal pressure profile
+## Get parameters from the universal pressure profile to determine starting point
 logunivpars = press.get_universal_params(cosmology, z, M500=M500)
 press_knots = np.mean(logunivpars, axis=0)
 std_knots = np.std(logunivpars, axis=0)
@@ -124,9 +121,11 @@ with pm.Model() as model:
         logr_p = np.log10(r500.value/c500)
     else:
         [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.5, initval=press_knots[i]) for i in range(nk)]
+    # Add pedestal component to the model
+    pm.Normal("ped", 0, 1e-6)
 
 # Sampling step
-mystep = 15.*u.arcsec # constant step (values higher than (1/7)*FWHM of the beam are not recommended)
+mystep = 15.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
 
 # Uncertainty level
@@ -139,7 +138,7 @@ ci = 68
 def main():
 
     # Flux density data
-    flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
+    flux_data = [pfuncs.read_data(flux_filename, ncol=3, units=flux_units)] # radius, flux density, statistical error
 
     # PSF computation and creation of the 2D image
     beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, 
@@ -182,10 +181,6 @@ def main():
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
                         r_pp=r_pp, r_am=r_am, filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
-    
-    # Add pedestal component to the model
-    with model:
-        pm.Normal("ped", 0, 10**int(np.round(np.log10(abs(sz.flux_data[0][1].value)), 0)[4:].max()-1))
 
     # Compute P500 according to the definition in Equation (5) from Arnaud's paper
     mu, mu_e, f_b = .59, 1.14, .175
@@ -197,7 +192,7 @@ def main():
         return pnorm*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
     press.P500 = []
     press.P500.append(conv((sz.r_pp/r500).value).value)
-    press.r500 = r500
+    press.r500 = np.atleast_1d(r500)
     
     # Other indexes
     if type(press) == pfuncs.Press_nonparam_plaw:
