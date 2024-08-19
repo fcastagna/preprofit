@@ -228,7 +228,7 @@ def main():
         nn += 1
         if nn == 1000:
             raise RuntimeError('Valid starting point not found after 100 attempts. Execution stopped')
-    import sys; sys.exit()
+
     with model:
         map_prof = [pm.Deterministic('bright', maps[0])]
         p_prof = pm.Deterministic('press', pprof[0])
