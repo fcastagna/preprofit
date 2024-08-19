@@ -4,13 +4,11 @@ import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
 from scipy.interpolate import interp1d
-from scipy.fftpack import fft2
 import cloudpickle
 import pymc as pm
 from pytensor import shared
 import arviz as az
 import pytensor.tensor as pt
-import astropy.constants as const
 from pymc.sampling.mcmc import assign_step_methods
 
 ### Global and local variables
@@ -140,27 +138,18 @@ def main():
     # Flux density data
     flux_data = [pfuncs.read_data(flux_filename, ncol=3, units=flux_units)] # radius, flux density, statistical error
 
-    # PSF computation and creation of the 2D image
-    beam_2d, fwhm = pfuncs.mybeam(mystep, maxr_data, eq_kpc_as=eq_kpc_as, approx=beam_approx, filename=beam_filename, units=beam_units, 
-                                  crop_image=crop_image, cropped_side=cropped_side, normalize=True, fwhm_beam=fwhm_beam)
+    # Transfer function
+    wn_as, tf = None, None
+    # wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
 
-    # The following depends on whether the beam image already includes the transfer function
-    if beam_and_tf:
-        filtering = fft2(beam_2d)
-        if crop_image:
-            from scipy.fftpack import fftshift, ifftshift
-            filtering = ifftshift(pfuncs.get_central(fftshift(filtering), cropped_side))
-    else:
-        # Transfer function
-        wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
-        filt_tf = pfuncs.filt_image(wn_as, tf, tf_source_team, beam_2d.shape[0], mystep, eq_kpc_as) # transfer function matrix
-        filtering = fft2(beam_2d)*filt_tf # filtering matrix including both PSF and transfer function
+    # PSF+tf filtering
+    freq, fb, filtering = pfuncs.filtering(
+        mystep, eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, 
+        fwhm_beam=fwhm_beam, crop_image=crop_image, cropped_side=cropped_side, 
+        w_tf_1d=wn_as, tf_1d=tf)
 
     # Radius definition
-    mymaxr = [filtering.shape[0]//2*mystep if crop_image else (maxr_data+3*fwhm.to(maxr_data.unit, equivalencies=eq_kpc_as))//
-              mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)*mystep.to(maxr_data.unit, equivalencies=eq_kpc_as)][0] # max radius needed
-    radius = np.arange(0., (mymaxr+mystep.to(mymaxr.unit, equivalencies=eq_kpc_as))[0].value, 
-                       mystep.to(mymaxr.unit, equivalencies=eq_kpc_as).value)*mymaxr.unit # array of radii
+    radius = np.arange(filtering.shape[0]//2+1)*mystep
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     # radius in kpc used to compute the pressure profile (radius 0 excluded)
@@ -182,16 +171,8 @@ def main():
     sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
                         r_pp=r_pp, r_am=r_am, filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
-    # Compute P500 according to the definition in Equation (5) from Arnaud's paper
-    mu, mu_e, f_b = .59, 1.14, .175
-    pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmology.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
-    alpha_P = 1/.561-5/3
-    alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
-    hz = cosmology.H(z)/cosmology.H0
-    def conv(x): 
-        return pnorm*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
-    press.P500 = []
-    press.P500.append(conv((sz.r_pp/r500).value).value)
+    # Compute P500
+    press.P500 = [pfuncs.get_P500((sz.r_pp/r500).value, cosmology, z, M500=M500).value]
     press.r500 = np.atleast_1d(r500)
     
     # Other indexes
@@ -225,9 +206,9 @@ def main():
                      for m, m2, v in zip(model.continuous_value_vars[:nk], model.free_RVs[:nk], vals[:nk])]+[model['ped']]]
         with model:
             like, pprof, maps, slopes = zip(*map(
-                lambda i, pr, szr, sza, szl, dm, szfl: pfuncs.whole_lik(
-                    pr, press, szr, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
-                np.arange(1), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
+                lambda i, pr, szr, szrd, sza, szl, dm, szfl: pfuncs.whole_lik(
+                    pr, press, szr, szrd, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
+                np.arange(1), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             pm.Potential('pv_like'+str(nn), pt.sum(like))
             infs = [int(np.isinf(l.eval())) for l in like]
             print('likelihood:')
@@ -247,7 +228,7 @@ def main():
         nn += 1
         if nn == 1000:
             raise RuntimeError('Valid starting point not found after 100 attempts. Execution stopped')
-    
+    import sys; sys.exit()
     with model:
         map_prof = [pm.Deterministic('bright', maps[0])]
         p_prof = pm.Deterministic('press', pprof[0])
