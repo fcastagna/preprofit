@@ -1,6 +1,6 @@
 import numpy as np
 from astropy.io import fits
-from scipy.stats import norm
+from scipy.stats import norm, multivariate_normal
 from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy import constants as const
@@ -189,6 +189,15 @@ class Press_nonparam_plaw(Pressure):
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
 
+def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P=1/.561-5/3):
+    '''
+    Compute P500 according to the definition in Equation (5) from Arnaud's paper
+    '''
+    pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmo.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
+    alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
+    hz = cosmo.H(z)/cosmo.H0
+    return pnorm*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
+
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
     Universally read data from FITS or ASCII file
@@ -256,73 +265,92 @@ def get_central(mat, side):
     centre = mat.shape[0]//2
     return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
 
-def mybeam(step, maxr_data, eq_kpc_as, approx=False, filename=None, units=[u.arcsec, u.beam], 
-           crop_image=False, cropped_side=None, normalize=True, fwhm_beam=None):
+def turn_odd(mat):
+    posmax = np.unravel_index(mat.argmax(), mat.shape) # get index of maximum value
+    if posmax == (0, 0):
+        return ifftshift(fftshift(mat)[1:,1:])
+    elif posmax == (mat.shape[0]/2, mat.shape[0]/2):
+        return mat[1:,1:]
+    elif posmax == (mat.shape[0]/2-1, mat.shape[0]/2-1):
+        return mat[:-1,:-1]
+    else:
+        raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
+
+def read_beam_data(step, beam_xy, filename, units, step_data,
+                   crop_image, cropped_side):
+    try: # 1D
+        r_irreg, b = read_beam(filename, ncol=2, units=units)
+        f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
+        inv_f = lambda x: f(x)-f(0.)/2
+        fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
+        sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
+        b = multivariate_normal([0,0], sigma_beam**2).pdf(beam_xy)
+        freq_2d = dist(b.shape[0])/b.shape[0]/step
+        return freq_2d, np.abs(fft2(b)*step**2) # without abs it messes up
+    except: # 2D
+        b = read_data(filename, ncol=1, units=np.atleast_2d(units)[0][0])
+        freq_2d_inp = dist(b.shape[0])/b.shape[0]/step_data
+        if b.shape[0]%2 == 0:
+            b = turn_odd(b)
+            freq_2d_inp = -turn_odd(-freq_2d_inp)
+        ind = np.round(freq_2d_inp/freq_2d_inp[0,1])
+        tf1dfrom2d = np.array([np.mean(b.value[np.where(ind==_)]) for _ in np.arange(b.shape[0]//2+1)])
+        gt_ = interp1d(freq_2d_inp[0,:b.shape[0]//2+1], tf1dfrom2d, 'cubic', bounds_error=False, fill_value=(tf1dfrom2d[0], tf1dfrom2d[-1]))
+        side = cropped_side if crop_image else b.shape[0]
+        freq_2d = dist(side)/side/step
+        return freq_2d, gt_(freq_2d)
+    
+def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, approx=False, 
+              filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, 
+              fwhm_beam=None, step_data=None, w_tf_1d=None, tf_1d=None):
     '''
-    Set the 2D image of the beam, alternatively from file data or from a normal distribution with given FWHM
+    Set the 2D image for the beam + transfer function filtering, 
+    alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
-    step = binning step
+    step = binning step (reference unit)
     maxr_data = highest radius in the data
     eq_kpc_as = equation for switching between kpc and arcsec
+    beam_and_tf = whether the beam already includes the transfer function filtering (boolean, default is False)
     approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
     filename = name of the file including the beam data
     units = units in astropy.units format
     crop_image = whether to crop or not the original 2D image (default is False)
     cropped_side = side of the cropped image (in pixels, default is None)
-    normalize = whether to normalize or not the output 2D image (boolean, default is True)
     fwhm_beam = Full Width at Half Maximum
+    step_data =
+    w_tf_1d = 
+    tf_1d = 
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and the Full Width at Half Maximum
     '''
-    if not approx:
-        try:
-            r_irreg, b = read_beam(filename, ncol=2, units=units)
-            f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
-            inv_f = lambda x: f(x)-f(0.)/2
-            fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
-        except:
-            b = read_data(filename, ncol=1, units=np.atleast_2d(units)[0][0])
-            r = np.arange(0., b.shape[0]//2*step.value, step.value)*step.unit
-            r = np.append(-r[:0:-1].value, r.value)*r.unit
-            # If matrix dimensions are even, turn them odd
-            if b.shape[0]%2 == 0:
-                posmax = np.unravel_index(b.argmax(), b.shape) # get index of maximum value
-                if posmax == (0, 0):
-                    b = ifftshift(fftshift(b)[1:,1:])
-                    b1d = fftshift(b[0,:])
-                elif posmax == (b.shape[0]/2, b.shape[0]/2):
-                    b = b[1:,1:]
-                    b1d = b[b.shape[0]//2,:]
-                elif posmax == (b.shape[0]/2-1, b.shape[0]/2-1):
-                    b = b[:-1,:-1]
-                    b1d = b[b.shape[0]//2,:]
-                else:
-                    raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
-            g = interp1d(r, b1d, 'cubic', bounds_error=False, fill_value=(0., 0.))
-            inv_g = lambda x: g(x)-g(0.)/2
-            fwhm_beam = 2*optimize.newton(inv_g, x0=50*step.value)*r.unit
-    maxr = (maxr_data+3*fwhm_beam.to(maxr_data.unit, equivalencies=eq_kpc_as))//step.to(maxr_data.unit, 
-                                                                                        equivalencies=eq_kpc_as)*step.to(maxr_data.unit, equivalencies=eq_kpc_as)
-    rad = np.arange(0., (maxr+step.to(maxr_data.unit, equivalencies=eq_kpc_as)).value, step.to(maxr_data.unit, equivalencies=eq_kpc_as).value)*maxr.unit
-    rad = np.append(-rad[:0:-1].value, rad.value)*rad.unit
-    beam_mat = centdistmat(rad)
+    # check fwhm_beam, step and maxr_data unit agreement
+    fwhm_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)
+    if maxr_data is not None:
+        # set outermost radius 3xfwhm_beam larger than the largest radius of observed data
+        maxr_data = maxr_data.to(step.unit, equivalencies=eq_kpc_as)
+        maxr = np.ceil((maxr_data+3*fwhm_beam)/step)*step
+        lenr = maxr//step+1
+    # set up 2D grid
+    x, y = np.mgrid[-lenr:lenr+1, -lenr:lenr+1]*step.value
+    beam_xy = np.dstack((x, y))
+    side = beam_xy.shape[0]
+    freq_2d = dist(side)/side/step
     if approx:
+        # Apply gaussian approximation
         sigma_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)/(2*np.sqrt(2*np.log(2)))
-        beam_2d = norm.pdf(beam_mat, loc=0., scale=sigma_beam)*u.beam
+        sigma_fft_beam = 1/(2*np.pi*sigma_beam)
+        filtering = fft_beam = np.exp(-freq_2d**2/2/sigma_fft_beam**2)
     else:
-        try:
-            beam_2d = f(beam_mat)*u.beam
-        except:
-            beam_2d = b.copy()
-    if crop_image:
-        if beam_2d[0,0] > beam_2d[beam_2d.shape[0]//2, beam_2d.shape[0]//2]: # peak at the corner
-            beam_2d = ifftshift(get_central(fftshift(beam_2d), cropped_side))
-        else: # peak at the center
-            beam_2d = get_central(beam_2d, cropped_side)
-    if normalize:
-        beam_2d /= beam_2d.sum()
-        beam_2d *= u.beam
-    return beam_2d, fwhm_beam
+        # Read from data
+        freq_2d, fft_beam = read_beam_data(
+            step, beam_xy, filename, units, step_data, crop_image, cropped_side)
+        filtering = fft_beam
+    if not beam_and_tf:
+        # Apply transfer function filtering
+        gt = interp1d(w_tf_1d, tf_1d, 'cubic', bounds_error=False, fill_value=(tf_1d[0], tf_1d[-1]))
+        tf_2d = gt(freq_2d)
+        filtering = fft_beam*tf_2d
+    return freq_2d, fft_beam, filtering
 
 def centdistmat(r, offset=0.):
     '''
@@ -394,7 +422,6 @@ class abel_data:
     r = array of radii
     '''
     def __init__(self, r):
-        self.dx = abs(r[1]-r[0])
         R, Y = np.meshgrid(r, r, indexing='ij')
         II, JJ = np.meshgrid(np.arange(len(r)), np.arange(len(r)), indexing='ij')
         mask = (II < JJ)
@@ -419,12 +446,15 @@ def calc_abel(fr, r, abel_data):
     '''
     f = np.atleast_2d(fr*2*r)
     P = np.multiply(f[:,None,:], abel_data.I_isqrt[None,:,:]) # set up the integral
-    out = np.trapz(P, axis=-1, dx=abel_data.dx) # take the integral
+    out = np.trapz(P, r, axis=-1) # take the integral
     c1 = np.zeros(f.shape) # build up correction factors
     c2 = np.c_[P[:,abel_data.mask2==1][:,1::2], np.zeros(c1.shape[0])]
-    c3 = np.tile(np.atleast_2d(2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (c1.shape[0],1))
+    c3 = np.tile(np.atleast_2d(np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (c1.shape[0],1))
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
-    out = out-0.5*np.trapz(corr[:,:,:2], dx=abel_data.dx, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
+    rn = np.concatenate((r, [2*r[-1]-r[-2], 3*r[-1]-2*r[-2]]))
+    r_lim = np.array([[rn[_], rn[_+1], rn[_+2]] for _ in range(r.size)])
+    out = out-0.5*np.trapz(np.c_[corr[:,:,:2], np.atleast_3d(np.zeros(r.size))], 
+                           r_lim, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
     out[:,:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1]))
     return out
@@ -489,17 +519,18 @@ class SZ_data:
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp
+        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//2) for r in r_pp]*r_pp.unit
         self.r_am = r_am
         self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
-        self.abel_data = [abel_data(r.value) for r in r_pp]
+        self.abel_data = [abel_data(r.value) for r in self.r_red]
         self.calc_integ = calc_integ
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-@as_op(itypes=[pt.dvector, pt.drow, Generic(), pt.zmatrix, pt.dscalar, pt.lmatrix, 
+@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.dscalar, pt.lmatrix, 
                pt.lscalar, pt.dmatrix, Generic()], otypes=[pt.dvector])
-def int_func_1(r, pp, sza, szf, szc, szl, szs, dm, output):
+def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     '''
     First intermediate likelihood function
     --------------------------------------
@@ -509,7 +540,11 @@ def int_func_1(r, pp, sza, szf, szc, szl, szs, dm, output):
     output = desired output
     '''
     # abel transform
-    ab = calc_abel(pp, r=r, abel_data=sza)
+    gg = interp1d(np.log10(r), np.log10(pp), 'cubic')
+    new_pp = 10**gg(np.log10(szrd))
+    new_ab = calc_abel(new_pp, r=szrd, abel_data=sza)[0]
+    gn = interp1d(np.log10(szrd[:-1]), np.log10(new_ab[:-1]), fill_value='extrapolate')
+    ab = np.atleast_2d(np.append(10**gn(np.log10(r[:-1])), 0))
     # Compton parameter
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
@@ -532,7 +567,7 @@ def int_func_2(map_prof, szrv, szfl):
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(szfl[0].to(u.arcsec))
 
-def whole_lik(pars, press, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
+def whole_lik(pars, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pt.as_tensor(pars[-1])
     pars = pars[:-1]
     p_pr, slope = press.prior(pars, szr, i)
@@ -540,7 +575,7 @@ def whole_lik(pars, press, szr, sza, szf, szc, szl, szs, dm, szrv, szfl, i, outp
         return p_pr, pt.zeros_like(szfl[0]), pt.zeros_like(szfl[0]), slope
     pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)
     pp = pt.atleast_2d(pt.mul(pp, press.P500[i]))
-    int_prof = int_func_1(shared(szr), pp, shared(sza), shared(szf), shared(szc), 
+    int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szf), shared(szc), 
                           shared(szl), shared(szs), shared(dm), shared(output))
     int_prof = int_prof+ped
     map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
