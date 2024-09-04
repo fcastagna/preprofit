@@ -199,7 +199,7 @@ def main():
             pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
                      for m, m2, v in zip(model.continuous_value_vars[:nps], model.free_RVs[:nps], vals[:nps])]+
-                    [logr_p[0]]+[model['ped']]]
+                    [logr_p]+[model['ped']]]
         else:
             pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
                      if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
