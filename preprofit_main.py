@@ -19,7 +19,7 @@ Om0 = 0.3 # Omega matter
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)	
 
 # Cluster
-clus = ['SPT-CLJ0500-5116']
+clus = 'SPT-CLJ0500-5116'
 z = 0.11 # redshift
 M500 = 4.2e14*u.Msun  # M500
 r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
@@ -291,7 +291,7 @@ def main():
     # Radial pressure profile
     p_prof = [trace.posterior['press'].data.reshape(samples.shape[0], -1)]
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
-    [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip(clus, p_quant)]
+    [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip([clus], p_quant)]
     univpress=None
     pplots.spaghetti_press(sz.r_pp, p_prof, clus=clus, nl=100, ci=ci, univpress=univpress, plotdir=plotdir, 
                            rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
