@@ -551,7 +551,7 @@ def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     # Compton parameter 2D image
     y_2d = f(dm)#.value)
     # Convolution with the beam and the transfer function at the same time
-    map_out = np.real(fftshift(ifft2(fft2(y_2d)*szf), axes=(-2, -1)))
+    map_out = np.real(ifft2(fft2(y_2d)*szf))
     # Conversion from Compton parameter to mJy/beam
     map_prof = list(map(lambda x: mean(x, labels=szl, index=np.arange(szs+1)), map_out))
     return map_prof
