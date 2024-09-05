@@ -209,7 +209,6 @@ def main():
                 lambda i, pr, szr, szrd, sza, szl, dm, szfl: pfuncs.whole_lik(
                     pr, press, szr, szrd, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
                 np.arange(1), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
-            pm.Potential('pv_like'+str(nn), pt.sum(like))
             infs = [int(np.isinf(l.eval())) for l in like]
             print('likelihood:')
             print(pt.sum(like).eval())
