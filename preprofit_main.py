@@ -21,6 +21,7 @@ cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 # Cluster
 clus = 'SPT-CLJ0500-5116'
 z = 0.11 # redshift
+# Overdensity measures (set them for defining the starting point for the MCMC, then optionally you can include them in the fit)
 M500 = 4.2e14*u.Msun  # M500
 r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
@@ -75,12 +76,12 @@ name = 'preprofit'
 plotdir = './' # directory for the plots
 savedir = './' # directory for saved files
 
-## Prior on the Integrated Compton parameter?
+## Prior constraint on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
 integ_mu = .94/1e3 # from Planck
 integ_sig = .36/1e3 # from Planck
 
-## Prior on the pressure slope at large radii? (for example from Planck)
+## Prior constraint on the pressure slope at large radii?
 slope_prior = True # apply or do not apply?
 r_out = r500*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
@@ -102,7 +103,6 @@ press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_pri
 ## Get parameters from the universal pressure profile to determine starting point
 logunivpars = press.get_universal_params(cosmology, z, M500=M500)
 press_knots = np.mean(logunivpars, axis=0)
-std_knots = np.std(logunivpars, axis=0)
 nk = len(press_knots)
 
 ## Model definition
@@ -153,11 +153,8 @@ def main():
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     # radius in kpc used to compute the pressure profile (radius 0 excluded)
-    r_pp = [np.arange(mystep.to(u.kpc, equivalencies=eq_kpc_as)[0].value, 
-                     (R_b.to(u.kpc, equivalencies=eq_kpc_as)+mystep.to(u.kpc, equivalencies=eq_kpc_as))[0].value, 
-                      mystep.to(u.kpc, equivalencies=eq_kpc_as)[0].value)]*u.kpc
-    r_am = np.arange(0., (mystep*(1+min([len(r) for r in r_pp]))).to(u.arcmin, equivalencies=eq_kpc_as).value,
-                     mystep.to(u.arcmin, equivalencies=eq_kpc_as).value)*u.arcmin # radius in arcmin (radius 0 included)
+    r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=eq_kpc_as)+1)]*mystep.to(u.kpc, equivalencies=eq_kpc_as)
+    r_am = np.arange(1+min([len(r) for r in r_pp]))*mystep.to(u.arcmin, equivalencies=eq_kpc_as) # radius in arcmin (radius 0 included)
 
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
