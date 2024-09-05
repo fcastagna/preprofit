@@ -82,7 +82,7 @@ integ_sig = .36/1e3 # from Planck
 
 ## Prior on the pressure slope at large radii? (for example from Planck)
 slope_prior = True # apply or do not apply?
-r_out = r500*1.4 # large radius for the slope prior
+r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
 ## Pressure modelization
@@ -93,7 +93,7 @@ max_slopeout = 0. # maximum value for the slope at r_out
 # press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # 2. Restricted cubic spline
-knots = np.outer([.1, .4, .7, 1, 1.3], r500).T
+knots = np.outer([.1, .4, .7, 1, 1.3], r500.to(u.kpc).value).T
 press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # 3. Power law interpolation
@@ -207,7 +207,7 @@ def main():
         with model:
             like, pprof, maps, slopes = zip(*map(
                 lambda i, pr, szr, szrd, sza, szl, dm, szfl: pfuncs.whole_lik(
-                    pr, press, szr, szrd, sza, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'), 
+                    pr, press, szr.value, szrd.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, dm, sz.radius[sz.sep:].value, [s.value for s in szfl], i, 'll'), 
                 np.arange(1), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             pm.Potential('pv_like'+str(nn), pt.sum(like))
             infs = [int(np.isinf(l.eval())) for l in like]
@@ -239,7 +239,7 @@ def main():
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[0].value for i, r in enumerate(press.knots[0])]], 
+                      [[r for i, r in enumerate(press.knots[0])]], 
                       plotdir=plotdir)
     
     with model:
