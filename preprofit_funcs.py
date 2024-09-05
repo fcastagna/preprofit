@@ -473,7 +473,7 @@ class distances:
                       range(len(u.arcsec.to(u.kpc, equivalencies=eq_kpc_as)))] # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = [d[sep:,sep:][self.indices] for d in self.d_mat] # array of unique values within the matrix of distances
-        self.labels = [np.rint(self.d_mat[i].value*self.d_mat[i].unit.to(step.unit, equivalencies=eq_kpc_as)[i]/step).astype(int) for i in 
+        self.labels = [np.rint(self.d_mat[i].value*self.d_mat[i].unit.to(step.unit, equivalencies=eq_kpc_as)[i]/step.value).astype(int) for i in 
                        range(len(self.d_mat))]# labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
