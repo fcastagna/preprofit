@@ -32,10 +32,10 @@ class Press_gNFW(Pressure):
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, eq_kpc_as, slope_prior=True, r_out=[1e3]*u.kpc, max_slopeout=-2.):
+    def __init__(self, eq_kpc_as, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, eq_kpc_as)
         self.slope_prior = slope_prior
-        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=eq_kpc_as))
+        self.r_out = np.atleast_1d(r_out)
         self.max_slopeout = max_slopeout
 
     def functional_form(self, r_kpc, pars, i=None, logder=False):
@@ -64,7 +64,7 @@ class Press_gNFW(Pressure):
         pars = set of pressure parameters
         '''
         if self.slope_prior:
-            slope_out = self.functional_form(shared(self.r_out[i].value), pars, logder=True)
+            slope_out = self.functional_form(shared(self.r_out[i]), pars, logder=True)
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
 
@@ -78,16 +78,16 @@ class Press_gNFW(Pressure):
         else:
             r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = [np.log10([(P0).value, a, b, c, [r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500][i]]) for i in range(np.array(z).size)]
+        logunivpars = [np.log10([(P0), a, b, c, [r500.value/c500][i]]) for i in range(np.array(z).size)]
         return logunivpars
 
 class Press_rcs(Pressure):
 
-    def __init__(self, knots, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
+    def __init__(self, knots, eq_kpc_as, slope_prior=True, r_out=1e3, max_slopeout=-2.):
+        self.knots = knots
         Pressure.__init__(self, eq_kpc_as)
         self.slope_prior = slope_prior
-        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=eq_kpc_as))
+        self.r_out = np.atleast_1d(r_out)
         self.max_slopeout = max_slopeout
         self.N = [len(k)-2 for k in self.knots]
         self.betas = [None]*len(self.knots)
@@ -139,7 +139,7 @@ class Press_nonparam_plaw(Pressure):
     max_slopeout = maximum allowed value for the outer slope
     '''
     def __init__(self, knots, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
-        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
+        self.knots = knots
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
         Pressure.__init__(self, eq_kpc_as)
@@ -469,11 +469,11 @@ class distances:
     eq_kpc_as = equation for switching between kpc and arcsec
     '''
     def __init__(self, radius, sep, step, eq_kpc_as):
-        self.d_mat = [centdistmat(np.array([r.to(u.kpc, equivalencies=eq_kpc_as) for r in radius]).T[i]*u.kpc) for i in 
+        self.d_mat = [centdistmat(np.array([r.to(u.kpc, equivalencies=eq_kpc_as) for r in radius]).T[i]) for i in 
                       range(len(u.arcsec.to(u.kpc, equivalencies=eq_kpc_as)))] # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = [d[sep:,sep:][self.indices] for d in self.d_mat] # array of unique values within the matrix of distances
-        self.labels = [np.rint(self.d_mat[i].value*self.d_mat[i].unit.to(step.unit, equivalencies=eq_kpc_as)[i]/step.value).astype(int) for i in 
+        self.labels = [np.rint(self.d_mat[i]*u.kpc.to(step.unit, equivalencies=eq_kpc_as)[i]/step.value).astype(int) for i in 
                        range(len(self.d_mat))]# labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
@@ -515,7 +515,7 @@ class SZ_data:
         self.step = step
         self.eq_kpc_as = eq_kpc_as
         self.conv_temp_sb = conv_temp_sb
-        self.flux_data = flux_data
+        self.flux_data = flux_data#[[x.value for s in flux_data for x in s]]
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp
@@ -546,7 +546,8 @@ def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     gn = interp1d(np.log10(szrd[:-1]), np.log10(new_ab[:-1]), fill_value='extrapolate')
     ab = np.atleast_2d(np.append(10**gn(np.log10(r[:-1])), 0))
     # Compton parameter
-    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
+    # y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
+    y = 4.0171007732191115e-06*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
     y_2d = f(dm)#.value)
@@ -565,7 +566,7 @@ def int_func_2(map_prof, szrv, szfl):
     sz = class of SZ data
     '''
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    return g(szfl[0].to(u.arcsec))
+    return g(szfl[0])
 
 def whole_lik(pars, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pt.as_tensor(pars[-1])
@@ -579,7 +580,7 @@ def whole_lik(pars, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i
                           shared(szl), shared(szs), shared(dm), shared(output))
     int_prof = int_prof+ped
     map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
-    chisq = pt.sum([pt.sum(((szfl[1].value-map_prof)/szfl[2].value)**2, axis=-1)], axis=0)
+    chisq = pt.sum([pt.sum(((szfl[1]-map_prof)/szfl[2])**2, axis=-1)], axis=0)
     log_lik = -chisq/2+p_pr
     return log_lik, pp, int_prof, slope
 
@@ -594,7 +595,7 @@ def print_summary(prs, pmed, pstd, medsf, sz):
     sz = class of SZ data
     '''
     g = interp1d(sz.radius[sz.sep:], medsf, 'cubic', fill_value='extrapolate', axis=-1)
-    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i]*fl[1].unit)/fl[2].value)**2, axis=-1) 
+    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i])/fl[2])**2, axis=-1) 
                     for i, fl in enumerate(sz.flux_data)], axis=0)
     wid1 = len(max(prs, key=len))
     wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
