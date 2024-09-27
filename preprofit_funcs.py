@@ -193,10 +193,11 @@ def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P
     '''
     Compute P500 according to the definition in Equation (5) from Arnaud's paper
     '''
-    pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmo.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
+    pconst = (mu/mu_e*f_b*3/8/np.pi*(500*const.G**(-1/4)*cosmo.H0**2/2)**(4/3)*(3e14*u.Msun)**(2/3)).to(u.keV/u.cm**3)
     alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
     hz = cosmo.H(z)/cosmo.H0
-    return pnorm*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
+    P500 = pconst*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)
+    return P500*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
 
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
