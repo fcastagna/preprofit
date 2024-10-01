@@ -78,7 +78,7 @@ class Press_gNFW(Pressure):
         else:
             r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = [np.log10([(P0).value, a, b, c, [r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500][i]]) for i in range(np.array(z).size)]
+        logunivpars = [np.log10([(P0).value, a, b, c, np.atleast_1d(r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(np.array(z).size)]
         return logunivpars
 
 class Press_rcs(Pressure):
