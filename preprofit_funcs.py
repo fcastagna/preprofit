@@ -529,9 +529,9 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.dscalar, pt.lmatrix, 
+@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.dmatrix, pt.dscalar, pt.lmatrix, 
                pt.lscalar, pt.dmatrix, Generic()], otypes=[pt.dvector])
-def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
+def int_func_1(r, szrd, pp, sza, szi, szf, szc, szl, szs, dm, output):
     '''
     First intermediate likelihood function
     --------------------------------------
@@ -550,7 +550,7 @@ def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = f(dm)#.value)
+    y_2d = interp_mat(pt.zeros_like(dm.value), szi, f(dm[szs:,szs:][szi].value), szs).T
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifft2(fft2(y_2d)*szf))
     # Conversion from Compton parameter to mJy/beam
@@ -568,7 +568,7 @@ def int_func_2(map_prof, szrv, szfl):
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(szfl[0].to(u.arcsec))
 
-def whole_lik(pars, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
+def whole_lik(pars, press, szr, szrd, sza, szi, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pt.as_tensor(pars[-1])
     pars = pars[:-1]
     p_pr, slope = press.prior(pars, szr, i)
@@ -576,7 +576,7 @@ def whole_lik(pars, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i
         return p_pr, pt.zeros_like(szfl[0]), pt.zeros_like(szfl[0]), slope
     pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)
     pp = pt.atleast_2d(pt.mul(pp, press.P500[i]))
-    int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szf), shared(szc), 
+    int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szi), shared(szf), shared(szc), 
                           shared(szl), shared(szs), shared(dm), shared(output))
     int_prof = int_prof+ped
     map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
