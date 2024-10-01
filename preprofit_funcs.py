@@ -103,10 +103,9 @@ class Press_rcs(Pressure):
         return pt.as_tensor([0.]), None
         
     def functional_form(self, r_kpc, pars, i=None, logder=False):
-        kn = pt.log10(self.knots[i]/self.r500[i])
+        kn = self.kn[i]
         if self.betas[i] is None:
-            sv = [(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2 for _ in range(self.N[i])]
-            X = pt.concatenate((pt.atleast_2d(pt.ones(len(self.knots[i]))), pt.atleast_2d(kn), pt.as_tensor(sv))).T
+            X = self.X[i]
             self.betas[i] = solve(X, pars)
         if not logder:
             x = pt.log10(r_kpc/self.r500[i])
@@ -529,7 +528,7 @@ class SZ_data:
         self.integ_mu = integ_mu
         self.integ_sig = integ_sig
 
-@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.dmatrix, pt.dscalar, pt.lmatrix, 
+@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.lvector, pt.dmatrix, pt.dscalar, pt.lmatrix, 
                pt.lscalar, pt.dmatrix, Generic()], otypes=[pt.dvector])
 def int_func_1(r, szrd, pp, sza, szi, szf, szc, szl, szs, dm, output):
     '''
@@ -550,7 +549,7 @@ def int_func_1(r, szrd, pp, sza, szi, szf, szc, szl, szs, dm, output):
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = interp_mat(pt.zeros_like(dm.value), szi, f(dm[szs:,szs:][szi].value), szs).T
+    y_2d = interp_mat(pt.zeros_like(dm), szi, f(dm[szs:,szs:][szi]), szs).T
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifft2(fft2(y_2d)*szf))
     # Conversion from Compton parameter to mJy/beam
