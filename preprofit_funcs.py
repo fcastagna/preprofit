@@ -549,7 +549,7 @@ def int_func_1(r, szrd, pp, sza, szi, szf, szc, szl, szs, dm, output):
     y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = interp_mat(np.zeros_like(dm), szi, f(dm[szs:,szs:][szi]), szs).T
+    y_2d = np.atleast_3d(interp_mat(np.zeros_like(dm), szi, f(dm[szs:,szs:][szi]), szs)).T
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifft2(fft2(y_2d)*szf))
     # Conversion from Compton parameter to mJy/beam
