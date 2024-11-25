@@ -267,7 +267,7 @@ def main():
     pplots.traceplot(trace, prs, nc=1, trans_ped=lambda x: 1e4*x, plotdir=savedir)
 
     # Best fitting profile on SZ surface brightness
-    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots.to(u.arcsec, equivalencies=eq_kpc_as).value,
+    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else (press.knots*u.kpc).to(u.arcsec, equivalencies=eq_kpc_as).value,
                       peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Forest plots
