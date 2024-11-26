@@ -1,4 +1,5 @@
 import numpy as np
+import pymc as pm
 from astropy.io import fits
 from scipy.stats import norm, multivariate_normal
 from scipy.interpolate import interp1d
@@ -6,14 +7,19 @@ from astropy import units as u
 from astropy import constants as const
 import warnings
 from scipy import optimize
+from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
 from scipy.ndimage import mean
+from scipy.optimize import minimize
+import time
+import h5py
 import pytensor.tensor as pt
 from pytensor.compile.ops import as_op
 from pytensor import shared
 from pytensor.tensor.var import TensorVariable
 from pytensor.link.c.type import Generic
 from pytensor.tensor.linalg import solve
+from scipy.optimize import curve_fit
 
 class Pressure:
     '''
@@ -28,14 +34,14 @@ class Press_gNFW(Pressure):
     '''
     Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
     -----------------------------------------------------------------------------------------------
-    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
+    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
     def __init__(self, eq_kpc_as, slope_prior=True, r_out=[1e3]*u.kpc, max_slopeout=-2.):
         Pressure.__init__(self, eq_kpc_as)
         self.slope_prior = slope_prior
-        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=eq_kpc_as))
+        self.r_out = r_out.to(u.kpc, equivalencies=eq_kpc_as)
         self.max_slopeout = max_slopeout
 
     def functional_form(self, r_kpc, pars, i=None, logder=False):
@@ -65,7 +71,7 @@ class Press_gNFW(Pressure):
         '''
         if self.slope_prior:
             slope_out = self.functional_form(shared(self.r_out[i].value), pars, logder=True)
-            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
+            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out[0]
         return pt.as_tensor([0.]), None
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
@@ -77,8 +83,9 @@ class Press_gNFW(Pressure):
             M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
             r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
-        P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = [np.log10([(P0).value, a, b, c, np.atleast_1d(r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(np.array(z).size)]
+        # Compute P500 according to the definition in Equation (5) from Arnaud's paper
+        P0 = 8.403*h70**(-3/2)
+        logunivpars = [np.log10([(P0).value, a, b, c, (r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(len(z))]
         return logunivpars
 
 class Press_rcs(Pressure):
@@ -127,67 +134,7 @@ class Press_rcs(Pressure):
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
-
-class Press_nonparam_plaw(Pressure):
-    '''
-    Class to parametrize the pressure profile with a non parametric power-law model
-    -------------------------------------------------------------------------------
-    knots = radial bins
-    pbins = pressure values corresponding to radial bins
-    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
-    max_slopeout = maximum allowed value for the outer slope
-    '''
-    def __init__(self, knots, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
-        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
-        self.slope_prior = slope_prior
-        self.max_slopeout = max_slopeout
-        Pressure.__init__(self, eq_kpc_as)
-        self.alpha = pt.ones_like(self.knots)
-        self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots] # denominator for alpha
-
-    def functional_form(self, r_kpc, pars, i=None, logder=False):
-        '''
-        Functional form expression for pressure calculation
-        ---------------------------------------------------
-        r_kpc = radius (kpc)
-        pars = set of pressure parameters
-        '''
-        pars = pt.as_tensor([10**p for p in pars])
-        self.alpha = (pt.log10(pt.mul(pars[1:], 1/pars[:-1]))/self.alpha_den[i])[self.alpha_ind[i]]
-        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.knots[i][self.alpha_ind[i]]))#self.r_low[i]))
-        out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor(self.q))
-        return out
-
-    def prior(self, pars, r_kpc, i, decr_prior=False):
-        '''
-        Checks accordance with prior constraints
-        ---------------------------------------
-        pars = set of pressure parameters
-        '''
-        if self.slope_prior:
-            pars = pt.as_tensor([10**p for p in pars])
-            if decr_prior: # doesn't seem to work
-                decr = pt.all(pt.diff(pars) < 0)
-                if not decr.eval():
-                    return pt.as_tensor([np.inf])
-            P_n_1, P_n = pars[-2:]
-            slope_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
-            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
-        return pt.as_tensor([0.]), None
-
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
-        new_press = Press_gNFW(self.eq_kpc_as)
-        gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
-        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
-        return logunivpars
-
+    
 def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P=1/.561-5/3):
     '''
     Compute P500 according to the definition in Equation (5) from Arnaud's paper
@@ -276,8 +223,7 @@ def turn_odd(mat):
     else:
         raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
 
-def read_beam_data(step, beam_xy, filename, units, step_data,
-                   crop_image, cropped_side):
+def read_beam_data(step, beam_xy, filename, units, step_data, crop_image, cropped_side):
     try: # 1D
         r_irreg, b = read_beam(filename, ncol=2, units=units)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
@@ -333,7 +279,7 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
     # set up 2D grid
     x, y = np.mgrid[-lenr:lenr+1, -lenr:lenr+1]*step.value
     beam_xy = np.dstack((x, y))
-    side = beam_xy.shape[0]
+    side = beam_xy.shape[0]#2*rad.size-1#beam_mat.shape[0]
     freq_2d = dist(side)/side/step
     if approx:
         # Apply gaussian approximation
@@ -342,8 +288,7 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
         filtering = fft_beam = np.exp(-freq_2d**2/2/sigma_fft_beam**2)
     else:
         # Read from data
-        freq_2d, fft_beam = read_beam_data(
-            step, beam_xy, filename, units, step_data, crop_image, cropped_side)
+        freq_2d, fft_beam = read_beam_data(step, beam_xy, filename, units, step_data, crop_image, cropped_side)
         filtering = fft_beam
     if not beam_and_tf:
         # Apply transfer function filtering
@@ -429,7 +374,7 @@ class abel_data:
         self.I_isqrt[mask] = 1./np.sqrt((Y**2 - R**2)[mask])
         self.mask2 = ((II > JJ-2) & (II < JJ+1)) # create a mask that just shows the first two points of the integral    
         self.isqrt = 1./self.I_isqrt[II+1 == JJ]
-        if r[0] < r[1]*1e-8:  # special case for r[0] = 0
+        if r[0] < r[1]*1e-8: # special case for r[0] = 0
             ratio = np.append(np.cosh(1), r[2:]/r[1:-1])
         else:
             ratio = r[1:]/r[:-1]
@@ -453,8 +398,7 @@ def calc_abel(fr, r, abel_data):
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
     rn = np.concatenate((r, [2*r[-1]-r[-2], 3*r[-1]-2*r[-2]]))
     r_lim = np.array([[rn[_], rn[_+1], rn[_+2]] for _ in range(r.size)])
-    out = out-0.5*np.trapz(np.c_[corr[:,:,:2], np.atleast_3d(np.zeros(r.size))], 
-                           r_lim, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
+    out = out-0.5*np.trapz(np.c_[corr[:,:,:2], np.atleast_3d(np.zeros(r.size))], r_lim, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
     out[:,:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1]))
     return out
@@ -473,7 +417,7 @@ class distances:
                       range(len(u.arcsec.to(u.kpc, equivalencies=eq_kpc_as)))] # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = [d[sep:,sep:][self.indices] for d in self.d_mat] # array of unique values within the matrix of distances
-        self.labels = [np.rint(self.d_mat[i].value*self.d_mat[i].unit.to(step.unit, equivalencies=eq_kpc_as)[i]/step.value).astype(int) for i in 
+        self.labels = [np.rint(self.d_mat[i].value*self.d_mat[i].unit.to(step.unit, equivalencies=eq_kpc_as)[i]/step).astype(int) for i in 
                        range(len(self.d_mat))]# labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
@@ -491,12 +435,11 @@ def interp_mat(mat, indices, func, sep):
     mat[:sep+1,sep:] = np.transpose(mat[sep:,:sep+1])
     mat[:sep+1,:sep+1] = np.fliplr(mat[:sep+1,sep:])
     return mat
-               
+    
 class SZ_data:
     '''
     Class for the SZ data required for the analysis
     -----------------------------------------------
-    clus = names of analyzed clusters
     step = binning step
     eq_kpc_as = equation for switching between kpc and arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
@@ -519,10 +462,11 @@ class SZ_data:
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp
-        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//2) for r in r_pp]*r_pp.unit
+        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//5) for r in r_pp]*r_pp.unit
         self.r_am = r_am
         self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
+        # self.abel_data = [abel_data(r.value) for r in r_pp]
         self.abel_data = [abel_data(r.value) for r in self.r_red]
         self.calc_integ = calc_integ
         self.integ_mu = integ_mu
@@ -599,15 +543,19 @@ def print_summary(prs, pmed, pstd, medsf, sz):
     wid1 = len(max(prs, key=len))
     wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
     wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
+    # units = [press.pars[n].unit for n in press.fit_pars]
+    # wid4 = len(max(map(str, units), key=len))
     print(('{:>%i}' % (wid1+2)).format('|')+
           ('{:>%i} Median |' % max(wid2-6,0)).format('')+
           ('{:>%i} Sd |' % max(wid3-2,0)).format('')+
-          '\n'+'-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0)))
+          # ('{:>%i} Unit' % max(wid4-4,0)).format('')+
+          '\n'+'-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0)))#+max(wid4-4,0)))
     for i in range(len(prs)):
         print(('{:>%i}' % (wid1+2)).format('%s |' %prs[i])+
               ('{:>%i}' % max(wid2+3, 9)).format(' %s |' %format(pmed[i], '.2e'))+
               ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e')))#+
-    print('-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0))+
+              # ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
+    print('-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0))+#max(wid4-4,0))+
           '\nMedian profile Chi2 = %s with %s df' % ('{:.4f}'.format(chisq), np.sum([f[1][~np.isnan(f[1])].size for f in sz.flux_data])-len(prs)))
 
 def save_summary(filename, prs, pmed, pstd, ci):
@@ -620,5 +568,6 @@ def save_summary(filename, prs, pmed, pstd, ci):
     pstd = array of standard deviations of parameters sampled in the chain
     ci = uncertainty level of the interval
     '''
+    # units = [press.pars[n].unit for n in press.fit_pars]
     np.savetxt('%s.log' % filename, [pmed, pstd], fmt='%.8e', delimiter='\t', header='This file summarizes MCMC results\n'+
                'Posterior distribution medians + uncertainties (%s%% CI)\n' %ci + ' -- '.join(prs))
