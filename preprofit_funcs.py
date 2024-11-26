@@ -462,7 +462,7 @@ class SZ_data:
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp
-        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//5) for r in r_pp]*r_pp[0].unit
+        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//5)*r_pp[0].unit for r in r_pp]
         self.r_am = r_am
         self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
