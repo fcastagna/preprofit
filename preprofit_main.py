@@ -232,7 +232,6 @@ def main():
                 print('Too high! Retry')
                 pm.draw([m for m in model.free_RVs])
             else:
-                np.savetxt('%s/starting_point.dat' % savedir, np.array(vals))
                 ilike = pt.sum([shared(check)])
         nn += 1
         if nn == 1000:
