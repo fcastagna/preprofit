@@ -133,14 +133,10 @@ def main():
     # wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
 
     # PSF+tf filtering
-    import tf_steps_funcs as tfuncs
     ell_spt, tf_1d = np.loadtxt('./data/sptsz_trough_filter_1d.dat', unpack=1)
     freq_spt_1d = (ell_spt/u.radian).to(1/u.arcsec)/2/np.pi
-    freq, fb, filtering = tfuncs.filtering(
-        mystep, eq_kpc_as, maxr_data=maxr_data,#lenr=np.ceil((maxr_data+3*fwhm_beam)/mystep), 
-        approx=beam_approx, beam_and_tf=beam_and_tf, crop_image=crop_image, 
-        cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, 
-        w_tf_1d=freq_spt_1d, tf_1d=tf_1d)
+    freq, fb, filtering = pfuncs.filtering(mystep, eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, beam_and_tf=beam_and_tf, crop_image=crop_image, 
+                                           cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, w_tf_1d=freq_spt_1d, tf_1d=tf_1d)
     fwhm = fwhm_beam
 
     # Radius definition
