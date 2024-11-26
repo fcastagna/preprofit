@@ -89,7 +89,9 @@ class Press_gNFW(Pressure):
         return logunivpars
 
 class Press_rcs(Pressure):
-
+    '''
+    Restricted cubic spline
+    '''
     def __init__(self, knots, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
         self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
         Pressure.__init__(self, eq_kpc_as)
@@ -144,6 +146,66 @@ def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P
     hz = cosmo.H(z)/cosmo.H0
     P500 = pconst*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)
     return P500*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
+
+class Press_nonparam_plaw(Pressure):
+    '''
+    Class to parametrize the pressure profile with a non parametric power-law model
+    -------------------------------------------------------------------------------
+    knots = radial bins
+    pbins = pressure values corresponding to radial bins
+    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
+    max_slopeout = maximum allowed value for the outer slope
+    '''
+    def __init__(self, knots, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
+        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
+        self.slope_prior = slope_prior
+        self.max_slopeout = max_slopeout
+        Pressure.__init__(self, eq_kpc_as)
+        self.alpha = pt.ones_like(self.knots)
+        self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots] # denominator for alpha
+
+    def functional_form(self, r_kpc, pars, i=None, logder=False):
+        '''
+        Functional form expression for pressure calculation
+        ---------------------------------------------------
+        r_kpc = radius (kpc)
+        pars = set of pressure parameters
+        '''
+        pars = pt.as_tensor([10**p for p in pars])
+        self.alpha = (pt.log10(pt.mul(pars[1:], 1/pars[:-1]))/self.alpha_den[i])[self.alpha_ind[i]]
+        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.knots[i][self.alpha_ind[i]]))
+        out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor(self.q))
+        return out
+
+    def prior(self, pars, r_kpc, i, decr_prior=False):
+        '''
+        Checks accordance with prior constraints
+        ---------------------------------------
+        pars = set of pressure parameters
+        '''
+        if self.slope_prior:
+            pars = pt.as_tensor([10**p for p in pars])
+            if decr_prior: # doesn't seem to work
+                decr = pt.all(pt.diff(pars) < 0)
+                if not decr.eval():
+                    return pt.as_tensor([np.inf])
+            P_n_1, P_n = pars[-2:]
+            slope_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
+            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
+        return pt.as_tensor([0.]), None
+
+    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+        '''
+        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
+        -----------------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
+        cosmo = cosmology object
+        z = redshift
+        '''
+        new_press = Press_gNFW(self.eq_kpc_as)
+        gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
+        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
+        return logunivpars
 
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
