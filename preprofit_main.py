@@ -1,4 +1,4 @@
-import pfuncs_scipy as pfuncs#preprofit_funcs as pfuncs
+import preprofit_funcs as pfuncs
 import preprofit_plots as pplots
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
