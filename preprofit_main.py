@@ -219,9 +219,9 @@ def main():
         with model:
             pars = [p[nps:] for p in pars] if type(press)==pfuncs.Press_gNFW else [[p[j] for p in pars[0][2:]] for j in range(nc)]
             like, pprof, maps, slopes = zip(*map(
-                lambda i, pr, szr, sza, szl, dm, szfl: pfuncs.whole_lik(
-                    pr, press, szr, sza, sz.dist.indices, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'),
-                np.arange(nc), pars, sz.r_pp, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
+                lambda i, pr, szr, szrd, sza, szl, dm, szfl: pfuncs.whole_lik(
+                    pr, press, szr, szrd, sza, sz.dist.indices, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'),
+                np.arange(nc), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             infs = [int(np.isinf(l.eval())) for l in like]
             print('likelihood:')
             print(pt.sum(like).eval())
