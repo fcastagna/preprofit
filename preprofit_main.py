@@ -75,8 +75,8 @@ savedir = './' # directory for saved files
 
 ## Prior constraint on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
-integ_mu = .94/1e3 # from Planck
-integ_sig = .36/1e3 # from Planck
+integ_mu = .94/1e3
+integ_sig = .36/1e3
 
 ## Prior constraint on the pressure slope at large radii?
 slope_prior = True # apply or do not apply?
