@@ -84,18 +84,9 @@ r_out = r500*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
 ## Pressure modelization
-# 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (restricted cubic spline / power law interpolation)
-# Select your model and please comment the remaining ones
-
-# 1. Generalized Navarro Frenk and White
-# press = pfuncs.Press_gNFW(z=z, cosmology=cosmology, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-
-# 2. Restricted cubic spline
+# Only the restricted cubic spline model is available at the moment
 knots = np.outer([.1, .4, .7, 1, 1.3], r500).T
 press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-
-# 3. Power law interpolation
-# press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Get parameters from the universal pressure profile to determine starting point
 logunivpars = np.mean(press.get_universal_params(cosmology, z, M500=M500), axis=0)
