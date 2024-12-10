@@ -98,9 +98,7 @@ press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slop
 # press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Get parameters from the universal pressure profile to determine starting point
-logunivpars = press.get_universal_params(cosmology, z, M500=M500)
-press_knots = np.mean(logunivpars, axis=0)
-nk = len(press_knots)
+logunivpars = np.array(press.get_universal_params(cosmology, z, M500=M500))
 
 ## Model definition
 with pm.Model() as model:
@@ -108,14 +106,15 @@ with pm.Model() as model:
     if type(press) == pfuncs.Press_gNFW:
         fitted = ['Ps', 'a', 'b', 'c'] # parameters that we aim to fit
         nps = len(fitted)
-        pm.Normal('Ps', mu=logunivpars[0][0], sigma=.3) if 'Ps' in fitted else None
-        pm.Normal('a', mu=logunivpars[0][1], sigma=.1) if 'a' in fitted else None
-        pm.Normal('b', mu=logunivpars[0][2], sigma=.1) if 'b' in fitted else None
-        pm.Normal('c', mu=logunivpars[0][3], sigma=.1) if 'c' in fitted else None
+        pm.Normal('Ps', mu=logunivpars[0], sigma=.3) if 'Ps' in fitted else None
+        pm.Normal('a', mu=logunivpars[1], sigma=.1) if 'a' in fitted else None
+        pm.Normal('b', mu=logunivpars[2], sigma=.1) if 'b' in fitted else None
+        pm.Normal('c', mu=logunivpars[3], sigma=.1) if 'c' in fitted else None
         c500=1.177
         logr_p = np.log10(r500.value/c500)
     else:
-        [pm.Normal('P'+str(i), mu=press_knots[i], sigma=.5, initval=press_knots[i]) for i in range(nk)]
+        nk = logunivars.size
+        [pm.Normal('P'+str(i), mu=logunivpars[i], sigma=.5, initval=logunivpars[i]) for i in range(nk)]
     # Add pedestal component to the model
     pm.Normal("ped", 0, 1e-6)
 
