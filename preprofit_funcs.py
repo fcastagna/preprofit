@@ -21,8 +21,11 @@ class Pressure:
     -----------------------------------------
     eq_kpc_as = equation for switching between kpc and arcsec
     '''
-    def __init__(self, eq_kpc_as):
-        self.eq_kpc_as = eq_kpc_as
+    def __init__(self, z, cosmology):
+        self.z = z
+        self.cosmology = cosmology
+        self.kpc_as = cosmology.kpc_proper_per_arcmin([z]).to('kpc arcsec-1') # number of kpc per arcsec
+        self.eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
 
 class Press_gNFW(Pressure):
     '''
@@ -32,10 +35,10 @@ class Press_gNFW(Pressure):
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, eq_kpc_as, slope_prior=True, r_out=[1e3]*u.kpc, max_slopeout=-2.):
-        Pressure.__init__(self, eq_kpc_as)
+    def __init__(self, z, cosmology, slope_prior=True, r_out=[1e3]*u.kpc, max_slopeout=-2.):
+        Pressure.__init__(self, z, cosmology)
         self.slope_prior = slope_prior
-        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=eq_kpc_as))
+        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=self.eq_kpc_as))
         self.max_slopeout = max_slopeout
 
     def functional_form(self, r_kpc, pars, i=None, logder=False):
@@ -83,11 +86,11 @@ class Press_gNFW(Pressure):
 
 class Press_rcs(Pressure):
 
-    def __init__(self, knots, eq_kpc_as, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
-        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
-        Pressure.__init__(self, eq_kpc_as)
+    def __init__(self, knots, z, cosmology, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+        Pressure.__init__(self, z, cosmology)
+        self.knots = knots.to(u.kpc, equivalencies=self.eq_kpc_as)
         self.slope_prior = slope_prior
-        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=eq_kpc_as))
+        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=self.eq_kpc_as))
         self.max_slopeout = max_slopeout
         self.N = [len(k)-2 for k in self.knots]
         self.betas = [None]*len(self.knots)
@@ -123,7 +126,7 @@ class Press_rcs(Pressure):
                 pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        new_press = Press_gNFW(self.eq_kpc_as, r_out=self.r_out)
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology, r_out=self.r_out)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
@@ -137,11 +140,11 @@ class Press_nonparam_plaw(Pressure):
     slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, knots, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
-        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
+    def __init__(self, knots, z, cosmology, slope_prior=True, max_slopeout=-2.):
+        Pressure.__init__(self, z, cosmology)
+        self.knots = knots.to(u.kpc, equivalencies=self.eq_kpc_as)
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
-        Pressure.__init__(self, eq_kpc_as)
         self.alpha = pt.ones_like(self.knots)
         self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots] # denominator for alpha
 
@@ -183,7 +186,7 @@ class Press_nonparam_plaw(Pressure):
         cosmo = cosmology object
         z = redshift
         '''
-        new_press = Press_gNFW(self.eq_kpc_as)
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
