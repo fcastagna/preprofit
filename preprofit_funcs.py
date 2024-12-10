@@ -19,7 +19,8 @@ class Pressure:
     '''
     Class to parametrize the pressure profile
     -----------------------------------------
-    eq_kpc_as = equation for switching between kpc and arcsec
+    z = redshift of galaxy clusters
+    cosmology = cosmological model adopted
     '''
     def __init__(self, z, cosmology):
         self.z = z
