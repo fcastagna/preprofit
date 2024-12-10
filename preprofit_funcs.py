@@ -19,10 +19,14 @@ class Pressure:
     '''
     Class to parametrize the pressure profile
     -----------------------------------------
-    eq_kpc_as = equation for switching between kpc and arcsec
+    z = redshift of galaxy clusters
+    cosmology = cosmological model adopted
     '''
-    def __init__(self, eq_kpc_as):
-        self.eq_kpc_as = eq_kpc_as
+    def __init__(self, z, cosmology):
+        self.z = z
+        self.cosmology = cosmology
+        self.kpc_as = cosmology.kpc_proper_per_arcmin([z]).to('kpc arcsec-1') # number of kpc per arcsec
+        self.eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*self.kpc_as.value, lambda x: x/self.kpc_as.value)] # equation for switching between kpc and arcsec
 
 class Press_gNFW(Pressure):
     '''
@@ -32,8 +36,8 @@ class Press_gNFW(Pressure):
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, eq_kpc_as, slope_prior=True, r_out=1e3, max_slopeout=-2.):
-        Pressure.__init__(self, eq_kpc_as)
+    def __init__(self, z, cosmology, slope_prior=True, r_out=[1e3]*u.kpc, max_slopeout=-2.):
+        Pressure.__init__(self, z, cosmology)
         self.slope_prior = slope_prior
         self.r_out = np.atleast_1d(r_out)
         self.max_slopeout = max_slopeout
@@ -83,9 +87,9 @@ class Press_gNFW(Pressure):
 
 class Press_rcs(Pressure):
 
-    def __init__(self, knots, eq_kpc_as, slope_prior=True, r_out=1e3, max_slopeout=-2.):
+    def __init__(self, knots, z, cosmology, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+        Pressure.__init__(self, z, cosmology)
         self.knots = knots
-        Pressure.__init__(self, eq_kpc_as)
         self.slope_prior = slope_prior
         self.r_out = np.atleast_1d(r_out)
         self.max_slopeout = max_slopeout
@@ -138,11 +142,11 @@ class Press_nonparam_plaw(Pressure):
     slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, knots, eq_kpc_as, slope_prior=True, max_slopeout=-2.):
+    def __init__(self, knots, z, cosmology, slope_prior=True, max_slopeout=-2.):
+        Pressure.__init__(self, z, cosmology)
         self.knots = knots
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
-        Pressure.__init__(self, eq_kpc_as)
         self.alpha = pt.ones_like(self.knots)
         self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots] # denominator for alpha
 
