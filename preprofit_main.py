@@ -25,9 +25,6 @@ z = 0.11 # redshift
 M500 = 4.2e14*u.Msun  # M500
 r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
-kpc_as = cosmology.kpc_proper_per_arcmin([z]).to('kpc arcsec-1') # number of kpc per arcsec
-eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
-
 ## Beam and transfer function
 # Beam file already includes transfer function?
 beam_and_tf = True
@@ -91,14 +88,14 @@ max_slopeout = 0. # maximum value for the slope at r_out
 # Select your model and please comment the remaining ones
 
 # 1. Generalized Navarro Frenk and White
-# press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+# press = pfuncs.Press_gNFW(z=z, cosmology=cosmology, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # 2. Restricted cubic spline
 knots = np.outer([.1, .4, .7, 1, 1.3], r500).T
-press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # 3. Power law interpolation
-# press = pfuncs.Press_nonparam_plaw(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
+# press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Get parameters from the universal pressure profile to determine starting point
 logunivpars = press.get_universal_params(cosmology, z, M500=M500)
@@ -144,7 +141,7 @@ def main():
 
     # PSF+tf filtering
     freq, fb, filtering = pfuncs.filtering(
-        mystep, eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, 
+        mystep, press.eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, 
         fwhm_beam=fwhm_beam, crop_image=crop_image, cropped_side=cropped_side, 
         w_tf_1d=wn_as, tf_1d=tf)
 
@@ -153,8 +150,8 @@ def main():
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     # radius in kpc used to compute the pressure profile (radius 0 excluded)
-    r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=eq_kpc_as)+1)]*mystep.to(u.kpc, equivalencies=eq_kpc_as)
-    r_am = np.arange(1+min([len(r) for r in r_pp]))*mystep.to(u.arcmin, equivalencies=eq_kpc_as) # radius in arcmin (radius 0 included)
+    r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=press.eq_kpc_as)+1)]*mystep.to(u.kpc, equivalencies=press.eq_kpc_as)
+    r_am = np.arange(1+min([len(r) for r in r_pp]))*mystep.to(u.arcmin, equivalencies=press.eq_kpc_as) # radius in arcmin (radius 0 included)
 
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
@@ -165,7 +162,7 @@ def main():
         conv_temp_sb = 1*u.Unit('')
 
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
+    sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=press.eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
                         r_pp=r_pp, r_am=r_am, filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
     # Compute P500
@@ -241,7 +238,7 @@ def main():
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[0].value for i, r in enumerate(press.knots[0])]], 
+                      [[r.to(sz.flux_data[0][0].unit, equivalencies=press.eq_kpc_as)[0].value for i, r in enumerate(press.knots[0])]], 
                       plotdir=plotdir)
     
     with model:
@@ -273,7 +270,7 @@ def main():
     pplots.traceplot(trace, prs, nc=1, trans_ped=lambda x: 1e4*x, plotdir=savedir)
 
     # Best fitting profile on SZ surface brightness
-    pplots.fitwithmod(sz, perc_sz, eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots.to(u.arcsec, equivalencies=eq_kpc_as).value,
+    pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots.to(u.arcsec, equivalencies=press.eq_kpc_as).value,
                       peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Forest plots
