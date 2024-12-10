@@ -98,7 +98,7 @@ press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slop
 # press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Get parameters from the universal pressure profile to determine starting point
-logunivpars = np.array(press.get_universal_params(cosmology, z, M500=M500))
+logunivpars = press.get_universal_params(cosmology, z, M500=M500)[0]
 
 ## Model definition
 with pm.Model() as model:
