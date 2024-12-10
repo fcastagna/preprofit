@@ -105,7 +105,7 @@ nk = len(logunivpars)
 with pm.Model() as model:
     # Customize the prior distribution of the parameters using pymc distributions
     pm.Uniform('sigmas_{int,k}', 0, 1, shape=nk)
-    pm.Normal('log(P_k)', mu=press_knots, sigma=.5, initval=press_knots, shape=nk)
+    pm.Normal('log(P_k)', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
     [pm.Normal('log(P_{%s,i})' % j, mu=model['log(P_k)'][j], sigma=model['sigmas_{int,k}'][j], shape=nc) for j in range(nk)]
 
 # Sampling step
