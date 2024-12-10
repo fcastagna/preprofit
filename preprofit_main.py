@@ -25,9 +25,6 @@ z = [.11, .2026, .139]
 r500 = [ 943.85207035, 1290.31531693, 1022.3744362 ]*u.kpc
 M500 = (4/3*np.pi*cosmology.critical_density(z).to(u.g/u.kpc**3)*500*r500**3).to(u.Msun)
 
-kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
-eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*kpc_as.value, lambda x: x/kpc_as.value)] # equation for switching between kpc and arcsec
-
 ## Beam and transfer function
 # Beam file already includes transfer function?
 beam_and_tf = True
@@ -78,8 +75,8 @@ savedir = './' # directory for saved files
 
 ## Prior constraint on the Integrated Compton parameter?
 calc_integ = False # apply or do not apply?
-integ_mu = .94/1e3 # from Planck
-integ_sig = .36/1e3 # from Planck
+integ_mu = .94/1e3
+integ_sig = .36/1e3
 
 ## Prior constraint on the pressure slope at large radii?
 slope_prior = True # apply or do not apply?
@@ -91,19 +88,18 @@ max_slopeout = 0. # maximum value for the slope at r_out
 # Select your model and please comment the remaining ones
 
 # 1. Generalized Navarro Frenk and White
-# press = pfuncs.Press_gNFW(eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+# press = pfuncs.Press_gNFW(z=z, cosmology=cosmology, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # 2. Restricted cubic spline
 knots = np.outer([.1, .4, .7, 1, 1.3], r500).T
-press = pfuncs.Press_rcs(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 # 3. Power law interpolation
-# press = pfuncs.Press_nonparam_plaw(knots=knots, eq_kpc_as=eq_kpc_as, slope_prior=slope_prior, max_slopeout=max_slopeout)
+# press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
 ## Get parameters from the universal pressure profile to determine starting point
-logunivpars = press.get_universal_params(cosmology, z, M500=M500)
-press_knots = np.mean(logunivpars, axis=0)
-nk = len(press_knots)
+logunivpars = np.mean(press.get_universal_params(cosmology, z, M500=M500), axis=0)
+nk = len(logunivpars)
 
 ## Model definition
 with pm.Model() as model:
@@ -135,7 +131,7 @@ def main():
     # PSF+tf filtering
     ell_spt, tf_1d = np.loadtxt('./data/sptsz_trough_filter_1d.dat', unpack=1)
     freq_spt_1d = (ell_spt/u.radian).to(1/u.arcsec)/2/np.pi
-    freq, fb, filtering = pfuncs.filtering(mystep, eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, beam_and_tf=beam_and_tf, crop_image=crop_image, 
+    freq, fb, filtering = pfuncs.filtering(mystep, press.eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, beam_and_tf=beam_and_tf, crop_image=crop_image, 
                                            cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, w_tf_1d=freq_spt_1d, tf_1d=tf_1d)
     fwhm = fwhm_beam
 
@@ -144,9 +140,9 @@ def main():
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     # radius in kpc used to compute the pressure profile (radius 0 excluded)
-    r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]+1)*mystep.to(u.kpc, equivalencies=eq_kpc_as)[i]
+    r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i]+1)*mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i]
             for i in range(nc)]
-    r_am = np.arange(1+min([len(r) for r in r_pp]))*mystep.to(u.arcmin, equivalencies=eq_kpc_as) # radius in arcmin (radius 0 included)
+    r_am = np.arange(1+min([len(r) for r in r_pp]))*mystep.to(u.arcmin, equivalencies=press.eq_kpc_as) # radius in arcmin (radius 0 included)
 
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
@@ -157,7 +153,7 @@ def main():
         conv_temp_sb = 1*u.Unit('')
 
     # Set of SZ data required for the analysis
-    sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
+    sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=press.eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
                         r_pp=r_pp, r_am=r_am, filtering=filtering, calc_integ=calc_integ, integ_mu=integ_mu, integ_sig=integ_sig)
 
     # Compute P500
@@ -247,7 +243,7 @@ def main():
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r.to(sz.flux_data[0][0].unit, equivalencies=eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] 
+                      [[r.to(sz.flux_data[0][0].unit, equivalencies=press.eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] 
                        for j in range(nc)], plotdir=plotdir)
 
     with model:
