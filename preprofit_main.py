@@ -109,8 +109,8 @@ nk = len(press_knots)
 with pm.Model() as model:
     # Customize the prior distribution of the parameters using pymc distributions
     pm.Uniform('sigmas', 0, 1, shape=nk)
-    pm.Normal('log(P_i)', mu=press_knots, sigma=.5, initval=press_knots, shape=nk)
-    [pm.Normal('log(P_{i,%s})' % j, mu=model['log(P_i)'][j], sigma=model['sigmas'][j], shape=nc) for j in range(nk)]
+    pm.Normal('log(P_k)', mu=press_knots, sigma=.5, initval=press_knots, shape=nk)
+    [pm.Normal('log(P_{%s,i})' % j, mu=model['log(P_k)'][j], sigma=model['sigmas'][j], shape=nc) for j in range(nk)]
 
 # Sampling step
 mystep = 30.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
