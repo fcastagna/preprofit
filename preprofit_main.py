@@ -116,8 +116,7 @@ def main():
     flux_data = [pfuncs.read_data(fl, ncol=3, units=flux_units) for fl in flux_filename] # radius, flux density, statistical error
 
     # Transfer function
-    wn_as, tf = None, None
-    # wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
+    wn_as, tf = [None, None] if beam_and_tf else pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
 
     # PSF+tf filtering
     ell_spt, tf_1d = np.loadtxt('./data/sptsz_trough_filter_1d.dat', unpack=1)
