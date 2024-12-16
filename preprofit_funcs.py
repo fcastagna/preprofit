@@ -6,6 +6,7 @@ from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy import constants as const
 import warnings
+from preprofit_plots import tf_diagnostic_plot
 from scipy import optimize
 from scipy.integrate import simps
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
@@ -314,7 +315,7 @@ def read_beam_data(step, beam_xy, filename, units, step_data, crop_image, croppe
     
 def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, approx=False, 
               filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, 
-              fwhm_beam=None, step_data=None, w_tf_1d=None, tf_1d=None):
+              fwhm_beam=None, step_data=None, w_tf_1d=None, tf_1d=None, plotdir='./'):
     '''
     Set the 2D image for the beam + transfer function filtering, 
     alternatively from file data or from a normal distribution with given FWHM
@@ -361,6 +362,8 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
         gt = interp1d(w_tf_1d, tf_1d, 'cubic', bounds_error=False, fill_value=(tf_1d[0], tf_1d[-1]))
         tf_2d = gt(freq_2d)
         filtering = fft_beam*tf_2d
+        # Diagnostic plot
+        tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir=plotdir)
     return freq_2d, fft_beam, filtering
 
 def centdistmat(r, offset=0.):
