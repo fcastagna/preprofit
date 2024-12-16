@@ -54,7 +54,7 @@ t_const = 8*u.keV # if conversion is not required, preprofit ignores it
 # measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
-beam_units = u.beam # beam units
+beam_units = u.Unit('') # beam units
 flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
 # tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 # conv_units = [u.keV, u.Jy/u.beam] # conversion units
