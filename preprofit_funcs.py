@@ -7,6 +7,7 @@ from astropy import constants as const
 import warnings
 from scipy import optimize
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
+from preprofit_plots import tf_diagnostic_plot
 from scipy.ndimage import mean
 import pytensor.tensor as pt
 from pytensor.compile.ops import as_op
@@ -36,7 +37,7 @@ class Press_gNFW(Pressure):
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, z, cosmology, slope_prior=True, r_out=[1e3]*u.kpc, max_slopeout=-2.):
+    def __init__(self, z, cosmology, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.slope_prior = slope_prior
         self.r_out = np.atleast_1d(r_out)
@@ -107,10 +108,9 @@ class Press_rcs(Pressure):
         return pt.as_tensor([0.]), None
         
     def functional_form(self, r_kpc, pars, i=None, logder=False):
-        kn = pt.log10(self.knots[i]/self.r500[i])
+        kn = self.kn[i]
         if self.betas[i] is None:
-            sv = [(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2 for _ in range(self.N[i])]
-            X = pt.concatenate((pt.atleast_2d(pt.ones(len(self.knots[i]))), pt.atleast_2d(kn), pt.as_tensor(sv))).T
+            X = self.X[i]
             self.betas[i] = solve(X, pars)
         if not logder:
             x = pt.log10(r_kpc/self.r500[i])
@@ -128,7 +128,7 @@ class Press_rcs(Pressure):
                 pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        new_press = Press_gNFW(z=z, cosmology=cosmo, r_out=self.r_out)
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology, r_out=self.r_out)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
@@ -197,10 +197,11 @@ def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P
     '''
     Compute P500 according to the definition in Equation (5) from Arnaud's paper
     '''
-    pnorm = mu/mu_e*f_b*3/8/np.pi*(const.G.value**(-1/3)*u.kg/u.m/u.s**2).to(u.keV/u.cm**3)/((u.kg/250**2/cosmo.H0**4/u.s**4/3e14/u.Msun).to(''))**(2/3)
+    pconst = (mu/mu_e*f_b*3/8/np.pi*(500*const.G**(-1/4)*cosmo.H0**2/2)**(4/3)*(3e14*u.Msun)**(2/3)).to(u.keV/u.cm**3)
     alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
     hz = cosmo.H(z)/cosmo.H0
-    return pnorm*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
+    P500 = pconst*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)
+    return P500*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
 
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
@@ -225,8 +226,6 @@ def read_data(filename, ncol=1, units=u.Unit('')):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
-    data = np.array(data, dtype=object)
-    data.reshape(np.sort(data.shape))
     dim = np.squeeze(data).shape
     if len(dim) == 1:
         if ncol == 1:
@@ -306,7 +305,7 @@ def read_beam_data(step, beam_xy, filename, units, step_data,
     
 def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, approx=False, 
               filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, 
-              fwhm_beam=None, step_data=None, w_tf_1d=None, tf_1d=None):
+              fwhm_beam=None, step_data=None, w_tf_1d=None, tf_1d=None, plotdir='./'):
     '''
     Set the 2D image for the beam + transfer function filtering, 
     alternatively from file data or from a normal distribution with given FWHM
@@ -354,6 +353,8 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
         gt = interp1d(w_tf_1d, tf_1d, 'cubic', bounds_error=False, fill_value=(tf_1d[0], tf_1d[-1]))
         tf_2d = gt(freq_2d)
         filtering = fft_beam*tf_2d
+        # Diagnostic plot
+        tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir=plotdir)
     return freq_2d, fft_beam, filtering
 
 def centdistmat(r, offset=0.):
@@ -378,9 +379,12 @@ def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., s
     RETURN: the vectors of wave numbers and transmission values
     '''
     wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
+    wn_as = wn.to(1/u.arcsec)
+    if wn.unit == u.radian**-1:
+        wn_as /= 2*np.pi
     if approx:
         tf = k*norm.cdf(wn, loc, scale)
-    return wn, tf
+    return wn_as, tf
 
 def dist(naxis):
     '''
@@ -519,7 +523,7 @@ class SZ_data:
         self.step = step
         self.eq_kpc_as = eq_kpc_as
         self.conv_temp_sb = conv_temp_sb
-        self.flux_data = flux_data#[[x.value for s in flux_data for x in s]]
+        self.flux_data = flux_data
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp
@@ -554,7 +558,7 @@ def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     y = 4.0171007732191115e-06*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = f(dm)#.value)
+    y_2d = f(dm)
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifft2(fft2(y_2d)*szf))
     # Conversion from Compton parameter to mJy/beam
