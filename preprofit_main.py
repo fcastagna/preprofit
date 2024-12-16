@@ -54,7 +54,7 @@ t_const = 8*u.keV # if conversion is not required, preprofit ignores it
 # measure in the file)
 # NOTE: if some of the units are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
-beam_units = u.beam # beam units
+beam_units = u.Unit('') # beam units
 flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
 # tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
 # conv_units = [u.keV, u.Jy/u.beam] # conversion units
@@ -135,14 +135,12 @@ def main():
     flux_data = [pfuncs.read_data(flux_filename, ncol=3, units=flux_units)] # radius, flux density, statistical error
 
     # Transfer function
-    wn_as, tf = None, None
-    # wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
-
+    wn_as, tf = [None, None] if beam_and_tf else pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
+    
     # PSF+tf filtering
     freq, fb, filtering = pfuncs.filtering(
-        mystep, press.eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, 
-        fwhm_beam=fwhm_beam, crop_image=crop_image, cropped_side=cropped_side, 
-        w_tf_1d=wn_as, tf_1d=tf)
+        mystep, press.eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, filename=beam_filename, fwhm_beam=fwhm_beam, 
+        crop_image=crop_image, cropped_side=cropped_side, w_tf_1d=wn_as, tf_1d=tf)
 
     # Radius definition
     radius = np.arange(filtering.shape[0]//2+1)*mystep
@@ -173,7 +171,12 @@ def main():
         press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[0], press.knots[0])-1)] # lower bins indexes
         press.r_low = [p[i] for p, i in zip(press.knots, press.ind_low)] # lower radial bins
         press.alpha_ind = [np.minimum(i, len(press.knots[0])-2) for i in press.ind_low] # alpha indexes
-    
+    if type(press) == pfuncs.Press_rcs:
+        press.kn = [pt.log10(k.value/r.value) for k, r in zip(press.knots, press.r500)]
+        press.sv = [[(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2
+                     for _ in range(press.N[i])] for i, kn in enumerate(press.kn)]
+        press.X = [pt.concatenate((pt.atleast_2d(pt.ones(len(press.knots[i]))), pt.atleast_2d(kn), pt.as_tensor(sv))).T
+                   for i, (kn, sv) in enumerate(zip(press.kn, press.sv))]
     # Save objects
     with open('%s/press_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(press, f, -1)
