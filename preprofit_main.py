@@ -22,12 +22,12 @@ clus = ['SPT-CLJ0500-5116', 'SPT-CLJ0637-4829', 'SPT-CLJ2055-5456']
 nc = len(clus)
 print('%s Clusters: %s' % (nc, clus))
 z = [.11, .2026, .139]
-r500 = [ 943.85207035, 1290.31531693, 1022.3744362 ]*u.kpc
+r500 = [943.85207035, 1290.31531693, 1022.3744362]*u.kpc
 M500 = (4/3*np.pi*cosmology.critical_density(z).to(u.g/u.kpc**3)*500*r500**3).to(u.Msun)
 
 ## Beam and transfer function
 # Beam file already includes transfer function?
-beam_and_tf = True
+beam_and_tf = False
 
 # Beam and transfer function. From input data or Gaussian approximation?
 beam_approx = True
@@ -43,7 +43,7 @@ tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
 # NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
 files_dir = './data' # files directory
 beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # beam
-tf_filename = None # transfer function
+tf_filename = '%s/sptsz_trough_filter_1d.dat' %files_dir # transfer function
 flux_filename = ['%s/press_data_' %files_dir+cl+'.dat' for cl in clus] # observed data
 convert_filename = None # conversion Compton -> observed data
 
@@ -56,7 +56,7 @@ t_const = 8*u.keV # if conversion is not required, preprofit ignores it
 # NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
 beam_units = u.beam # beam units
 flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
-# tf_units = [1/u.arcsec, u.Unit('')] # transfer function units
+# tf_units = [1/u.radian, u.Unit('')] # transfer function units
 # conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
 # Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
@@ -119,10 +119,8 @@ def main():
     wn_as, tf = [None, None] if beam_and_tf else pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
 
     # PSF+tf filtering
-    ell_spt, tf_1d = np.loadtxt('./data/sptsz_trough_filter_1d.dat', unpack=1)
-    freq_spt_1d = (ell_spt/u.radian).to(1/u.arcsec)/2/np.pi
     freq, fb, filtering = pfuncs.filtering(mystep, press.eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, filename=beam_filename, beam_and_tf=beam_and_tf, 
-                                           crop_image=crop_image, cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, w_tf_1d=freq_spt_1d, tf_1d=tf_1d)
+                                           crop_image=crop_image, cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, w_tf_1d=wn_as, tf_1d=tf)
     fwhm = fwhm_beam
 
     # Radius definition
