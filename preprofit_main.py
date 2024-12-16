@@ -135,14 +135,12 @@ def main():
     flux_data = [pfuncs.read_data(flux_filename, ncol=3, units=flux_units)] # radius, flux density, statistical error
 
     # Transfer function
-    wn_as, tf = None, None
-    # wn_as, tf = pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
+    wn_as, tf = [None, None] if beam_and_tf else pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
 
     # PSF+tf filtering
     freq, fb, filtering = pfuncs.filtering(
-        mystep, press.eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, 
-        fwhm_beam=fwhm_beam, crop_image=crop_image, cropped_side=cropped_side, 
-        w_tf_1d=wn_as, tf_1d=tf)
+        mystep, press.eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, filename=beam_filename, fwhm_beam=fwhm_beam, 
+        crop_image=crop_image, cropped_side=cropped_side, w_tf_1d=wn_as, tf_1d=tf)
 
     # Radius definition
     radius = np.arange(filtering.shape[0]//2+1)*mystep
