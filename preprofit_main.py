@@ -136,7 +136,7 @@ def main():
 
     # Transfer function
     wn_as, tf = [None, None] if beam_and_tf else pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
-    
+
     # PSF+tf filtering
     freq, fb, filtering = pfuncs.filtering(
         mystep, press.eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, filename=beam_filename, fwhm_beam=fwhm_beam, 
