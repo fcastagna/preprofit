@@ -1,12 +1,23 @@
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import numpy as np
+from astropy import units as u
 import corner
 import arviz as az
 
 plt.style.use('classic')
 font = {'size': 10}
 plt.rc('font', **font)
+
+def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir='./'):
+    pdf = PdfPages('./%s/tf_diagnostics.pdf' % plotdir)
+    plt.plot(w_tf_1d.to(1/u.arcmin), tf_1d, 'd', label='input')
+    plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), tf_2d[0,:freq_2d.shape[0]//2], '.', label='1d from 2d')
+    plt.xlim(-.1, 2); plt.legend(numpoints=1)
+    plt.title('Transfer function interpolation at large radii')
+    plt.xlabel('Frequency [arcmin$^{-1}$]'); plt.ylabel('Transfer function')
+    pdf.savefig()
+    pdf.close()
 
 def plot_guess(out_prof, sz, knots=None, plotdir='./'):
     '''
