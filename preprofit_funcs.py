@@ -226,8 +226,6 @@ def read_data(filename, ncol=1, units=u.Unit('')):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
-    data = np.array(data, dtype=object)
-    data.reshape(np.sort(data.shape))
     dim = np.squeeze(data).shape
     if len(dim) == 1:
         if ncol == 1:
@@ -381,9 +379,12 @@ def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., s
     RETURN: the vectors of wave numbers and transmission values
     '''
     wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
+    wn_as = wn.to(1/u.arcsec)
+    if wn.unit == u.radian**-1:
+        wn_as /= 2*np.pi
     if approx:
         tf = k*norm.cdf(wn, loc, scale)
-    return wn, tf
+    return wn_as, tf
 
 def dist(naxis):
     '''
