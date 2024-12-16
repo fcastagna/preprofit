@@ -235,8 +235,6 @@ def read_data(filename, ncol=1, units=u.Unit('')):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
-    data = np.array(data, dtype=object)
-    data.reshape(np.sort(data.shape))
     dim = np.squeeze(data).shape
     if len(dim) == 1:
         if ncol == 1:
