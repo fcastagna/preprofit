@@ -188,7 +188,7 @@ class Press_nonparam_plaw(Pressure):
         cosmo = cosmology object
         z = redshift
         '''
-        new_press = Press_gNFW(self.eq_kpc_as)
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
