@@ -172,7 +172,7 @@ def main():
         press.r_low = [p[i] for p, i in zip(press.knots, press.ind_low)] # lower radial bins
         press.alpha_ind = [np.minimum(i, len(press.knots[0])-2) for i in press.ind_low] # alpha indexes
     if type(press) == pfuncs.Press_rcs:
-        press.kn = [pt.log10(k.value/r.value) for k, r in zip(press.knots, press.r500)]
+        press.kn = [pt.log10(k/r) for k, r in zip(press.knots, press.r500)]
         press.sv = [[(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2
                      for _ in range(press.N[i])] for i, kn in enumerate(press.kn)]
         press.X = [pt.concatenate((pt.atleast_2d(pt.ones(len(press.knots[i]))), pt.atleast_2d(kn), pt.as_tensor(sv))).T
