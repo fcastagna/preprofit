@@ -56,7 +56,7 @@ t_const = 8*u.keV # if conversion is not required, preprofit ignores it
 # NOTE: base unit is u.Unit(''), e.g. used for Compton y measurements
 beam_units = u.beam # beam units
 flux_units = [u.arcsec, u.Unit(''), u.Unit('')] # observed data units
-# tf_units = [1/u.radian, u.Unit('')] # transfer function units
+tf_units = [1/u.radian, u.Unit('')] # transfer function units
 # conv_units = [u.keV, u.Jy/u.beam] # conversion units
 
 # Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
