@@ -90,7 +90,7 @@ class Press_rcs(Pressure):
     '''
     Restricted cubic spline
     '''
-    def __init__(self, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
+    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.knots = knots
         self.slope_prior = slope_prior
@@ -499,7 +499,7 @@ def interp_mat(mat, indices, func, sep):
     mat[:sep+1,sep:] = np.transpose(mat[sep:,:sep+1])
     mat[:sep+1,:sep+1] = np.fliplr(mat[:sep+1,sep:])
     return mat
-    
+
 class SZ_data:
     '''
     Class for the SZ data required for the analysis
@@ -616,7 +616,6 @@ def print_summary(prs, pmed, pstd, medsf, sz):
         print(('{:>%i}' % (wid1+2)).format('%s |' %prs[i])+
               ('{:>%i}' % max(wid2+3, 9)).format(' %s |' %format(pmed[i], '.2e'))+
               ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e')))#+
-              # ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
     print('-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0))+
           '\nMedian profile Chi2 = %s with %s df' % ('{:.4f}'.format(chisq), np.sum([f[1][~np.isnan(f[1])].size for f in sz.flux_data])-len(prs)))
 
