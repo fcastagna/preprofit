@@ -73,25 +73,25 @@ class Press_gNFW(Pressure):
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out[0]
         return pt.as_tensor([0.]), None
 
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+    def get_universal_params(self, 500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         '''
         '''
-        h70 = cosmo.H0/(70*cosmo.H0.unit)
+        h70 = self.cosmology.H0/(70*self.cosmology.H0.unit)
         if M500 is None:
             # Compute M500 from definition in terms of density and volume
-            M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to(u.cm)**3).to(u.Msun)
+            M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
-            r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
+            r500 = ((3/4*M500/(500.*self.cosmology.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
         # Compute P500 according to the definition in Equation (5) from Arnaud's paper
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = [np.log10([P0, a, b, c, (r500/c500)[i]]) for i in range(np.array(z).size)]
+        logunivpars = [np.log10([P0, a, b, c, (r500/c500)[i]]) for i in range(np.array(self.z).size)]
         return logunivpars
 
 class Press_rcs(Pressure):
     '''
     Restricted cubic spline
     '''
-    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
+    def __init__(self, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.knots = knots
         self.slope_prior = slope_prior
