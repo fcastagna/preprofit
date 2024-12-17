@@ -76,7 +76,7 @@ class Press_gNFW(Pressure):
     def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         '''
         '''
-        h70 = self.cosmo.H0/(70*self.cosmo.H0.unit)
+        h70 = self.cosmology.H0/(70*self.cosmology.H0.unit)
         if M500 is None:
             # Compute M500 from definition in terms of density and volume
             M500 = (4/3*np.pi*self.cosmo.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
