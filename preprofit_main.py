@@ -202,8 +202,8 @@ def main():
         with model:
             like, pprof, maps, slopes = zip(*map(
                 lambda i, pr, szr, szrd, sza, szl, dm, szfl: pfuncs.whole_lik(
-                    pr, press, szr.value, szrd.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, dm, sz.radius[sz.sep:].value, [s.value for s in szfl], i, 'll'), 
-                np.arange(1), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
+                    pr, press, szr.value, szrd.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, dm, sz.radius[sz.sep:].value, 
+                    [s.value for s in szfl], i, 'll'), np.arange(1), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             infs = [int(np.isinf(l.eval())) for l in like]
             print('likelihood:')
             print(pt.sum(like).eval())
