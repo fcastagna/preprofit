@@ -33,14 +33,14 @@ class Press_gNFW(Pressure):
     '''
     Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
     -----------------------------------------------------------------------------------------------
-    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, z, cosmology, slope_prior=True, r_out=[1e3]*u.kpc, max_slopeout=-2.):
+    def __init__(self, z, cosmology, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.slope_prior = slope_prior
-        self.r_out = r_out.to(u.kpc, equivalencies=self.eq_kpc_as)
+        self.r_out = np.atleast_1d(r_out)
         self.max_slopeout = max_slopeout
 
     def functional_form(self, r_kpc, pars, i=None, logder=False):
@@ -69,7 +69,7 @@ class Press_gNFW(Pressure):
         pars = set of pressure parameters
         '''
         if self.slope_prior:
-            slope_out = self.functional_form(shared(self.r_out[i].value), pars, logder=True)
+            slope_out = self.functional_form(shared(self.r_out[i]), pars, logder=True)
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out[0]
         return pt.as_tensor([0.]), None
 
