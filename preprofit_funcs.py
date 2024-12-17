@@ -88,7 +88,7 @@ class Press_gNFW(Pressure):
 
 class Press_rcs(Pressure):
 
-    def __init__(self, knots, z, cosmology, slope_prior=True, r_out=1e3, max_slopeout=-2.):
+    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.knots = knots
         self.slope_prior = slope_prior
@@ -142,7 +142,7 @@ class Press_nonparam_plaw(Pressure):
     slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
     '''
-    def __init__(self, knots, z, cosmology, slope_prior=True, max_slopeout=-2.):
+    def __init__(self, z, cosmology, knots, slope_prior=True, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.knots = knots
         self.slope_prior = slope_prior
