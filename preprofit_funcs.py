@@ -136,16 +136,6 @@ class Press_rcs(Pressure):
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
     
-def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P=1/.561-5/3):
-    '''
-    Compute P500 according to the definition in Equation (5) from Arnaud's paper
-    '''
-    pconst = (mu/mu_e*f_b*3/8/np.pi*(500*const.G**(-1/4)*cosmo.H0**2/2)**(4/3)*(3e14*u.Msun)**(2/3)).to(u.keV/u.cm**3)
-    alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
-    hz = cosmo.H(z)/cosmo.H0
-    P500 = pconst*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)
-    return P500*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
-
 class Press_nonparam_plaw(Pressure):
     '''
     Class to parametrize the pressure profile with a non parametric power-law model
@@ -205,6 +195,16 @@ class Press_nonparam_plaw(Pressure):
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
+
+def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P=1/.561-5/3):
+    '''
+    Compute P500 according to the definition in Equation (5) from Arnaud's paper
+    '''
+    pconst = (mu/mu_e*f_b*3/8/np.pi*(500*const.G**(-1/4)*cosmo.H0**2/2)**(4/3)*(3e14*u.Msun)**(2/3)).to(u.keV/u.cm**3)
+    alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
+    hz = cosmo.H(z)/cosmo.H0
+    P500 = pconst*hz**(8/3)*(M500/3e14/u.Msun)**(2/3)
+    return P500*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
 
 def read_data(filename, ncol=1, units=u.Unit('')):
     '''
