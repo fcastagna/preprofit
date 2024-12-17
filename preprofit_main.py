@@ -221,7 +221,7 @@ def main():
                 ilike = pt.sum([shared(check)])
         nn += 1
         if nn == 1000:
-            raise RuntimeError('Valid starting point not found after 100 attempts. Execution stopped')
+            raise RuntimeError('Valid starting point not found after 1000 attempts. Execution stopped')
 
     with model:
         map_prof = [pm.Deterministic('bright', maps[0])]
