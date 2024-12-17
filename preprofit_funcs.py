@@ -279,8 +279,7 @@ def turn_odd(mat):
     else:
         raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
 
-def read_beam_data(step, beam_xy, filename, units, step_data,
-                   crop_image, cropped_side):
+def read_beam_data(step, beam_xy, filename, units, step_data, crop_image, cropped_side):
     try: # 1D
         r_irreg, b = read_beam(filename, ncol=2, units=units)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
