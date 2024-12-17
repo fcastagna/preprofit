@@ -79,9 +79,9 @@ class Press_gNFW(Pressure):
         h70 = self.cosmology.H0/(70*self.cosmology.H0.unit)
         if M500 is None:
             # Compute M500 from definition in terms of density and volume
-            M500 = (4/3*np.pi*self.cosmo.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
+            M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
-            r500 = ((3/4*M500/(500.*self.cosmo.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
+            r500 = ((3/4*M500/(500.*self.cosmology.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
         logunivpars = [np.log10([P0, a, b, c, [r500.value/c500][i]]) for i in range(np.array(self.z).size)]
         return logunivpars
