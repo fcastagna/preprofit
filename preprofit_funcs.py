@@ -159,7 +159,7 @@ class Press_nonparam_plaw(Pressure):
         '''
         pars = pt.as_tensor([10**p for p in pars])
         self.alpha = (pt.log10(pt.mul(pars[1:], 1/pars[:-1]))/self.alpha_den[i])[self.alpha_ind[i]]
-        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.knots[i][self.alpha_ind[i]]))#self.r_low[i]))
+        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.knots[i][self.alpha_ind[i]]))
         out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor(self.q))
         return out
 
