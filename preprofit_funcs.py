@@ -76,7 +76,7 @@ class Press_gNFW(Pressure):
     def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         '''
         '''
-        h70 = cosmo.H0/(70*cosmo.H0.unit)
+        h70 = self.cosmo.H0/(70*self.cosmo.H0.unit)
         if M500 is None:
             # Compute M500 from definition in terms of density and volume
             M500 = (4/3*np.pi*self.cosmo.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
@@ -128,7 +128,7 @@ class Press_rcs(Pressure):
                 pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
 
     def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        new_press = Press_gNFW(r_out=self.r_out)
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology, r_out=self.r_out)
         gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
