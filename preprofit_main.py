@@ -66,7 +66,7 @@ cropped_side = 200 # side of the cropped image (automatically set to odd value)
 # Maximum radius for line-of-sight Abel integration
 R_b = 5000*u.kpc
 # Maximum radius for radial profile computation
-maxr_data = 1080*u.arcsec-3*fwhm_beam
+maxr_data = 1200*u.arcsec
 
 # Name for outputs
 name = 'preprofit'
