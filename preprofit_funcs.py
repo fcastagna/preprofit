@@ -73,7 +73,7 @@ class Press_gNFW(Pressure):
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out[0]
         return pt.as_tensor([0.]), None
 
-    def get_universal_params(self, 500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         '''
         '''
         h70 = self.cosmology.H0/(70*self.cosmology.H0.unit)
@@ -82,9 +82,8 @@ class Press_gNFW(Pressure):
             M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
             r500 = ((3/4*M500/(500.*self.cosmology.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
-        # Compute P500 according to the definition in Equation (5) from Arnaud's paper
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = [np.log10([P0, a, b, c, (r500/c500)[i]]) for i in range(np.array(self.z).size)]
+        logunivpars = [np.log10([P0, a, b, c, [r500.value/c500][i]]) for i in range(np.array(self.z).size)]
         return logunivpars
 
 class Press_rcs(Pressure):
@@ -130,12 +129,12 @@ class Press_rcs(Pressure):
                 -kn[-2:].sum()*
                 pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
 
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        new_press = Press_gNFW(z=self.z, cosmology=cosmo, r_out=self.r_out)
-        gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology, r_out=self.r_out)
+        gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
-    
+
 class Press_nonparam_plaw(Pressure):
     '''
     Class to parametrize the pressure profile with a non parametric power-law model
@@ -146,10 +145,10 @@ class Press_nonparam_plaw(Pressure):
     max_slopeout = maximum allowed value for the outer slope
     '''
     def __init__(self, z, cosmology, knots, slope_prior=True, max_slopeout=-2.):
-        self.knots = knots.to(u.kpc, equivalencies=eq_kpc_as)
+        Pressure.__init__(self, z, cosmology)
+        self.knots = knots
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
-        Pressure.__init__(self, self.eq_kpc_as)
         self.alpha = pt.ones_like(self.knots)
         self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots] # denominator for alpha
 
@@ -183,7 +182,7 @@ class Press_nonparam_plaw(Pressure):
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
 
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         '''
         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
         -----------------------------------------------------------------------------------------------------------------
@@ -191,8 +190,8 @@ class Press_nonparam_plaw(Pressure):
         cosmo = cosmology object
         z = redshift
         '''
-        new_press = Press_gNFW(self.eq_kpc_as)
-        gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology)
+        gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
 
@@ -338,7 +337,7 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
     # set up 2D grid
     x, y = np.mgrid[-lenr:lenr+1, -lenr:lenr+1]*step.value
     beam_xy = np.dstack((x, y))
-    side = beam_xy.shape[0]#2*rad.size-1#beam_mat.shape[0]
+    side = beam_xy.shape[0]
     freq_2d = dist(side)/side/step
     if approx:
         # Apply gaussian approximation
