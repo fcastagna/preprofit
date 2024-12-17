@@ -1,26 +1,20 @@
 import numpy as np
-import pymc as pm
 from astropy.io import fits
 from scipy.stats import norm, multivariate_normal
 from scipy.interpolate import interp1d
 from astropy import units as u
 from astropy import constants as const
 import warnings
-from preprofit_plots import tf_diagnostic_plot
 from scipy import optimize
-from scipy.integrate import simps
+from preprofit_plots import tf_diagnostic_plot
 from scipy.fftpack import fft2, ifft2, fftshift, ifftshift
 from scipy.ndimage import mean
-from scipy.optimize import minimize
-import time
-import h5py
 import pytensor.tensor as pt
 from pytensor.compile.ops import as_op
 from pytensor import shared
 from pytensor.tensor.var import TensorVariable
 from pytensor.link.c.type import Generic
 from pytensor.tensor.linalg import solve
-from scipy.optimize import curve_fit
 
 class Pressure:
     '''
@@ -32,7 +26,7 @@ class Pressure:
     def __init__(self, z, cosmology):
         self.z = z
         self.cosmology = cosmology
-        self.kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
+        self.kpc_as = cosmology.kpc_proper_per_arcmin(np.atleast_1d(z)).to('kpc arcsec-1') # number of kpc per arcsec
         self.eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*self.kpc_as.value, lambda x: x/self.kpc_as.value)] # equation for switching between kpc and arcsec
 
 class Press_gNFW(Pressure):
