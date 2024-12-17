@@ -83,19 +83,19 @@ class Press_gNFW(Pressure):
         else:
             r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
         # Compute P500 according to the definition in Equation (5) from Arnaud's paper
-        P0 = 8.403*h70**(-3/2)
-        logunivpars = [np.log10([(P0).value, a, b, c, (r500.to(u.kpc, equivalencies=self.eq_kpc_as).value/c500)[i]]) for i in range(len(z))]
+        P0 = 8.403*h70**(-3/2) if P0 is None else P0
+        logunivpars = [np.log10([P0, a, b, c, (r500/c500)[i]]) for i in range(np.array(z).size)]
         return logunivpars
 
 class Press_rcs(Pressure):
     '''
     Restricted cubic spline
     '''
-    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
-        self.knots = knots.to(u.kpc, equivalencies=self.eq_kpc_as)
+        self.knots = knots
         self.slope_prior = slope_prior
-        self.r_out = np.atleast_1d(r_out.to(u.kpc, equivalencies=self.eq_kpc_as))
+        self.r_out = np.atleast_1d(r_out)
         self.max_slopeout = max_slopeout
         self.N = [len(k)-2 for k in self.knots]
         self.betas = [None]*len(self.knots)
@@ -131,7 +131,7 @@ class Press_rcs(Pressure):
                 pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
 
     def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        new_press = Press_gNFW(z=z, cosmology=cosmo, r_out=self.r_out)
+        new_press = Press_gNFW(z=self.z, cosmology=cosmo, r_out=self.r_out)
         gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
