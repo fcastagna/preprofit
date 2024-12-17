@@ -7,6 +7,7 @@ from scipy.interpolate import interp1d
 import cloudpickle
 import pymc as pm
 from pytensor import shared
+import arviz as az
 import pytensor.tensor as pt
 from pymc.sampling.mcmc import assign_step_methods
 
@@ -21,7 +22,7 @@ cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 clus = ['SPT-CLJ0500-5116', 'SPT-CLJ0637-4829', 'SPT-CLJ2055-5456']
 nc = len(clus)
 print('%s Clusters: %s' % (nc, clus))
-z = [.11, .2026, .139]
+z = [.11, .2026, .139] # redshift
 r500 = [943.85207035, 1290.31531693, 1022.3744362]*u.kpc
 M500 = (4/3*np.pi*cosmology.critical_density(z).to(u.g/u.kpc**3)*500*r500**3).to(u.Msun)
 
