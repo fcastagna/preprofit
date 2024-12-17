@@ -73,17 +73,17 @@ class Press_gNFW(Pressure):
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
 
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         '''
         '''
-        h70 = cosmo.H0/(70*cosmo.H0.unit)
+        h70 = self.cosmology.H0/(70*self.cosmology.H0.unit)
         if M500 is None:
             # Compute M500 from definition in terms of density and volume
-            M500 = (4/3*np.pi*cosmo.critical_density(z)*500*r500.to(u.cm)**3).to(u.Msun)
+            M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
-            r500 = ((3/4*M500/(500.*cosmo.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
+            r500 = ((3/4*M500/(500.*self.cosmology.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = [np.log10([(P0), a, b, c, [r500.value/c500][i]]) for i in range(np.array(z).size)]
+        logunivpars = [np.log10([P0, a, b, c, [r500.value/c500][i]]) for i in range(np.array(self.z).size)]
         return logunivpars
 
 class Press_rcs(Pressure):
@@ -127,9 +127,9 @@ class Press_rcs(Pressure):
                 -kn[-2:].sum()*
                 pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
 
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         new_press = Press_gNFW(z=self.z, cosmology=self.cosmology, r_out=self.r_out)
-        gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
+        gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
 
@@ -180,7 +180,7 @@ class Press_nonparam_plaw(Pressure):
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
 
-    def get_universal_params(self, cosmo, z, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
         '''
         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
         -----------------------------------------------------------------------------------------------------------------
@@ -189,7 +189,7 @@ class Press_nonparam_plaw(Pressure):
         z = redshift
         '''
         new_press = Press_gNFW(z=self.z, cosmology=self.cosmology)
-        gnfw_pars = new_press.get_universal_params(cosmo, z, r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
+        gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
 
