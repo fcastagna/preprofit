@@ -172,7 +172,7 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
         plt.plot(r_kpc[i][e_ind], m_press[e_ind])
         plt.fill_between(r_kpc[i][e_ind].value, l_press[e_ind], u_press[e_ind], color='powderblue', label='_nolegend_')
         if rbins is not None:
-            [plt.axvline(r.value, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
+            [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
         plt.xscale('log')
         plt.yscale('log')
         if univpress is not None:
@@ -232,7 +232,7 @@ def spaghetti_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, nl=50, ci
         if univpress is not None:
             plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
         if rbins is not None:
-            [plt.axvline(r.value, linestyle=':', color='grey') for r in rbins[i]]
+            [plt.axvline(r, linestyle=':', color='grey') for r in rbins[i]]
         plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
         plt.ylabel('Pressure (keV cm$^{-3}$)')
         plt.suptitle('%s Radial pressure profiles' % str(nl))
