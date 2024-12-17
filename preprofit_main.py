@@ -27,7 +27,7 @@ r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
 
 ## Beam and transfer function
 # Beam file already includes transfer function?
-beam_and_tf = False
+beam_and_tf = True
 
 # Beam and transfer function. From input data or Gaussian approximation?
 beam_approx = True
