@@ -32,7 +32,7 @@ class Pressure:
     def __init__(self, z, cosmology):
         self.z = z
         self.cosmology = cosmology
-        self.kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
+        self.kpc_as = cosmology.kpc_proper_per_arcmin(np.atleast_1d(z)).to('kpc arcsec-1') # number of kpc per arcsec
         self.eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*self.kpc_as.value, lambda x: x/self.kpc_as.value)] # equation for switching between kpc and arcsec
 
 class Press_gNFW(Pressure):
