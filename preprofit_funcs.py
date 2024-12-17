@@ -24,9 +24,9 @@ class Pressure:
     cosmology = cosmological model adopted
     '''
     def __init__(self, z, cosmology):
-        self.z = z
+        self.z = np.atleast_1d(z)
         self.cosmology = cosmology
-        self.kpc_as = cosmology.kpc_proper_per_arcmin(np.atleast_1d(z)).to('kpc arcsec-1') # number of kpc per arcsec
+        self.kpc_as = cosmology.kpc_proper_per_arcmin(z).to('kpc arcsec-1') # number of kpc per arcsec
         self.eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*self.kpc_as.value, lambda x: x/self.kpc_as.value)] # equation for switching between kpc and arcsec
 
 class Press_gNFW(Pressure):
@@ -83,7 +83,7 @@ class Press_gNFW(Pressure):
         else:
             r500 = ((3/4*M500/(500.*self.cosmology.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = [np.log10([P0, a, b, c, [r500.value/c500][i]]) for i in range(np.array(self.z).size)]
+        logunivpars = np.atleast_2d(np.log10([P0, a, b, c, r500[i].value/c500) for i in range(self.z.size)]
         return logunivpars
 
 class Press_rcs(Pressure):
