@@ -81,13 +81,13 @@ integ_sig = .36/1e3
 
 ## Prior constraint on the pressure slope at large radii?
 slope_prior = True # apply or do not apply?
-r_out = r500*1.4 # large radius for the slope prior
+r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
 ## Pressure modelization
 # Only the restricted cubic spline model is available at the moment
-knots = np.outer([.1, .4, .7, 1, 1.3], r500).T
-press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+knots = np.outer([.1, .4, .7, 1, 1.3], r500.to(u.kpc).value).T
+press = pfuncs.Press_rcs(knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 ## Get parameters from the universal pressure profile to determine starting point
 logunivpars = np.mean(press.get_universal_params(cosmology, z, M500=M500), axis=0)
@@ -99,6 +99,8 @@ with pm.Model() as model:
     pm.Uniform('sigmas_{int,k}', 0, 1, shape=nk)
     pm.Normal('log(P_k)', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
     [pm.Normal('log(P_{%s,i})' % j, mu=model['log(P_k)'][j], sigma=model['sigmas_{int,k}'][j], shape=nc) for j in range(nk)]
+    # Add pedestal component to the model
+    pm.Normal("peds", 0, 1e-6, shape=nc)
 
 # Sampling step
 mystep = 30.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
@@ -129,8 +131,7 @@ def main():
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     # radius in kpc used to compute the pressure profile (radius 0 excluded)
-    r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i]+1)*mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i]
-            for i in range(nc)]
+    r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i]+1)*mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i] for i in range(nc)]
     r_am = np.arange(1+min([len(r) for r in r_pp]))*mystep.to(u.arcmin, equivalencies=press.eq_kpc_as) # radius in arcmin (radius 0 included)
 
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
@@ -148,8 +149,6 @@ def main():
     # Compute P500
     press.P500 = [pfuncs.get_P500((sz.r_pp[j]/r500[j]).value, cosmology, z[j], M500=M500[j]).value for j in range(nc)]
     press.r500 = [r for r in r500]
-    press.clus = clus
-    press.z = z
 
     # Other indexes
     if type(press) == pfuncs.Press_nonparam_plaw:
@@ -157,7 +156,7 @@ def main():
         press.r_low = [p[i] for p, i in zip(press.knots, press.ind_low)] # lower radial bins
         press.alpha_ind = [np.minimum(press.ind_low[i], len(press.knots[i])-2) for i in range(nc)] # alpha indexes
     if type(press) == pfuncs.Press_rcs:
-        press.kn = [pt.log10(k.value/r.value) for k, r in zip(press.knots, press.r500)]
+        press.kn = [pt.log10(k/r) for k, r in zip(press.knots, press.r500)]
         press.sv = [[(kn > kn[_])*(kn-kn[_])**3-(kn > kn[-2])*(kn-kn[_])*(kn-kn[-2])**2
                      for _ in range(press.N[i])] for i, kn in enumerate(press.kn)]
         press.X = [pt.concatenate((pt.atleast_2d(pt.ones(len(press.knots[i]))), pt.atleast_2d(kn), pt.as_tensor(sv))).T
@@ -168,10 +167,6 @@ def main():
         cloudpickle.dump(press, f, -1)
     with open('%s/szdata_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(sz, f, -1)
-
-    # Add pedestal component to the model
-    with model:
-        pm.Normal("peds", 0, 1e-6, shape=nc)
 
     ## Sampling
     ilike = pt.as_tensor([np.inf])
@@ -201,12 +196,11 @@ def main():
             pars = [p[nps:] for p in pars] if type(press)==pfuncs.Press_gNFW else [[p[j] for p in pars[0][2:]] for j in range(nc)]
             like, pprof, maps, slopes = zip(*map(
                 lambda i, pr, szr, szrd, sza, szl, dm, szfl: pfuncs.whole_lik(
-                    pr, press, szr, szrd, sza, sz.dist.indices, sz.filtering, sz.conv_temp_sb, szl, sz.sep, dm, sz.radius[sz.sep:].value, szfl, i, 'll'),
-                np.arange(nc), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
+                    pr, press, szr.value, szrd.value, sza, sz.dist.indices, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, dm, sz.radius[sz.sep:].value, 
+                    [s.value for s in szfl], i, 'll'), np.arange(nc), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             infs = [int(np.isinf(l.eval())) for l in like]
             print('likelihood:')
             print(pt.sum(like).eval())
-            # [model.set_initval(n, v) for n, v in zip(model.free_RVs, vals)]
         if np.sum(infs) == 0:
             check = pt.sum(like).eval()
             print('logp: %f' % check)
@@ -232,8 +226,7 @@ def main():
             cloudpickle.dump(model, m, -1)
         start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
     pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r.to(sz.flux_data[0][0].unit, equivalencies=press.eq_kpc_as)[j].value for i, r in enumerate(press.knots[j])] 
-                       for j in range(nc)], plotdir=plotdir)
+                      [[r for i, r in enumerate(press.knots[j])] for j in range(nc)], plotdir=plotdir)
 
     with model:
         step = assign_step_methods(model, None, methods=pm.STEP_METHODS, step_kwargs={})
