@@ -461,7 +461,8 @@ def calc_abel(fr, r, abel_data):
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
     rn = np.concatenate((r, [2*r[-1]-r[-2], 3*r[-1]-2*r[-2]]))
     r_lim = np.array([[rn[_], rn[_+1], rn[_+2]] for _ in range(r.size)])
-    out = out-0.5*np.trapz(np.c_[corr[:,:,:2], np.atleast_3d(np.zeros(r.size))], r_lim, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
+    out = out-0.5*np.trapz(np.c_[corr[:,:,:2], np.atleast_3d(np.zeros(r.size))], 
+                           r_lim, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
     out[:,:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1]))
     return out
@@ -476,11 +477,11 @@ class distances:
     eq_kpc_as = equation for switching between kpc and arcsec
     '''
     def __init__(self, radius, sep, step, eq_kpc_as):
-        self.d_mat = [centdistmat(np.array([r.to(u.kpc, equivalencies=eq_kpc_as) for r in radius]).T[i]*u.kpc) for i in 
+        self.d_mat = [centdistmat(np.array([r.to(u.kpc, equivalencies=eq_kpc_as) for r in radius]).T[i]) for i in 
                       range(len(u.arcsec.to(u.kpc, equivalencies=eq_kpc_as)))] # matrix of distances (radially symmetric)
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = [d[sep:,sep:][self.indices] for d in self.d_mat] # array of unique values within the matrix of distances
-        self.labels = [np.rint(self.d_mat[i].value*self.d_mat[i].unit.to(step.unit, equivalencies=eq_kpc_as)[i]/step).astype(int) for i in 
+        self.labels = [np.rint(self.d_mat[i]*u.kpc.to(step.unit, equivalencies=eq_kpc_as)[i]/step.value).astype(int) for i in 
                        range(len(self.d_mat))]# labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
@@ -503,6 +504,7 @@ class SZ_data:
     '''
     Class for the SZ data required for the analysis
     -----------------------------------------------
+    clus = names of analyzed clusters
     step = binning step
     eq_kpc_as = equation for switching between kpc and arcsec
     conv_temp_sb = temperature-dependent conversion factor from Compton to surface brightness data unit
@@ -525,7 +527,7 @@ class SZ_data:
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp
-        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//5)*r_pp[0].unit for r in r_pp]
+        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//5) for r in r_pp]*r_pp[0].unit
         self.r_am = r_am
         self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
@@ -552,10 +554,11 @@ def int_func_1(r, szrd, pp, sza, szi, szf, szc, szl, szs, dm, output):
     gn = interp1d(np.log10(szrd[:-1]), np.log10(new_ab[:-1]), fill_value='extrapolate')
     ab = np.atleast_2d(np.append(10**gn(np.log10(r[:-1])), 0))
     # Compton parameter
-    y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
+    # y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
+    y = 4.0171007732191115e-06*ab
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
-    y_2d = np.atleast_3d(interp_mat(np.zeros_like(dm), szi, f(dm[szs:,szs:][szi]), szs)).T
+    y_2d = f(dm)
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifft2(fft2(y_2d)*szf))
     # Conversion from Compton parameter to mJy/beam
@@ -571,7 +574,7 @@ def int_func_2(map_prof, szrv, szfl):
     sz = class of SZ data
     '''
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    return g(szfl[0].to(u.arcsec))
+    return g(szfl[0])
 
 def whole_lik(pars, press, szr, szrd, sza, szi, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pt.as_tensor(pars[-1])
@@ -585,7 +588,7 @@ def whole_lik(pars, press, szr, szrd, sza, szi, szf, szc, szl, szs, dm, szrv, sz
                           shared(szl), shared(szs), shared(dm), shared(output))
     int_prof = int_prof+ped
     map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
-    chisq = pt.sum([pt.sum(((szfl[1].value-map_prof)/szfl[2].value)**2, axis=-1)], axis=0)
+    chisq = pt.sum([pt.sum(((szfl[1]-map_prof)/szfl[2])**2, axis=-1)], axis=0)
     log_lik = -chisq/2+p_pr
     return log_lik, pp, int_prof, slope
 
@@ -600,24 +603,21 @@ def print_summary(prs, pmed, pstd, medsf, sz):
     sz = class of SZ data
     '''
     g = interp1d(sz.radius[sz.sep:], medsf, 'cubic', fill_value='extrapolate', axis=-1)
-    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i]*fl[1].unit)/fl[2].value)**2, axis=-1) 
+    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i])/fl[2])**2, axis=-1) 
                     for i, fl in enumerate(sz.flux_data)], axis=0)
     wid1 = len(max(prs, key=len))
     wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
     wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
-    # units = [press.pars[n].unit for n in press.fit_pars]
-    # wid4 = len(max(map(str, units), key=len))
     print(('{:>%i}' % (wid1+2)).format('|')+
           ('{:>%i} Median |' % max(wid2-6,0)).format('')+
           ('{:>%i} Sd |' % max(wid3-2,0)).format('')+
-          # ('{:>%i} Unit' % max(wid4-4,0)).format('')+
-          '\n'+'-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0)))#+max(wid4-4,0)))
+          '\n'+'-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0)))
     for i in range(len(prs)):
         print(('{:>%i}' % (wid1+2)).format('%s |' %prs[i])+
               ('{:>%i}' % max(wid2+3, 9)).format(' %s |' %format(pmed[i], '.2e'))+
               ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e')))#+
               # ('{:>%i}' % max(wid4+1, 5)).format(' %s' %format(units[i])))
-    print('-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0))+#max(wid4-4,0))+
+    print('-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0))+
           '\nMedian profile Chi2 = %s with %s df' % ('{:.4f}'.format(chisq), np.sum([f[1][~np.isnan(f[1])].size for f in sz.flux_data])-len(prs)))
 
 def save_summary(filename, prs, pmed, pstd, ci):
@@ -630,6 +630,5 @@ def save_summary(filename, prs, pmed, pstd, ci):
     pstd = array of standard deviations of parameters sampled in the chain
     ci = uncertainty level of the interval
     '''
-    # units = [press.pars[n].unit for n in press.fit_pars]
     np.savetxt('%s.log' % filename, [pmed, pstd], fmt='%.8e', delimiter='\t', header='This file summarizes MCMC results\n'+
                'Posterior distribution medians + uncertainties (%s%% CI)\n' %ci + ' -- '.join(prs))
