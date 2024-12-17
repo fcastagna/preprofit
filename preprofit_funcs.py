@@ -344,8 +344,7 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
         filtering = fft_beam = np.exp(-freq_2d**2/2/sigma_fft_beam**2)
     else:
         # Read from data
-        freq_2d, fft_beam = read_beam_data(
-            step, beam_xy, filename, units, step_data, crop_image, cropped_side)
+        freq_2d, fft_beam = read_beam_data(step, beam_xy, filename, units, step_data, crop_image, cropped_side)
         filtering = fft_beam
     if not beam_and_tf:
         # Apply transfer function filtering
@@ -436,7 +435,7 @@ class abel_data:
         self.I_isqrt[mask] = 1./np.sqrt((Y**2 - R**2)[mask])
         self.mask2 = ((II > JJ-2) & (II < JJ+1)) # create a mask that just shows the first two points of the integral    
         self.isqrt = 1./self.I_isqrt[II+1 == JJ]
-        if r[0] < r[1]*1e-8:  # special case for r[0] = 0
+        if r[0] < r[1]*1e-8: # special case for r[0] = 0
             ratio = np.append(np.cosh(1), r[2:]/r[1:-1])
         else:
             ratio = r[1:]/r[:-1]
@@ -498,7 +497,7 @@ def interp_mat(mat, indices, func, sep):
     mat[:sep+1,sep:] = np.transpose(mat[sep:,:sep+1])
     mat[:sep+1,:sep+1] = np.fliplr(mat[:sep+1,sep:])
     return mat
-               
+
 class SZ_data:
     '''
     Class for the SZ data required for the analysis
