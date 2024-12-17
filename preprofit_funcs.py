@@ -180,7 +180,7 @@ class Press_nonparam_plaw(Pressure):
             return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
         return pt.as_tensor([0.]), None
 
-    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         '''
         Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
         -----------------------------------------------------------------------------------------------------------------
