@@ -97,9 +97,9 @@ nk = len(logunivpars)
 ## Model definition
 with pm.Model() as model:
     # Customize the prior distribution of the parameters using pymc distributions
-    pm.Uniform('sigmas_{int,k}', 0, 1, shape=nk)
-    pm.Normal('log(P_k)', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
-    [pm.Normal('log(P_{%s,i})' % j, mu=model['log(P_k)'][j], sigma=model['sigmas_{int,k}'][j], shape=nc) for j in range(nk)]
+    pm.Uniform('sigma_{int,k}', 0, 1, shape=nk)
+    pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
+    [pm.Normal('lgP_{%s,i}' % j, mu=model['lgP_k'][j], sigma=model['sigma_{int,k}'][j], shape=nc) for j in range(nk)]
     # Add pedestal component to the model
     pm.Normal("peds", 0, 1e-6, shape=nc)
 
