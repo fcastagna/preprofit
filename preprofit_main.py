@@ -1,4 +1,5 @@
 import preprofit_funcs as pfuncs
+import preprofit_likfuncs as lfuncs
 import preprofit_plots as pplots
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
@@ -195,7 +196,7 @@ def main():
         with model:
             pars = [p[nps:] for p in pars] if type(press)==pfuncs.Press_gNFW else [[p[j] for p in pars[0][2:]] for j in range(nc)]
             like, pprof, maps, slopes = zip(*map(
-                lambda i, pr, szr, szrd, sza, szl, dm, szfl: pfuncs.whole_lik(
+                lambda i, pr, szr, szrd, sza, szl, dm, szfl: lfuncs.whole_lik(
                     pr, press, szr.value, szrd.value, sza, sz.dist.indices, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, dm, sz.radius[sz.sep:].value, 
                     [s.value for s in szfl], i, 'll'), np.arange(nc), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
             infs = [int(np.isinf(l.eval())) for l in like]
