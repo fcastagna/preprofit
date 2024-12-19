@@ -117,7 +117,7 @@ with pm.Model() as model:
         nk = len(logunivpars)
         [pm.Normal('lgP'+str(i), mu=logunivpars[i], sigma=.5, initval=logunivpars[i]) for i in range(nk)]
     # Add pedestal component to the model
-    pm.Normal("ped", 0, 1e-6)
+    pm.Normal("ped", 0., 1e-6, initval=0.)
 
 # Sampling step
 mystep = 15.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
