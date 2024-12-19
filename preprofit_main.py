@@ -114,7 +114,7 @@ with pm.Model() as model:
         logr_p = np.log10(r500.value/c500)
     else:
         nk = logunivpars.size
-        [pm.Normal('P'+str(i), mu=logunivpars[i], sigma=.5, initval=logunivpars[i]) for i in range(nk)]
+        [pm.Normal('lgP'+str(i), mu=logunivpars[i], sigma=.5, initval=logunivpars[i]) for i in range(nk)]
     # Add pedestal component to the model
     pm.Normal("ped", 0, 1e-6)
 
