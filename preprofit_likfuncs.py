@@ -1,6 +1,6 @@
 import numpy as np
 from pytensor.compile.ops import as_op
-import pytensor as pt
+import pytensor.tensor as pt
 from pytensor.link.c.type import Generic
 from scipy.interpolate import interp1d
 from scipy.fftpack import ifft2, fft2
