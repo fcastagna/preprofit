@@ -90,7 +90,7 @@ max_slopeout = 0. # maximum value for the slope at r_out
 knots = np.outer([.1, .4, .7, 1, 1.3], r500.to(u.kpc).value).T
 press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
-## Get parameters from the universal pressure profile to determine starting point
+## Get parameters from the universal pressure profile to be used in the model when setting the prior distributions
 logunivpars = np.mean(press.get_universal_params(M500=M500), axis=0)
 nk = len(logunivpars)
 
