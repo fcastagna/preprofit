@@ -207,35 +207,3 @@ def hist_slopes(slopes, ci=95, plotdir='./'):
     plt.ylabel('Density')
     pdf.savefig(bbox_inches='tight')
     pdf.close()
-
-def spaghetti_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, nl=50, ci=95, univpress=None, rbins=None, plotdir='./'):
-    '''
-    Plot the radial pressure profiles
-    ---------------------------------
-    r_kpc = radius (kpc)
-    press_prof = best fitting pressure profile (median and interval)
-    xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
-    ci = uncertainty level of the interval
-    plotdir = directory where to place the plot
-    '''
-    pdf = PdfPages(plotdir+'spaghetti_press.pdf')
-    for i in range(len(press_prof)):
-        plt.clf()
-        plt.title(np.atleast_1d(clus)[i])
-        xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
-        ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
-        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
-        [plt.plot(r_kpc[i][e_ind], p[e_ind], color='grey', linewidth=.4) for p in press_prof[i][:nl]]
-        plt.ylim(1e-7, 2e-1)
-        plt.xscale('log')
-        plt.yscale('log')
-        if univpress is not None:
-            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
-        if rbins is not None:
-            [plt.axvline(r, linestyle=':', color='grey') for r in rbins[i]]
-        plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
-        plt.ylabel('Pressure (keV cm$^{-3}$)')
-        plt.suptitle('%s Radial pressure profiles' % str(nl))
-        plt.xlim(xmin, xmax)
-        pdf.savefig()
-    pdf.close()
