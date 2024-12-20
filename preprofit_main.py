@@ -275,7 +275,6 @@ def main():
     # Radial pressure profile
     p_prof = [trace.posterior['press'].data.reshape(samples.shape[0], -1)]
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
-    [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip([clus], p_quant)]
     univpress=None
     pplots.plot_press(sz.r_pp, p_quant, clus=clus, ci=ci, univpress=univpress, plotdir=plotdir, 
                       rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
