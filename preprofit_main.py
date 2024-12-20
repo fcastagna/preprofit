@@ -98,7 +98,7 @@ press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slop
 # 3. Power law interpolation
 # press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
 
-## Get parameters from the universal pressure profile to determine starting point
+## Get parameters from the universal pressure profile to be used in the model when setting the prior distributions
 logunivpars = press.get_universal_params(M500=M500)[0]
 
 ## Model definition
