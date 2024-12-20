@@ -269,16 +269,6 @@ def main():
     pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else (press.knots*u.kpc).to(u.arcsec, equivalencies=press.eq_kpc_as).value,
                       peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
-    # Forest plots
-    for p in prs[:-1]:
-        axes = az.plot_forest(trace, var_names=p)
-        fig = axes.ravel()[0].figure
-        fig.savefig('%s/forest_%s.pdf' % (plotdir, p))
-    axes = az.plot_forest(trace, var_names=['ped'],
-                          transform=lambda x: 1e5*x)
-    fig = axes.ravel()[0].figure
-    fig.savefig('%s/forest_ped.pdf' % plotdir)
-
     # Cornerplots
     pplots.triangle(samples, ['log(%s)' % _ for _ in prs], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
@@ -287,8 +277,6 @@ def main():
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
     [np.savetxt('%s/press_prof_%s.dat' % (savedir, c), pq) for c, pq in zip([clus], p_quant)]
     univpress=None
-    pplots.spaghetti_press(sz.r_pp, p_prof, clus=clus, nl=100, ci=ci, univpress=univpress, plotdir=plotdir, 
-                           rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
     pplots.plot_press(sz.r_pp, p_quant, clus=clus, ci=ci, univpress=univpress, plotdir=plotdir, 
                       rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
 
