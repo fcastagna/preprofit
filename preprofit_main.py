@@ -94,7 +94,6 @@ press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slop
 logunivpars = np.mean(press.get_universal_params(M500=M500), axis=0)
 nk = len(logunivpars)
 
-## Model definition
 # Sampling step
 mystep = 30.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
@@ -161,6 +160,7 @@ def main():
     with open('%s/szdata_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(sz, f, -1)
 
+    ## Model definition
     with pm.Model() as model:
         # Customize the prior distribution of the parameters using pymc distributions
         pm.Uniform('sigma_{int,k}', 0, 1, initval=np.repeat(.2, nk), shape=nk)
@@ -177,10 +177,6 @@ def main():
             [[m[i] for m in model.free_RVs[2:]] for i in range(nc)], 
             sz.r_pp, sz.r_red, sz.abel_data,
             sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
-            # model.free_RVs, press, sz.r_pp[0].value, sz.r_red[0].value, 
-            # sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
-            # sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], 
-            # sz.radius[sz.sep:].value, sz.flux_data[0], 0, 'll')
         # Set likelihood function
         [pm.Normal('like_%s' % i, mu=like[i], 
             sigma=sz.flux_data[i][2], observed=sz.flux_data[i][1], 
@@ -190,12 +186,12 @@ def main():
         if slope_prior:
             [pm.Deterministic('slope_%s' % i, s) for i,s in enumerate(slopes)]
         ## Sampling
+        start_guess = [trace.posterior['bright_%s' % i].data[0] for i in range(nc)]
+        pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
+
         #     start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
-        trace = pm.sample(draws=1, tune=0, chains=1,
-                          initvals=model.rvs_to_initial_values)
-        # start_guess = trace.posterior.bright.data#[:,0,:]
-        # import pdb; pdb.set_trace()
-        # pplots.plot_guess(start_guess, sz, press, plotdir=plotdir)
+        trace = pm.sample(draws=1, tune=0, chains=1, initvals=model.rvs_to_initial_values)
+        pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         trace = pm.sample(draws=500, tune=500, chains=4, 
                           initvals=model.rvs_to_initial_values)
     trace.to_netcdf("%s/trace.nc" % savedir)
