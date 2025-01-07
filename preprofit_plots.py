@@ -19,7 +19,7 @@ def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir='./'):
     pdf.savefig()
     pdf.close()
 
-def plot_guess(out_prof, sz, press, plotdir='./'):
+def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     '''
     Modeled profile resulting from starting parameters VS observed data
     -------------------------------------------------------------------
