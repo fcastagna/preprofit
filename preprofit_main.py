@@ -95,14 +95,6 @@ logunivpars = np.mean(press.get_universal_params(M500=M500), axis=0)
 nk = len(logunivpars)
 
 ## Model definition
-with pm.Model() as model:
-    # Customize the prior distribution of the parameters using pymc distributions
-    pm.Uniform('sigma_{int,k}', 0, 1, shape=nk)
-    pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
-    [pm.Normal('lgP_{%s,i}' % j, mu=model['lgP_k'][j], sigma=model['sigma_{int,k}'][j], shape=nc) for j in range(nk)]
-    # Add pedestal component to the model
-    pm.Normal("peds", 0, 1e-6, shape=nc)
-
 # Sampling step
 mystep = 30.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
@@ -168,6 +160,49 @@ def main():
         cloudpickle.dump(press, f, -1)
     with open('%s/szdata_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(sz, f, -1)
+
+    with pm.Model() as model:
+        # Customize the prior distribution of the parameters using pymc distributions
+        pm.Uniform('sigma_{int,k}', 0, 1, shape=nk)
+        pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
+        [pm.Normal('lgP_{%s,i}' % j, mu=model['lgP_k'][j], sigma=model['sigma_{int,k}'][j], shape=nc) for j in range(nk)]
+        # Add pedestal component to the model
+        pm.Normal("peds", 0, 1e-6, shape=nc, initval=np.zeros(nc))
+
+        like, pprof, maps, slopes = zip(*map(
+            lambda m, szr, szrr, sza, szl, szd, szf, i: lfuncs.whole_lik(
+                m, press, szr.value, szrr.value, sza, sz.filtering.value,
+                sz.conv_temp_sb.value, szl, sz.sep, szd, 
+                sz.radius[sz.sep:].value, szf, i, 'll'),
+            [[m[i] for m in model.free_RVs[2:]] for i in range(nc)], 
+            sz.r_pp, sz.r_red, sz.abel_data,
+            sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
+            # model.free_RVs, press, sz.r_pp[0].value, sz.r_red[0].value, 
+            # sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
+            # sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], 
+            # sz.radius[sz.sep:].value, sz.flux_data[0], 0, 'll')
+        # Set likelihood function
+        [pm.Normal('like_%s' % i, mu=like[i], 
+            sigma=sz.flux_data[i][2], observed=sz.flux_data[i][1], 
+            shape=len(sz.flux_data[i][1])) for i in range(nc)]
+        import pdb; pdb.set_trace()
+        map_prof = [pm.Deterministic('bright_%s' % i, m) for i,m in enumerate(maps)]
+        p_prof = [pm.Deterministic('press_%s' % i, p) for i,p in enumerate(pprof)]
+        # import pdb; pdb.set_trace()
+        if slope_prior:
+            [pm.Deterministic('slope_%s' % i, s) for i,s in enumerate(slopes)]
+        ## Sampling
+        #     start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
+        trace = pm.sample(draws=1, tune=0, chains=1,
+                          initvals=model.rvs_to_initial_values)
+        # start_guess = trace.posterior.bright.data#[:,0,:]
+        # import pdb; pdb.set_trace()
+        # pplots.plot_guess(start_guess, sz, press, plotdir=plotdir)
+        trace = pm.sample(draws=500, tune=500, chains=4, 
+                          initvals=model.rvs_to_initial_values)
+    trace.to_netcdf("%s/trace.nc" % savedir)
+    import sys; sys.exit()
+
 
     ## Sampling
     ilike = pt.as_tensor([np.inf])
