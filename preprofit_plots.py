@@ -37,9 +37,9 @@ def plot_guess(out_prof, sz, press, plotdir='./'):
                      fmt='o', fillstyle='none', color='black', label='Observed data')
         if hasattr(press, 'knots'):
             [plt.axvline(k, linestyle=':') for k in 
-             press.knots[i]*u.kpc.to(u.arcsec, equivalencies=press.eq_kpc_as)]
+             press.knots[i]*u.kpc.to(u.arcsec, equivalencies=press.eq_kpc_as)[i]]
         if i == 0:
-            plt.legend()
+            plt.legend(numpoints=1)
         plt.ylim(np.min([(fl[1]-fl[2]).min() for fl in sz.flux_data]), np.max([(fl[1]+fl[2]).max() for fl in sz.flux_data]))
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
         if i%4 > 1:
