@@ -187,9 +187,7 @@ def main():
         start_guess = [trace.posterior['bright_%s' % i].data[0] for i in range(nc)]
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         # Fit
-        trace = pm.sample(draws=1, tune=0, chains=1, initvals=model.rvs_to_initial_values)
-        pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
-        trace = pm.sample(draws=500, tune=500, chains=4, initvals=model.rvs_to_values)
+        trace = pm.sample(draws=500, tune=500, chains=4, initvals=model.rvs_to_initial_values)
 
     # Save chain
     trace.to_netcdf("%s/trace.nc" % savedir)
