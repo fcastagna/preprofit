@@ -30,9 +30,9 @@ def calc_abel(fr, r, abel_data):
     out[:,:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1]))
     return out
 
-@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), Generic(), pt.dmatrix, pt.dscalar, pt.lmatrix, 
+@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.dscalar, pt.lmatrix, 
                pt.lscalar, pt.dmatrix, Generic()], otypes=[pt.dvector])
-def int_func_1(r, szrd, pp, sza, szi, szf, szc, szl, szs, dm, output):
+def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     '''
     First intermediate likelihood function
     --------------------------------------
