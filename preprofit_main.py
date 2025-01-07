@@ -94,15 +94,6 @@ press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slop
 logunivpars = np.mean(press.get_universal_params(M500=M500), axis=0)
 nk = len(logunivpars)
 
-## Model definition
-with pm.Model() as model:
-    # Customize the prior distribution of the parameters using pymc distributions
-    pm.Uniform('sigma_{int,k}', 0, 1, shape=nk)
-    pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
-    [pm.Normal('lgP_{%s,i}' % j, mu=model['lgP_k'][j], sigma=model['sigma_{int,k}'][j], shape=nc) for j in range(nk)]
-    # Add pedestal component to the model
-    pm.Normal("peds", 0, 1e-6, shape=nc)
-
 # Sampling step
 mystep = 30.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
@@ -169,71 +160,36 @@ def main():
     with open('%s/szdata_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(sz, f, -1)
 
-    ## Sampling
-    ilike = pt.as_tensor([np.inf])
-    nn = 0
-    while np.isinf(pt.sum(ilike).eval()):
-        print('---\nSearching...')
-        if nn > 0:
-            pm.draw([m for m in model.free_RVs])
-        vals = [x.eval() for x in model.free_RVs]
-        if type(press) == pfuncs.Press_gNFW:
-            pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[:nps], model.free_RVs[:nps], vals[:nps])]+
-                    [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
-                     for m, m2 in zip(model.continuous_value_vars[2*nps:][i:nc*nps:nc], model.free_RVs[2*nps:][i:nc*nps:nc])]+
-                    [logr_p[i]]+[model['peds_%s' %i]] for i in range(nc)]
-        else:
-            pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
-                     for m, m2, v in zip(model.continuous_value_vars[:2], model.free_RVs[:2], vals[:2])]+
-                    [model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs)
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2
-                     for m, m2, v in zip(model.continuous_value_vars[2:2+nk], model.free_RVs[2:2+nk], vals[2:2+nk])]+
-                    [model['peds']]]
-        with model:
-            pars = [p[nps:] for p in pars] if type(press)==pfuncs.Press_gNFW else [[p[j] for p in pars[0][2:]] for j in range(nc)]
-            like, pprof, maps, slopes = zip(*map(
-                lambda i, pr, szr, szrd, sza, szl, dm, szfl: lfuncs.whole_lik(
-                    pr, press, szr.value, szrd.value, sza, sz.dist.indices, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, dm, sz.radius[sz.sep:].value, 
-                    [s.value for s in szfl], i, 'll'), np.arange(nc), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
-            infs = [int(np.isinf(l.eval())) for l in like]
-            print('likelihood:')
-            print(pt.sum(like).eval())
-        if np.sum(infs) == 0:
-            check = pt.sum(like).eval()
-            print('logp: %f' % check)
-            df = np.array(pars).flatten().size
-            red_chisq = -2*check/df
-            print('Reduced chisq: %f' % red_chisq)
-            if red_chisq > 300:
-                print('Too high! Retry')
-                pm.draw([m for m in model.free_RVs])
-            else:
-                ilike = pt.sum([shared(check)])
-        nn += 1
-        if nn == 1000:
-            raise RuntimeError('Valid starting point not found after 1000 attempts. Execution stopped')
+    ## Model definition
+    with pm.Model() as model:
+        # Customize the prior distribution of the parameters using pymc distributions
+        pm.Uniform('sigma_{int,k}', 0, 1, initval=np.repeat(.2, nk), shape=nk)
+        pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
+        [pm.Normal('lgP_{%s,i}' % j, mu=model['lgP_k'][j], sigma=model['sigma_{int,k}'][j], shape=nc) for j in range(nk)]
+        # Add pedestal component to the model
+        pm.Normal("peds", 0, 1e-6, shape=nc, initval=np.zeros(nc))
 
-    with model:
-        map_prof = [pm.Deterministic('bright%s' % i, maps[i]) for i in range(nc)]
-        p_prof = [pm.Deterministic('press%s' % i, pprof[i]) for i in range(nc)]
-        like = pm.Potential('like', pt.sum(like))
+        # Likelihood function
+        like, pprof, maps, slopes = zip(*map(
+            lambda m, szr, szrr, sza, szl, szd, szf, i: lfuncs.whole_lik(
+                m, press, szr.value, szrr.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, szd, sz.radius[sz.sep:].value, szf, i, 'll'),
+            [[m[i] for m in model.free_RVs[2:]] for i in range(nc)], sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
+        [pm.Normal('like_%s' % i, mu=like[i], sigma=sz.flux_data[i][2], observed=sz.flux_data[i][1], shape=len(sz.flux_data[i][1])) for i in range(nc)]
+        # Save useful measures
+        [pm.Deterministic('press_%s' % i, p) for i, p in enumerate(pprof)]
+        [pm.Deterministic('bright_%s' % i, m) for i, m in enumerate(maps)]
         if slope_prior:
-            slope = [pm.Deterministic('slope%s' % i, slopes[i]) for i in range(nc)]
-        with open('%s/model.pickle' % savedir, 'wb') as m:
-            cloudpickle.dump(model, m, -1)
-        start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
-    pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r for i, r in enumerate(press.knots[j])] for j in range(nc)], plotdir=plotdir)
+            [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
 
-    with model:
-        step = assign_step_methods(model, None, methods=pm.STEP_METHODS, step_kwargs={})
-        trace = pm.sample(draws=1000, tune=1000, chains=8, return_inferencedata=True, step=step,
-                          initvals=model.initial_point())
-    
+        ## Sampling
+        # Preliminary fit
+        trace = pm.sample(draws=1, tune=0, chains=1, initvals=model.rvs_to_initial_values)        
+        start_guess = [trace.posterior['bright_%s' % i].data[0] for i in range(nc)]
+        pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
+        # Fit
+        trace = pm.sample(draws=500, tune=500, chains=4, initvals=model.rvs_to_initial_values)
+
+    # Save chain
     trace.to_netcdf("%s/trace.nc" % savedir)
 
 if __name__ == '__main__':

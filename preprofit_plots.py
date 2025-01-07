@@ -19,7 +19,7 @@ def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir='./'):
     pdf.savefig()
     pdf.close()
 
-def plot_guess(out_prof, sz, knots=None, plotdir='./'):
+def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     '''
     Modeled profile resulting from starting parameters VS observed data
     -------------------------------------------------------------------
@@ -32,19 +32,20 @@ def plot_guess(out_prof, sz, knots=None, plotdir='./'):
     for i in range(len(sz.flux_data)):
         if len(sz.flux_data) > 1:
             plt.subplot(221+i%4)
-        plt.plot(sz.radius[sz.sep:], out_prof[i][0], color='r', label='Starting guess')
-        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value, yerr=sz.flux_data[i][2].value,
+        plt.plot(sz.radius[sz.sep:], fact*out_prof[i][0], color='r', label='Starting guess')
+        plt.errorbar(sz.flux_data[i][0].value, fact*sz.flux_data[i][1].value, yerr=fact*sz.flux_data[i][2].value,
                      fmt='o', fillstyle='none', color='black', label='Observed data')
-        if knots is not None:
-            [plt.axvline(k, linestyle=':') for k in knots[i]]
+        if hasattr(press, 'knots'):
+            [plt.axvline(k, linestyle=':') for k in 
+             press.knots[i]*u.kpc.to(u.arcsec, equivalencies=press.eq_kpc_as)[i]]
         if i == 0:
-            plt.legend()
-        plt.ylim(np.min([(fl[1]-fl[2]).min() for fl in sz.flux_data]), np.max([(fl[1]+fl[2]).max() for fl in sz.flux_data]))
+            plt.legend(numpoints=1)
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
-        if i%4 > 1:
-            plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
+        if (i%4 > 1) | (len(sz.flux_data)-i==2):
+            plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
         if i%2 == 0:
-            plt.ylabel('Surface brightness ('+str(sz.flux_data[i][1].unit)+')')
+            plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+
+                       ('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
         if (i+1)%4 == 0:
             pdf.savefig()
             plt.clf()

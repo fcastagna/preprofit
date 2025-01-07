@@ -30,9 +30,9 @@ def calc_abel(fr, r, abel_data):
     out[:,:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1]))
     return out
 
-@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), Generic(), pt.dmatrix, pt.dscalar, pt.lmatrix, 
+@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.dscalar, pt.lmatrix, 
                pt.lscalar, pt.dmatrix, Generic()], otypes=[pt.dvector])
-def int_func_1(r, szrd, pp, sza, szi, szf, szc, szl, szs, dm, output):
+def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     '''
     First intermediate likelihood function
     --------------------------------------
@@ -70,7 +70,7 @@ def int_func_2(map_prof, szrv, szfl):
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(szfl[0])
 
-def whole_lik(pars, press, szr, szrd, sza, szi, szf, szc, szl, szs, dm, szrv, szfl, i, output):
+def whole_lik(pars, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     ped = pt.as_tensor(pars[-1])
     pars = pars[:-1]
     p_pr, slope = press.prior(pars, szr, i)
@@ -78,10 +78,8 @@ def whole_lik(pars, press, szr, szrd, sza, szi, szf, szc, szl, szs, dm, szrv, sz
         return p_pr, pt.zeros_like(szfl[0]), pt.zeros_like(szfl[0]), slope
     pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)
     pp = pt.atleast_2d(pt.mul(pp, press.P500[i]))
-    int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szi), shared(szf), shared(szc), 
+    int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szf), shared(szc), 
                           shared(szl), shared(szs), shared(dm), shared(output))
     int_prof = int_prof+ped
     map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
-    chisq = pt.sum([pt.sum(((szfl[1]-map_prof)/szfl[2])**2, axis=-1)], axis=0)
-    log_lik = -chisq/2+p_pr
-    return log_lik, pp, int_prof, slope
+    return map_prof, pp, int_prof, slope
