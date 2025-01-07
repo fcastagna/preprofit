@@ -181,19 +181,23 @@ def main():
         [pm.Normal('like_%s' % i, mu=like[i], 
             sigma=sz.flux_data[i][2], observed=sz.flux_data[i][1], 
             shape=len(sz.flux_data[i][1])) for i in range(nc)]
-        map_prof = [pm.Deterministic('bright_%s' % i, m) for i,m in enumerate(maps)]
-        p_prof = [pm.Deterministic('press_%s' % i, p) for i,p in enumerate(pprof)]
+        # Save useful measures
+        [pm.Deterministic('press_%s' % i, p) for i,p in enumerate(pprof)]
+        [pm.Deterministic('bright_%s' % i, m) for i,m in enumerate(maps)]
         if slope_prior:
             [pm.Deterministic('slope_%s' % i, s) for i,s in enumerate(slopes)]
+
         ## Sampling
+        # Preliminary fit
+        trace = pm.sample(draws=1, tune=0, chains=1, initvals=model.rvs_to_initial_values)        
         start_guess = [trace.posterior['bright_%s' % i].data[0] for i in range(nc)]
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
-
-        #     start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
+        # Fit
         trace = pm.sample(draws=1, tune=0, chains=1, initvals=model.rvs_to_initial_values)
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
-        trace = pm.sample(draws=500, tune=500, chains=4, 
-                          initvals=model.rvs_to_initial_values)
+        trace = pm.sample(draws=500, tune=500, chains=4, initvals=model.rvs_to_values)
+
+    # Save chain
     trace.to_netcdf("%s/trace.nc" % savedir)
 
 if __name__ == '__main__':
