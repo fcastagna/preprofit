@@ -169,23 +169,17 @@ def main():
         # Add pedestal component to the model
         pm.Normal("peds", 0, 1e-6, shape=nc, initval=np.zeros(nc))
 
+        # Likelihood function
         like, pprof, maps, slopes = zip(*map(
             lambda m, szr, szrr, sza, szl, szd, szf, i: lfuncs.whole_lik(
-                m, press, szr.value, szrr.value, sza, sz.filtering.value,
-                sz.conv_temp_sb.value, szl, sz.sep, szd, 
-                sz.radius[sz.sep:].value, szf, i, 'll'),
-            [[m[i] for m in model.free_RVs[2:]] for i in range(nc)], 
-            sz.r_pp, sz.r_red, sz.abel_data,
-            sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
-        # Set likelihood function
-        [pm.Normal('like_%s' % i, mu=like[i], 
-            sigma=sz.flux_data[i][2], observed=sz.flux_data[i][1], 
-            shape=len(sz.flux_data[i][1])) for i in range(nc)]
+                m, press, szr.value, szrr.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, szd, sz.radius[sz.sep:].value, szf, i, 'll'),
+            [[m[i] for m in model.free_RVs[2:]] for i in range(nc)], sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
+        [pm.Normal('like_%s' % i, mu=like[i], sigma=sz.flux_data[i][2], observed=sz.flux_data[i][1], shape=len(sz.flux_data[i][1])) for i in range(nc)]
         # Save useful measures
-        [pm.Deterministic('press_%s' % i, p) for i,p in enumerate(pprof)]
-        [pm.Deterministic('bright_%s' % i, m) for i,m in enumerate(maps)]
+        [pm.Deterministic('press_%s' % i, p) for i, p in enumerate(pprof)]
+        [pm.Deterministic('bright_%s' % i, m) for i, m in enumerate(maps)]
         if slope_prior:
-            [pm.Deterministic('slope_%s' % i, s) for i,s in enumerate(slopes)]
+            [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
 
         ## Sampling
         # Preliminary fit
