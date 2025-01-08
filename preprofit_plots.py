@@ -144,7 +144,7 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, clus, rbins=None, peds=None, fact=1, ci=9
         if peds is not None:
             plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
         plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
-        plt.ylabel('Surface brightness ('+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$)' % np.log10(fact) if fact != 1 else '')
+        plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
         pdf.savefig()
     pdf.close()
 
