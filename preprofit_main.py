@@ -270,7 +270,7 @@ def main():
                       peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Cornerplots
-    pplots.triangle(samples, ['log(%s)' % _ for _ in prs], show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
+    pplots.triangle(samples, prs, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
     p_prof = [trace.posterior['press'].data.reshape(samples.shape[0], -1)]
