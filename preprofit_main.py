@@ -280,8 +280,9 @@ def main():
                       rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
 
     # Outer slope posterior distribution
-    slopes = np.array([trace.posterior['slope'].data.flatten()]).flatten()
-    pplots.hist_slopes(slopes.flatten(), ci=ci, plotdir=plotdir)
+    if press.slope_prior:
+        slopes = np.array([trace.posterior['slope'].data.flatten()]).flatten()
+        pplots.hist_slopes(slopes.flatten(), ci=ci, plotdir=plotdir)
 
 if __name__ == '__main__':
     main()
