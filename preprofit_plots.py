@@ -179,7 +179,7 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
             plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
         plt.ylim(1e-5, 1e-1)
         plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
-        plt.ylabel('Pressure (keV cm$^{-3}$)')
+        plt.ylabel('Pressure [keV cm$^{-3}$]')
         plt.suptitle('Radial pressure profile (median + %i%% CI)' % ci)
         if univpress is not None:
             plt.legend(('fitted', 'universal'), loc='lower left')
