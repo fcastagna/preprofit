@@ -182,9 +182,7 @@ def main():
             [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
 
         ## Sampling
-        # Preliminary fit
-        trace = pm.sample(draws=1, tune=0, chains=1, initvals=model.rvs_to_initial_values)        
-        start_guess = [trace.posterior['bright_%s' % i].data[0] for i in range(nc)]
+        start_guess = [model['bright_%s' % j].eval({**{'lgP_{%s,i}' % i: np.repeat(logunivpars[i], nc) for i in range(nk)}, **{'peds': [0,0,0]}}) for j in range(nc)]
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         # Fit
         trace = pm.sample(draws=1000, tune=1000, chains=8, initvals=model.rvs_to_initial_values)
