@@ -178,8 +178,7 @@ def main():
         # Save useful measures
         [pm.Deterministic('press_%s' % i, p) for i, p in enumerate(pprof)]
         [pm.Deterministic('bright_%s' % i, m) for i, m in enumerate(maps)]
-        if slope_prior:
-            [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
+        [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
 
         ## Sampling
         start_guess = [model['bright_%s' % j].eval({**{'lgP_{%s,i}' % i: np.repeat(logunivpars[i], nc) for i in range(nk)}, **{'peds': [0,0,0]}}) for j in range(nc)]
