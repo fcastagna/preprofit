@@ -170,7 +170,7 @@ def main():
         pm.Normal("peds", 0, 1e-6, shape=nc, initval=np.zeros(nc))
 
         # Likelihood function
-        like, pprof, maps, slopes = zip(*map(
+        lprof, pprof, maps, slopes = zip(*map(
             lambda m, szr, szrr, sza, szl, szd, szf, i: lfuncs.whole_lik(
                 m, press, szr.value, szrr.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, szd, sz.radius[sz.sep:].value, szf, i, 'll'),
             [[m[i] for m in model.free_RVs[2:]] for i in range(nc)], sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
