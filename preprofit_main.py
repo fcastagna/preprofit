@@ -44,7 +44,7 @@ tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
 files_dir = './data' # files directory
 beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # beam
 tf_filename = '%s/sptsz_trough_filter_1d.dat' %files_dir # transfer function
-flux_filename = ['%s/press_data_' %files_dir+cl+'.dat' for cl in clus] # observed data
+flux_filename = ['%s/press_data_%s.dat' % (files_dir, cl) for cl in clus] # observed data
 convert_filename = None # conversion Compton -> observed data
 
 # Temperature used for the conversion factor above
