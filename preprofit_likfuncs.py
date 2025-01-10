@@ -72,7 +72,7 @@ def int_func_2(map_prof, szrv, szfl):
 
 def whole_lik(lgP_k, ped, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, output):
     p_pr, slope = press.prior(lgP_k, szr, 0)
-    if np.isinf(p_pr.eval()):
+    if np.isinf(p_pr.eval({'lgP_k': model.rvs_to_initial_values[model.named_vars['lgP_k']]})):
         return p_pr, pt.sum(lgP_k)*pt.atleast_2d(pt.zeros_like(szr)), pt.sum(lgP_k+ped)*pt.zeros(szs+1), slope
     pp = press.functional_form(shared(szr), pt.as_tensor(lgP_k), 0, False)
     pp = pt.atleast_2d(pt.mul(pp, press.P500[0]))
