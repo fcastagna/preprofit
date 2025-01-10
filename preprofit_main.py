@@ -81,7 +81,7 @@ integ_mu = .94/1e3
 integ_sig = .36/1e3
 
 ## Prior constraint on the pressure slope at large radii?
-slope_prior = True # apply or do not apply?
+slope_prior = False # apply or do not apply?
 r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
@@ -167,18 +167,20 @@ def main():
         pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
         [pm.Normal('lgP_{%s,i}' % j, mu=model['lgP_k'][j], sigma=model['sigma_{int,k}'][j], shape=nc) for j in range(nk)]
         # Add pedestal component to the model
-        pm.Normal("peds", 0, 1e-6, shape=nc, initval=np.zeros(nc))
+        pm.Normal('peds', 0, 1e-6, shape=nc, initval=np.zeros(nc))
 
         # Likelihood function
         lprof, pprof, maps, slopes = zip(*map(
-            lambda m, szr, szrr, sza, szl, szd, szf, i: lfuncs.whole_lik(
-                m, press, szr.value, szrr.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, szd, sz.radius[sz.sep:].value, szf, i, 'll'),
-            [[m[i] for m in model.free_RVs[2:]] for i in range(nc)], sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
+            lambda lgP_ki, ped_i, szr, szrr, sza, szl, szd, szf, i: lfuncs.whole_lik(
+                lgP_ki, ped_i, press, szr.value, szrr.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, szd, sz.radius[sz.sep:].value, szf, i, 'll'),
+            [[m[i] for m in [model['lgP_{%s,i}' % k] for k in range(nk)]] for i in range(nc)], 
+            [model['peds'][i] for i in range(nc)], sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
         [pm.Normal('like_%s' % i, mu=lprof[i], sigma=sz.flux_data[i][2], observed=sz.flux_data[i][1], shape=len(sz.flux_data[i][1])) for i in range(nc)]
         # Save useful measures
         [pm.Deterministic('press_%s' % i, p) for i, p in enumerate(pprof)]
         [pm.Deterministic('bright_%s' % i, m) for i, m in enumerate(maps)]
-        [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
+        if press.slope_prior:
+            [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
 
         ## Sampling
         start_guess = [model['bright_%s' % j].eval({**{'lgP_{%s,i}' % i: np.repeat(logunivpars[i], nc) for i in range(nk)}, **{'peds': [0,0,0]}}) for j in range(nc)]
