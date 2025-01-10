@@ -41,7 +41,6 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
             plt.legend(numpoints=1)
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
         if (i%4 > 1) | (len(sz.flux_data)-i==2):
-        if (i%4 > 1) | (len(sz.flux_data)-i==2):
             plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
         if i%2 == 0:
             plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
