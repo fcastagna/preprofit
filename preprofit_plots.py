@@ -32,7 +32,7 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     for i in range(len(sz.flux_data)):
         if len(sz.flux_data) > 1:
             plt.subplot(221+i%4)
-        plt.plot(sz.radius[sz.sep:], fact*out_prof[i], color='r', label='Starting guess')
+        plt.plot(sz.radius[sz.sep:], fact*out_prof, color='r', label='Starting guess')
         plt.errorbar(sz.flux_data[i][0].value, fact*sz.flux_data[i][1].value, yerr=fact*sz.flux_data[i][2].value,
                      fmt='o', fillstyle='none', color='black', label='Observed data')
         if hasattr(press, 'knots'):
