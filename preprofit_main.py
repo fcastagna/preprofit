@@ -1,16 +1,13 @@
+import preprofit_plots as pplots
 import preprofit_funcs as pfuncs
 import preprofit_likfuncs as lfuncs
-import preprofit_plots as pplots
 import numpy as np
 from astropy.cosmology import FlatLambdaCDM
 from astropy import units as u
 from scipy.interpolate import interp1d
 import cloudpickle
 import pymc as pm
-from pytensor import shared
-import arviz as az
 import pytensor.tensor as pt
-from pymc.sampling.mcmc import assign_step_methods
 
 ### Global and local variables
 
@@ -22,9 +19,9 @@ cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)
 # Cluster
 clus = 'SPT-CLJ0500-5116'
 z = 0.11 # redshift
-# Overdensity measures (set them for defining the starting point for the MCMC, then optionally you can include them in the fit)
-M500 = 4.2e14*u.Msun  # M500
-r500 = ((3/4*M500/(500.*cosmology.critical_density(z)*np.pi))**(1/3)).to(u.kpc)
+# Overdensity measures (set them for defining the starting point for the MCMC)
+r500 = 1099*u.kpc 
+M500 = (4/3*np.pi*cosmology.critical_density(z).to(u.g/u.kpc**3)*500*r500**3).to(u.Msun)
 
 ## Beam and transfer function
 # Beam file already includes transfer function?
@@ -47,7 +44,7 @@ beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # be
 tf_filename = None # transfer function
 flux_filename = '%s/press_data_%s.dat' % (files_dir, clus) # observed data
 convert_filename = None # conversion Compton -> observed data
-
+flux_filename = ['%s/press_data_' %files_dir+cl+'.dat' for cl in clus] # observed data
 # Temperature used for the conversion factor above
 t_const = 8*u.keV # if conversion is not required, preprofit ignores it
 
@@ -85,6 +82,7 @@ r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
 ## Pressure modelization
+
 # 3 models available: 1 parametric (Generalized Navarro Frenk and White), 2 non parametric (restricted cubic spline / power law interpolation)
 # Select your model and please comment the remaining ones
 
@@ -100,24 +98,6 @@ press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slop
 
 ## Get parameters from the universal pressure profile to be used in the model when setting the prior distributions
 logunivpars = press.get_universal_params(M500=M500)[0]
-
-## Model definition
-with pm.Model() as model:
-    # Customize the prior distribution of the parameters using pymc distributions
-    if type(press) == pfuncs.Press_gNFW:
-        fitted = ['Ps', 'a', 'b', 'c'] # parameters that we aim to fit
-        nps = len(fitted)
-        pm.Normal('Ps', mu=logunivpars[0], sigma=.3) if 'Ps' in fitted else None
-        pm.Normal('a', mu=logunivpars[1], sigma=.1) if 'a' in fitted else None
-        pm.Normal('b', mu=logunivpars[2], sigma=.1) if 'b' in fitted else None
-        pm.Normal('c', mu=logunivpars[3], sigma=.1) if 'c' in fitted else None
-        c500=1.177
-        logr_p = np.log10(r500.value/c500)
-    else:
-        nk = len(logunivpars)
-        [pm.Normal('lgP_%s' % i, mu=logunivpars[i], sigma=.5, initval=logunivpars[i]) for i in range(nk)]
-    # Add pedestal component to the model
-    pm.Normal("ped", 0., 1e-6, initval=0.)
 
 # Sampling step
 mystep = 15.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
@@ -139,8 +119,8 @@ def main():
     wn_as, tf = [None, None] if beam_and_tf else pfuncs.read_tf(tf_filename, tf_units=tf_units, approx=tf_approx, loc=loc, scale=scale, k=k) # wave number, transmission
 
     # PSF+tf filtering
-    freq, fb, filtering = pfuncs.filtering(mystep, press.eq_kpc_as, maxr_data, beam_and_tf=beam_and_tf, approx=beam_approx, filename=beam_filename, fwhm_beam=fwhm_beam, 
-                                           crop_image=crop_image, cropped_side=cropped_side, w_tf_1d=wn_as, tf_1d=tf)
+    freq, fb, filtering = pfuncs.filtering(mystep, press.eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, filename=beam_filename, beam_and_tf=beam_and_tf, 
+                                           crop_image=crop_image, cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, w_tf_1d=wn_as, tf_1d=tf)
 
     # Radius definition
     radius = np.arange(filtering.shape[0]//2+1)*mystep
@@ -165,7 +145,7 @@ def main():
     # Compute P500
     press.P500 = [pfuncs.get_P500((sz.r_pp/r500).value, cosmology, z, M500=M500).value]
     press.r500 = np.atleast_1d(r500)
-    
+
     # Other indexes
     if type(press) == pfuncs.Press_nonparam_plaw:
         press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[0], press.knots[0])-1)] # lower bins indexes
@@ -177,71 +157,53 @@ def main():
                      for _ in range(press.N[i])] for i, kn in enumerate(press.kn)]
         press.X = [pt.concatenate((pt.atleast_2d(pt.ones(len(press.knots[i]))), pt.atleast_2d(kn), pt.as_tensor(sv))).T
                    for i, (kn, sv) in enumerate(zip(press.kn, press.sv))]
+
     # Save objects
     with open('%s/press_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(press, f, -1)
     with open('%s/szdata_obj.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(sz, f, -1)
 
-    ## Sampling
-    ilike = pt.as_tensor([np.inf])
-    nn = 0
-    while np.isinf(pt.sum(ilike).eval()):
-        print('---\nSearching...')
-        if nn > 0:
-            pm.draw([m for m in model.free_RVs])
-        vals = [x.eval() for x in model.free_RVs]
+    ## Model definition
+    with pm.Model() as model:
+        # Customize the prior distribution of the parameters using pymc distributions
         if type(press) == pfuncs.Press_gNFW:
-            pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[:nps], model.free_RVs[:nps], vals[:nps])]+
-                    [logr_p]+[model['ped']]]
+            fitted = ['Ps', 'a', 'b', 'c'] # parameters that we aim to fit
+            nps = len(fitted)
+            pm.Normal('Ps', mu=logunivpars[0], sigma=.3) if 'Ps' in fitted else None
+            pm.Normal('a', mu=logunivpars[1], sigma=.1) if 'a' in fitted else None
+            pm.Normal('b', mu=logunivpars[2], sigma=.1) if 'b' in fitted else None
+            pm.Normal('c', mu=logunivpars[3], sigma=.1) if 'c' in fitted else None
+            c500=1.177
+            logr_p = np.log10(r500.value/c500)
         else:
-            pars = [[model.rvs_to_transforms[model.values_to_rvs[m]].forward(m2.eval(), *m2.owner.inputs) 
-                     if model.rvs_to_transforms[model.values_to_rvs[m]] is not None else m2 
-                     for m, m2, v in zip(model.continuous_value_vars[:nk], model.free_RVs[:nk], vals[:nk])]+[model['ped']]]
-        with model:
-            like, pprof, maps, slopes = zip(*map(
-                lambda i, pr, szr, szrd, sza, szl, dm, szfl: lfuncs.whole_lik(
-                    pr, press, szr.value, szrd.value, sza, sz.filtering.value, sz.conv_temp_sb.value, szl, sz.sep, dm, sz.radius[sz.sep:].value, 
-                    [s.value for s in szfl], i, 'll'), np.arange(1), pars, sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data))
-            infs = [int(np.isinf(l.eval())) for l in like]
-            print('likelihood:')
-            print(pt.sum(like).eval())
-            [model.set_initval(n, v) for n, v in zip(model.free_RVs, vals)]
-        if np.sum(infs) == 0:
-            check = pt.sum(like).eval()
-            print('logp: %f' % check)
-            df = np.array(pars).flatten().size
-            red_chisq = -2*check/df
-            print('Reduced chisq: %f' % red_chisq)
-            if red_chisq > 100:
-                print('Too high! Retry')
-            else:
-                np.savetxt('%s/starting_point.dat' % savedir, np.array(vals))
-                ilike = pt.sum([shared(check)])
-        nn += 1
-        if nn == 1000:
-            raise RuntimeError('Valid starting point not found after 1000 attempts. Execution stopped')
+            nk = len(logunivpars)
+            pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars)
+        # Add pedestal component to the model
+        pm.Normal("ped", 0., 1e-6, initval=0.)        
+        
+        # Likelihood function
+        lprof, pprof, mprof, slopes = lfuncs.whole_lik(
+                model['lgP_k'], model['ped'], press, sz.r_pp[0].value, sz.r_red[0].value, 
+                sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
+                sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], 
+                sz.radius[sz.sep:].value, [s.value for s in sz.flux_data[0]], 
+                'll')
+        pm.Normal('like', mu=lprof, sigma=sz.flux_data[0][2], 
+                  observed=sz.flux_data[0][1], shape=len(sz.flux_data[0][1]))
 
-    with model:
-        map_prof = [pm.Deterministic('bright', maps[0])]
-        p_prof = pm.Deterministic('press', pprof[0])
-        like = pm.Potential('like', pt.sum(like))
+        # Save useful measures
+        pm.Deterministic('bright', mprof)
+        pm.Deterministic('press', pprof)
         if slope_prior:
-            pm.Deterministic('slope', slopes[0])
-        with open('%s/model.pickle' % savedir, 'wb') as m:
-            cloudpickle.dump(model, m, -1)
-        start_guess = [np.atleast_2d(m.eval()) for m in map_prof]
-    pplots.plot_guess(start_guess, sz, knots=None if type(press) == pfuncs.Press_gNFW else 
-                      [[r for i, r in enumerate(press.knots[0])]], 
-                      plotdir=plotdir)
-    
-    with model:
-        step = assign_step_methods(model, None, methods=pm.STEP_METHODS, step_kwargs={})
-        trace = pm.sample(draws=1000, tune=1000, chains=8, return_inferencedata=True, step=step,
-                          initvals=model.initial_point())
-    
+            pm.Deterministic('slope', slopes)
+
+        ## Sampling
+        start_guess = model['bright'].eval({**{'lgP_k': logunivpars}, **{'peds': 0.}})
+        pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
+        # Fit
+        trace = pm.sample(draws=1000, tune=1000, chains=8, initvals=model.rvs_to_initial_values)
+        
     trace.to_netcdf("%s/trace.nc" % savedir)
     # trace = az.from_netcdf("%s/trace.nc" % savedir)
 
