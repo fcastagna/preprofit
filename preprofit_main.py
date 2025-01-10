@@ -44,7 +44,6 @@ beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # be
 tf_filename = None # transfer function
 flux_filename = '%s/press_data_%s.dat' % (files_dir, clus) # observed data
 convert_filename = None # conversion Compton -> observed data
-flux_filename = ['%s/press_data_' %files_dir+cl+'.dat' for cl in clus] # observed data
 # Temperature used for the conversion factor above
 t_const = 8*u.keV # if conversion is not required, preprofit ignores it
 
