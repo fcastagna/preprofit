@@ -183,13 +183,9 @@ def main():
         
         # Likelihood function
         lprof, pprof, mprof, slopes = lfuncs.whole_lik(
-                model['lgP_k'], model['ped'], press, sz.r_pp[0].value, sz.r_red[0].value, 
-                sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
-                sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], 
-                sz.radius[sz.sep:].value, [s.value for s in sz.flux_data[0]], 
-                'll')
-        pm.Normal('like', mu=lprof, sigma=sz.flux_data[0][2], 
-                  observed=sz.flux_data[0][1], shape=len(sz.flux_data[0][1]))
+                model['lgP_k'], model['ped'], press, sz.r_pp[0].value, sz.r_red[0].value, sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
+                sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], sz.radius[sz.sep:].value, [s.value for s in sz.flux_data[0]], 'll')
+        pm.Normal('like', mu=lprof, sigma=sz.flux_data[0][2], observed=sz.flux_data[0][1], shape=len(sz.flux_data[0][1]))
 
         # Save useful measures
         pm.Deterministic('bright', mprof)
@@ -198,7 +194,7 @@ def main():
             pm.Deterministic('slope', slopes)
 
         ## Sampling
-        start_guess = model['bright'].eval({**{'lgP_k': logunivpars}, **{'ped': 0.}})
+        start_guess = model['bright'].eval({'lgP_k': logunivpars, 'ped': 0.})
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         # Fit
         trace = pm.sample(draws=1000, tune=1000, chains=8, initvals=model.rvs_to_initial_values)
