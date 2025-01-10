@@ -114,8 +114,7 @@ def main():
     # PSF+tf filtering
     freq, fb, filtering = pfuncs.filtering(mystep, press.eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, filename=beam_filename, beam_and_tf=beam_and_tf, 
                                            crop_image=crop_image, cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, w_tf_1d=wn_as, tf_1d=tf)
-    fwhm = fwhm_beam
-
+    
     # Radius definition
     radius = np.arange(filtering.shape[0]//2+1)*mystep
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
