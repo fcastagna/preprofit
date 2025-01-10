@@ -204,9 +204,12 @@ def main():
 
     # Extract chain of parameters ((nwalkers x niter) x nparams)
     prs = [str(_) for _ in model.basic_RVs]
-    samples = np.zeros((trace['posterior'][prs[-1]].size, len(prs)))
+    samples = []
     for (i, par) in enumerate(prs):
-        samples[:,i] = np.array(trace['posterior'][par]).flatten()
+        res = trace.posterior[par].data.reshape(trace.posterior.ped.data.flatten().size, -1)
+        for j in range(res.shape[1]):
+            samples.append(res[:,j])
+    samples = np.array(samples).T
     # Extract surface brightness profiles
     flat_surbr = np.array([trace.posterior['bright']]).reshape(1, samples.shape[0], -1)
     # Median surface brightness profile + CI
