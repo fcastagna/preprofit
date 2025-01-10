@@ -81,7 +81,7 @@ integ_mu = .94/1e3
 integ_sig = .36/1e3
 
 ## Prior constraint on the pressure slope at large radii?
-slope_prior = True # apply or do not apply?
+slope_prior = False # apply or do not apply?
 r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
