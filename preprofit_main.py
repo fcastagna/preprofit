@@ -7,10 +7,7 @@ from astropy import units as u
 from scipy.interpolate import interp1d
 import cloudpickle
 import pymc as pm
-from pytensor import shared
-import arviz as az
 import pytensor.tensor as pt
-from pymc.sampling.mcmc import assign_step_methods
 
 ### Global and local variables
 
