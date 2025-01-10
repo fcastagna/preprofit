@@ -70,16 +70,14 @@ def int_func_2(map_prof, szrv, szfl):
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(szfl[0])
 
-def whole_lik(pars, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
-    ped = pt.as_tensor(pars[-1])
-    pars = pars[:-1]
-    p_pr, slope = press.prior(pars, szr, i)
+def whole_lik(lgP_ki, ped_i, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
+    p_pr, slope = press.prior(lgP_ki, szr, i)
     if np.isinf(p_pr.eval()):
-        return p_pr, pt.zeros_like(szfl[0]), pt.zeros_like(szfl[0]), slope
-    pp = press.functional_form(shared(szr), pt.as_tensor(pars), i, False)
+        return p_pr, pt.sum(lgP_ki)*pt.atleast_2d(pt.zeros_like(szr)), pt.sum(lgP_ki+ped_i)*pt.zeros(szs+1), slope
+    pp = press.functional_form(shared(szr), pt.as_tensor(lgP_ki), i, False)
     pp = pt.atleast_2d(pt.mul(pp, press.P500[i]))
     int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szf), shared(szc), 
                           shared(szl), shared(szs), shared(dm), shared(output))
-    int_prof = int_prof+ped
+    int_prof = int_prof+ped_i
     map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
     return map_prof, pp, int_prof, slope
