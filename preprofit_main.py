@@ -183,8 +183,8 @@ def main():
         
         # Likelihood function
         lprof, pprof, mprof, slopes = lfuncs.whole_lik(
-                model['lgP_k'], model['ped'], press, sz.r_pp[0].value, sz.r_red[0].value, sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
-                sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], sz.radius[sz.sep:].value, [s.value for s in sz.flux_data[0]], 'll')
+            model, model['lgP_k'], model['ped'], press, sz.r_pp[0].value, sz.r_red[0].value, sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
+            sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], sz.radius[sz.sep:].value, [s.value for s in sz.flux_data[0]], 'll')x\x\
         pm.Normal('like', mu=lprof, sigma=sz.flux_data[0][2], observed=sz.flux_data[0][1], shape=len(sz.flux_data[0][1]))
 
         # Save useful measures
@@ -203,7 +203,7 @@ def main():
     # trace = az.from_netcdf("%s/trace.nc" % savedir)
 
     # Extract chain of parameters ((nwalkers x niter) x nparams)
-    prs = [str(_) for _ in model.basic_RVs]
+    prs = [str(_) for _ in model.free_RVs]
     samples = []
     for (i, par) in enumerate(prs):
         res = trace.posterior[par].data.reshape(trace.posterior.ped.data.flatten().size, -1)
@@ -226,8 +226,8 @@ def main():
     pplots.traceplot(trace, prs, nc=1, trans_ped=lambda x: 1e4*x, plotdir=savedir)
 
     # Best fitting profile on SZ surface brightness
-    pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else (press.knots*u.kpc).to(u.arcsec, equivalencies=press.eq_kpc_as).value,
-                      peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
+    pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else (
+        press.knots*u.kpc).to(u.arcsec, equivalencies=press.eq_kpc_as).value, peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Cornerplots
     pplots.triangle(samples, prs, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
