@@ -181,7 +181,7 @@ def main():
             [pm.Deterministic('slope_%s' % i, s) for i, s in enumerate(slopes)]
 
         ## Sampling
-        start_guess = [model['bright_%s' % j].eval({str(p): model.rvs_to_initial_values[model.named_vars[str(p)]] for p in model.free_RVs}) for j in range(nc)]
+        start_guess = [model['bright_%s' % j].eval({str(p): model.rvs_to_initial_values[model.named_vars[str(p)]] for p in model.free_RVs[2:]}) for j in range(nc)]
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         # Fit
         trace = pm.sample(draws=1000, tune=1000, chains=8, initvals=model.rvs_to_initial_values)
