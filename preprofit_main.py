@@ -169,7 +169,7 @@ def main():
         # Likelihood function
         lprof, pprof, maps, slopes = zip(*map(
             lambda lgP_ki, ped_i, szr, szrr, sza, szl, szd, szf, i: lfuncs.whole_lik(
-                lgP_ki, ped_i, press, szr.value, szrr.value, sza, sz.filtering.value, 
+                model, lgP_ki, ped_i, press, szr.value, szrr.value, sza, sz.filtering.value, 
                 sz.conv_temp_sb.value, szl, sz.sep, szd, sz.radius[sz.sep:].value, szf, i, 'll'),
             [[m[i] for m in [model['lgP_{%s,i}' % k] for k in range(nk)]] for i in range(nc)], 
             [model['peds'][i] for i in range(nc)], sz.r_pp, sz.r_red, sz.abel_data, sz.dist.labels, sz.dist.d_mat, sz.flux_data, np.arange(nc)))
