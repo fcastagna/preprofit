@@ -76,7 +76,7 @@ integ_mu = .94/1e3
 integ_sig = .36/1e3
 
 ## Prior constraint on the pressure slope at large radii?
-slope_prior = False # apply or do not apply?
+slope_prior = True # apply or do not apply?
 r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
@@ -183,7 +183,7 @@ def main():
         # Likelihood function
         lprof, pprof, mprof, slopes = lfuncs.whole_lik(
             model, model['lgP_k'], model['ped'], press, sz.r_pp[0].value, sz.r_red[0].value, sz.abel_data[0], sz.filtering.value, sz.conv_temp_sb.value, 
-            sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], sz.radius[sz.sep:].value, [s.value for s in sz.flux_data[0]], 'll')x\x\
+            sz.dist.labels[0], sz.sep, sz.dist.d_mat[0], sz.radius[sz.sep:].value, [s.value for s in sz.flux_data[0]], 'll')
         pm.Normal('like', mu=lprof, sigma=sz.flux_data[0][2], observed=sz.flux_data[0][1], shape=len(sz.flux_data[0][1]))
 
         # Save useful measures
@@ -209,19 +209,17 @@ def main():
         for j in range(res.shape[1]):
             samples.append(res[:,j])
     samples = np.array(samples).T
+    prs_ext = ['%s%s' % (prs[0][:-1], i) for i in range(nk)]+[prs[-1]]
+
     # Extract surface brightness profiles
     flat_surbr = np.array([trace.posterior['bright']]).reshape(1, samples.shape[0], -1)
     # Median surface brightness profile + CI
     perc_sz = np.array([pplots.get_equal_tailed(f, ci=ci) for f in flat_surbr])
 
-    # Posterior distribution parameters
-    param_med = np.median(samples, axis=0)
-    param_std = np.std(samples, axis=0)
-    pfuncs.print_summary(prs, param_med, param_std, perc_sz[:,1], sz)
-    pfuncs.save_summary('%s/%s' % (savedir, name), prs, param_med, param_std, ci=ci)
+    # Posterior distributions summary
+    pm.summary(trace, var_names=prs)
 
     # Traceplot
-    pm.summary(trace, var_names=prs)
     pplots.traceplot(trace, prs, nc=1, trans_ped=lambda x: 1e4*x, plotdir=savedir)
 
     # Best fitting profile on SZ surface brightness
@@ -229,7 +227,7 @@ def main():
         press.knots*u.kpc).to(u.arcsec, equivalencies=press.eq_kpc_as).value, peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Cornerplots
-    pplots.triangle(samples, prs, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
+    pplots.triangle(samples, prs_ext, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
     p_prof = [trace.posterior['press'].data.reshape(samples.shape[0], -1)]
