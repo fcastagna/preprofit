@@ -70,7 +70,7 @@ def int_func_2(map_prof, szrv, szfl):
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(szfl[0])
 
-def whole_lik(lgP_ki, ped_i, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
+def whole_lik(model, lgP_ki, ped_i, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, i, output):
     p_pr, slope = press.prior(lgP_ki, szr, i)
     if np.isinf(p_pr.eval({'lgP_{%s,i}' % i: model.rvs_to_initial_values[model.named_vars['lgP_{%s,i}' % i]] for i in range(len(lgP_ki))})):
         return p_pr, pt.sum(lgP_ki)*pt.atleast_2d(pt.zeros_like(szr)), pt.sum(lgP_ki+ped_i)*pt.zeros(szs+1), slope
