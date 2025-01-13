@@ -193,7 +193,7 @@ def main():
             pm.Deterministic('slope', slopes)
 
         ## Sampling
-        start_guess = model['bright'].eval({'lgP_k': logunivpars, 'ped': 0.})
+        start_guess = model['bright'].eval({str(p): model.rvs_to_initial_values[model.named_vars[str(p)]] for p in model.free_RVs})
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         # Fit
         trace = pm.sample(draws=1000, tune=1000, chains=8, initvals=model.rvs_to_initial_values)
