@@ -50,21 +50,26 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     pdf.savefig()
     pdf.close()
 
-def traceplot(trace, prs, nc, nk=5, trans_ped=None, ppp=10, div=None, plotdir='./'):
+def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, div=None, plotdir='./'):
     '''
     '''
     plt.clf()
-    prs_latex = ['${}$'.format(i) for i in prs]
+    prs_latex = ['${}$'.format(i) for i in (prs if compact else prs_ext)]
+    prs_latex[-1] += ' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else ''
+    trace.posterior['ped'] *= fact_ped
     pdf = PdfPages(plotdir+'traceplot.pdf')
-    for i in range(int((len(prs)-.5)//ppp)+1):
-        axes = az.plot_trace(trace, var_names=prs[i*ppp:min((i+1)*ppp,len(prs))], divergences=div)
-        [axes[_][j].set_title('') for j in [0,1] for _ in range(len(axes))]
-        [axes[_][0].set_ylabel(prs_latex[i*ppp:min((i+1)*ppp,len(prs))][_], fontdict={'fontsize':20}) for _ in range(len(axes))]
-        axes[-1][0].set_xlabel('Value')
-        axes[-1][1].set_xlabel('Iteration')
-        pdf.savefig(bbox_inches='tight')
-    plt.clf()
+    axes = az.plot_trace(trace, var_names=prs, divergences=div, compact=compact)
+    if compact:
+        axes[0][0].legend(np.array([['$lgP_%s$' % i]+(2*trace.posterior.lgP_k.shape[0]-1)*['_'] 
+                                    for i in range(trace.posterior.lgP_k.shape[-1])]).flatten(), 
+                          loc='upper left', fontsize='small')
+    [axes[_][j].set_title('') for j in [0,1] for _ in range(len(axes))]
+    [axes[_][0].set_ylabel(prs_latex[_], fontdict={'fontsize':20}) for _ in range(len(axes))]
+    axes[-1][0].set_xlabel('Value')
+    axes[-1][1].set_xlabel('Iteration')
+    pdf.savefig(bbox_inches='tight')
     pdf.close()
+    trace.posterior['ped'] /= fact_ped
 
 def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
     '''
