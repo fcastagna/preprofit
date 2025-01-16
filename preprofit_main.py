@@ -213,5 +213,10 @@ def main():
     # Traceplot
     pplots.traceplot(trace, prs, prs_ext, compact=1, fact_ped=1e4, ppp=nk, plotdir=savedir)
 
+    # Best fitting profile on SZ surface brightness
+    pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, rbins=None if type(press)==pfuncs.Press_gNFW else np.array(
+        [press.knots[_]/press.kpc_as[_]*u.arcsec for _ in range(nc)]), peds=np.mean(trace.posterior['peds'].data, axis=(0,1)), fact=1e4, ci=ci, plotdir=plotdir)
+
+
 if __name__ == '__main__':
     main()
