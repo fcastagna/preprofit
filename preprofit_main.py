@@ -223,7 +223,7 @@ def main():
     pplots.traceplot(trace, prs, prs_ext, fact_ped=1e4, compact=False, plotdir=savedir)
 
     # Best fitting profile on SZ surface brightness
-    pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, clus=clus, rbins=None if type(press)==pfuncs.Press_gNFW else (
+    pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, rbins=None if type(press)==pfuncs.Press_gNFW else (
         press.knots*u.kpc).to(u.arcsec, equivalencies=press.eq_kpc_as).value, peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Cornerplots
