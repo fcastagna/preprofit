@@ -52,21 +52,40 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     pdf.savefig()
     pdf.close()
 
-def traceplot(trace, prs, nc, nk=5, trans_ped=None, ppp=10, div=None, plotdir='./'):
+def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True, div=None, plotdir='./'):
     '''
     '''
     plt.clf()
-    prs_latex = ['${}$'.format(i) for i in prs]
+    prs_latex = ['$%s%s$' % ('\\' if _==0 else '', p) if compact else ['$%s%s$' % ('\\' if _==0 else '', pj) for pj in p] for _, p in enumerate(prs if compact else prs_ext)]
+    prs_latex[-1] = (prs_latex[-1]+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
+    trace.posterior['peds'] *= fact_ped
     pdf = PdfPages(plotdir+'traceplot.pdf')
-    for i in range(int((len(prs)-.5)//ppp)+1):
-        axes = az.plot_trace(trace, var_names=prs[i*ppp:min((i+1)*ppp,len(prs))], divergences=div)
-        [axes[_][j].set_title('') for j in [0,1] for _ in range(len(axes))]
-        [axes[_][0].set_ylabel(prs_latex[i*ppp:min((i+1)*ppp,len(prs))][_], fontdict={'fontsize':20}) for _ in range(len(axes))]
-        axes[-1][0].set_xlabel('Value')
-        axes[-1][1].set_xlabel('Iteration')
-        pdf.savefig(bbox_inches='tight')
-    plt.clf()
+    for j, p in enumerate(prs):
+        for i in range(int((len(prs_ext[j])-.5)//ppp)+1):
+            plt.clf()
+            axes = az.plot_trace(
+                trace, var_names=prs if compact else p, 
+                coords={} if compact else {p+'_dim_0': np.arange(i*ppp, np.min([(i+1)*ppp, trace.posterior[p].shape[-1]]))}, 
+                divergences=div, compact=compact)
+            nr = np.min([trace.posterior[p].shape[-1], ppp])
+            nrows = len(axes) if compact else trace.posterior[p].shape[-1] // ppp if trace.posterior[p].shape[-1]-i*ppp < nr else nr
+            [axes[_][j].set_title('') for j in [0,1] for _ in range(nrows)]
+            [axes[_][0].set_ylabel(prs_latex[_] if compact else prs_latex[j][i*ppp+_], fontdict={'fontsize':20}) for _ in range(nrows)]
+            axes[-1][0].set_xlabel('Value')
+            axes[-1][1].set_xlabel('Iteration')
+            if compact & legend:
+                for _ in [0,2]:
+                    axes[_][0].legend(
+                        np.array([['$%s$=%s' % ('k' if _==0 else 'i', j)]+(
+                            2*trace.posterior[prs[_]].shape[0]-1)*['_'] for j in 
+                            range(trace.posterior[prs[_]].shape[-1])]).flatten(), 
+                        fontsize='small', ncols=np.ceil(len(prs_ext[_])/5))
+            pdf.savefig(bbox_inches='tight')
+            plt.close()
+            if compact: break
+        if compact: break
     pdf.close()
+    trace.posterior['peds'] /= fact_ped
 
 def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
     '''
