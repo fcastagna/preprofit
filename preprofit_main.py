@@ -211,7 +211,7 @@ def main():
     pm.summary(trace, var_names=prs)
 
     # Traceplot
-    pplots.traceplot(trace, prs, prs_ext, compact=1, fact_ped=1e4, plotdir=savedir)
+    pplots.traceplot(trace, prs, prs_ext, compact=1, fact_ped=1e4, ppp=nk, plotdir=savedir)
 
 if __name__ == '__main__':
     main()
