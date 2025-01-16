@@ -189,5 +189,29 @@ def main():
     # Save chain
     trace.to_netcdf("%s/trace.nc" % savedir)
 
+    # Extract chain of parameters ((nwalkers x niter) x nparams)
+    prs = [str(_) for _ in model.free_RVs]
+    samples = []
+    for (i, par) in enumerate(prs):
+        res = trace.posterior[par].data.reshape(np.prod(trace.posterior[prs[0]].shape[:2]), -1)
+        for j in range(res.shape[1]):
+            samples.append(res[:,j])
+    samples = np.array(samples).T
+    prs_ext = [
+        [p.replace('k', str(k)) for k in range(nk)] for p in prs[:2]]+[
+            [p.replace('i', str(i)) for i in range(nc)] for p in prs[2:-1]]+[[
+                prs[-1]+'_{%s}' % i for i in range(nc)]]
+
+    # Extract surface brightness profiles
+    flat_surbr = np.array([trace.posterior['bright_%s' % i] for i in range(nc)]).reshape(nc, samples.shape[0], -1)
+    # Median surface brightness profile + CI
+    perc_sz = np.array([pplots.get_equal_tailed(f, ci=ci) for f in flat_surbr])
+
+    # Posterior distributions summary
+    pm.summary(trace, var_names=prs)
+
+    # Traceplot
+    pplots.traceplot(trace, prs, prs_ext, compact=1, fact_ped=1e4, plotdir=savedir)
+
 if __name__ == '__main__':
     main()
