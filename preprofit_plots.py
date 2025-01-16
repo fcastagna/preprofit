@@ -71,6 +71,34 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, div=None, plotdir=
     pdf.close()
     trace.posterior['ped'] /= fact_ped
 
+def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, fact=1, ci=95, plotdir='./'):
+    '''
+    Surface brightness profile (points with error bars) and best fitting profile with uncertainties
+    -----------------------------------------------------------------------------------------------
+    sz = class of SZ data
+    perc_sz = best (median) SZ fitting profiles with uncertainties
+    ci = uncertainty level of the interval
+    plotdir = directory where to place the plot
+    '''
+    pdf = PdfPages(plotdir+'fit_on_data.pdf')
+    for i in range(len(sz.flux_data)):
+        plt.clf()
+        plt.title(np.atleast_1d(sz.clus)[i])
+        lsz, msz, usz = perc_sz[i]*fact
+        plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
+        plt.fill_between(sz.radius[sz.sep:].value, lsz, usz, color='gold', label='%i%% CI' % ci)
+        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value*fact, yerr=sz.flux_data[i][2].value*fact, fmt='o', 
+                     fillstyle='none', color='black', label='Observed data')
+        plt.xlim(0., 50+np.ceil(sz.flux_data[i][0][-1].value))
+        if rbins is not None:
+            [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
+        if peds is not None:
+            plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
+        plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
+        plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
+        pdf.savefig()
+    pdf.close()
+
 def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
@@ -123,34 +151,6 @@ def get_equal_tailed(data, ci=95):
     '''
     low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
     return np.array([low, med, upp])
-
-def fitwithmod(sz, perc_sz, eq_kpc_as, clus, rbins=None, peds=None, fact=1, ci=95, plotdir='./'):
-    '''
-    Surface brightness profile (points with error bars) and best fitting profile with uncertainties
-    -----------------------------------------------------------------------------------------------
-    sz = class of SZ data
-    perc_sz = best (median) SZ fitting profiles with uncertainties
-    ci = uncertainty level of the interval
-    plotdir = directory where to place the plot
-    '''
-    pdf = PdfPages(plotdir+'fit_on_data.pdf')
-    for i in range(len(sz.flux_data)):
-        plt.clf()
-        plt.title(np.atleast_1d(clus)[i])
-        lsz, msz, usz = perc_sz[i]*fact
-        plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
-        plt.fill_between(sz.radius[sz.sep:].value, lsz, usz, color='gold', label='%i%% CI' % ci)
-        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value*fact, yerr=sz.flux_data[i][2].value*fact, fmt='o', 
-                     fillstyle='none', color='black', label='Observed data')
-        plt.xlim(0., 50+np.ceil(sz.flux_data[i][0][-1].value))
-        if rbins is not None:
-            [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
-        if peds is not None:
-            plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
-        plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
-        plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
-        pdf.savefig()
-    pdf.close()
 
 def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, plotdir='./'):
     '''
