@@ -56,8 +56,11 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True
     '''
     '''
     plt.clf()
-    prs_latex = ['$%s%s$' % ('\\' if _==0 else '', p) if compact else ['$%s%s$' % ('\\' if _==0 else '', pj) for pj in p] for _, p in enumerate(prs if compact else prs_ext)]
-    prs_latex[-1] = (prs_latex[-1]+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
+    prs_latex = ['$%s%s$' % ('\\' if _==0 else '', p) if compact else ['$%s%s$' % ('\\' if _==0 else '', pj) for pj in p] 
+                 for _, p in enumerate(prs if compact else prs_ext)]
+    prs_latex[-1] = (
+        prs_latex[-1]+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [
+            p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
     trace.posterior['peds'] *= fact_ped
     pdf = PdfPages(plotdir+'traceplot.pdf')
     for j, p in enumerate(prs):
