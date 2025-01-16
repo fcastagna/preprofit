@@ -4,6 +4,7 @@ import numpy as np
 from astropy import units as u
 import corner
 import arviz as az
+from scipy.stats import norm
 
 plt.style.use('classic')
 font = {'size': 10}
