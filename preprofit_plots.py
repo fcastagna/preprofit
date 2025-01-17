@@ -163,7 +163,7 @@ def triangle(mat_chain, param_names, model, fact_ped=1, plot_prior=True, show_li
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, plotdir='./'):
+def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, plotdir='./'):
     '''
     Plot the radial pressure profiles
     ---------------------------------
@@ -176,7 +176,7 @@ def plot_press(r_kpc, press_prof, xmin=np.nan, xmax=np.nan, ci=95, univpress=Non
     pdf = PdfPages(plotdir+'press_fit.pdf')
     for i in range(len(press_prof)):
         plt.clf()
-        plt.title(np.atleast_1d(sz.clus)[i])
+        plt.title(np.atleast_1d(clus)[i])
         l_press, m_press, u_press = press_prof[i]
         xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
         ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
