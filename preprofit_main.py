@@ -232,7 +232,7 @@ def main():
     # Radial pressure profile
     p_prof = [trace.posterior['press'].data.reshape(samples.shape[0], -1)]
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
-    pplots.plot_press(sz.r_pp, p_quant, ci=ci, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
+    pplots.plot_press(sz.r_pp, p_quant, clus=sz.clus, ci=ci, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
 
     # Outer slope posterior distribution
     if press.slope_prior:
