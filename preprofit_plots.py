@@ -41,7 +41,7 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
         if i == 0:
             plt.legend(numpoints=1)
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
-        if (i%4 > 1) | (len(sz.flux_data)-i==2):
+        if (i%4 > 1) | (len(sz.flux_data)-i<3):
             plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
         if i%2 == 0:
             plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
@@ -71,7 +71,7 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, div=None, plotdir=
     pdf.savefig(bbox_inches='tight')
     pdf.close()
     trace.posterior['ped'] /= fact_ped
-
+ 
 def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, fact=1, ci=95, plotdir='./'):
     '''
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties
@@ -95,12 +95,23 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, fact=1, ci=95, plo
             [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
         if peds is not None:
             plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
-        plt.xlabel('Radius ('+str(sz.flux_data[i][0].unit)+')')
+        plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
         plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
         pdf.savefig()
     pdf.close()
 
-def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
+def get_equal_tailed(data, ci=95):
+    '''
+    Computes the median and lower/upper limits of the equal tailed uncertainty interval
+    -----------------------------------------------------------------------------------
+    ci = uncertainty level of the interval
+    ----------------------------------------
+    RETURN: lower bound, median, upper bound
+    '''
+    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
+    return np.array([low, med, upp])
+
+def triangle(mat_chain, param_names, model, fact_ped=1, plot_prior=True, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
@@ -116,12 +127,23 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
     pdf = PdfPages(plotdir+'cornerplot.pdf')
     plt.clf()
     param_latex = ['${}$'.format(i) for i in param_names]
-    fig = corner.corner(mat_chain, labels=param_latex, title_kwargs={'fontsize': titsize}, label_kwargs={'fontsize': labsize})
+    param_latex[-1] += ' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else ''
+    fact = np.append(np.ones(len(param_names)-1), fact_ped)
+    fig = corner.corner(mat_chain*fact, labels=param_latex, title_kwargs={'fontsize': titsize}, 
+                        label_kwargs={'fontsize': labsize}, hist_kwargs={'density': True})
     axes = np.array(fig.axes).reshape((len(param_names), len(param_names)))
-    plb, pmed, pub = get_equal_tailed(mat_chain, ci=ci)
+    plb, pmed, pub = get_equal_tailed(mat_chain*fact, ci=ci)
     for i in range(len(param_names)):
         l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
         axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
+        if plot_prior:
+            xx = np.linspace(-5, 5, 1000)
+            means = model.free_RVs[0].owner.inputs[-2].data
+            sig = model.free_RVs[0].owner.inputs[-1].eval()
+            [axes[i,i].plot(xx, norm.pdf(xx, means[i], sig), linestyle='--') for i in range(len(means))]
+            axes[-1,-1].plot(np.linspace(-1, 1, 1000), norm.pdf(
+                np.linspace(-1, 1, 1000), model.free_RVs[-1].owner.inputs[-2].data*fact_ped, 
+                model.free_RVs[-1].owner.inputs[-1].data*fact_ped), linestyle='--')
         if show_lines:
             axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
             axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
@@ -138,20 +160,8 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
                     axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
                     axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-            if legend: fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=titsize+len(param_names))
     pdf.savefig(bbox_inches='tight')
     pdf.close()
-
-def get_equal_tailed(data, ci=95):
-    '''
-    Computes the median and lower/upper limits of the equal tailed uncertainty interval
-    -----------------------------------------------------------------------------------
-    ci = uncertainty level of the interval
-    ----------------------------------------
-    RETURN: lower bound, median, upper bound
-    '''
-    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
-    return np.array([low, med, upp])
 
 def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, plotdir='./'):
     '''
@@ -163,9 +173,6 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
     ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
-    plt.style.use('classic')
-    font = {'size': 10}
-    plt.rc('font', **font)
     pdf = PdfPages(plotdir+'press_fit.pdf')
     for i in range(len(press_prof)):
         plt.clf()
@@ -183,11 +190,8 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
         if univpress is not None:
             plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
         plt.ylim(1e-5, 1e-1)
-        plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
-        plt.ylabel('Pressure [keV cm$^{-3}$]')
-        plt.suptitle('Radial pressure profile (median + %i%% CI)' % ci)
-        if univpress is not None:
-            plt.legend(('fitted', 'universal'), loc='lower left')
+        plt.xlabel('Radius ['+str(r_kpc[i].unit)+']')
+        plt.ylabel('Pressure [keV$/$cm$^{3}$]')
         plt.xlim(xmin, xmax)
         pdf.savefig()
     pdf.close()
