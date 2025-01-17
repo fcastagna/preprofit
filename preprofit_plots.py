@@ -163,7 +163,7 @@ def triangle(mat_chain, param_names, model, fact_ped=1, plot_prior=True, show_li
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, plotdir='./'):
+def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=None, plotdir='./'):
     '''
     Plot the radial pressure profiles
     ---------------------------------
@@ -187,8 +187,6 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
             [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
         plt.xscale('log')
         plt.yscale('log')
-        if univpress is not None:
-            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
         plt.ylim(1e-5, 1e-1)
         plt.xlabel('Radius ['+str(r_kpc[i].unit)+']')
         plt.ylabel('Pressure [keV$/$cm$^{3}$]')
