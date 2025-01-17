@@ -197,15 +197,15 @@ def main():
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         # Fit
         trace = pm.sample(draws=1000, tune=1000, chains=8, initvals=model.rvs_to_initial_values)
-        
+
+    # Save trace
     trace.to_netcdf("%s/trace.nc" % savedir)
-    # trace = az.from_netcdf("%s/trace.nc" % savedir)
 
     # Extract chain of parameters ((nwalkers x niter) x nparams)
     prs = [str(_) for _ in model.free_RVs]
     samples = []
     for (i, par) in enumerate(prs):
-        res = trace.posterior[par].data.reshape(trace.posterior.ped.data.flatten().size, -1)
+        res = trace.posterior[par].data.reshape(np.prod(trace.posterior[prs[0]].shape[:2]), -1)
         for j in range(res.shape[1]):
             samples.append(res[:,j])
     samples = np.array(samples).T
@@ -227,13 +227,12 @@ def main():
         press.knots*u.kpc).to(u.arcsec, equivalencies=press.eq_kpc_as).value, peds=[trace.posterior['ped'].data.mean()], fact=1e5, ci=ci, plotdir=plotdir)
 
     # Cornerplots
-    pplots.triangle(samples, prs_ext, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
+    pplots.triangle(samples, prs_ext, model, fact_ped=1e4, plot_prior=True, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
 
     # Radial pressure profile
     p_prof = [trace.posterior['press'].data.reshape(samples.shape[0], -1)]
     p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
-    univpress=None
-    pplots.plot_press(sz.r_pp, p_quant, clus=clus, ci=ci, univpress=univpress, plotdir=plotdir, 
+    pplots.plot_press(sz.r_pp, p_quant, clus=sz.clus, ci=ci, plotdir=plotdir, 
                       rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
 
     # Outer slope posterior distribution
