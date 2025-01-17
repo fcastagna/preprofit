@@ -4,6 +4,7 @@ import numpy as np
 from astropy import units as u
 import corner
 import arviz as az
+from scipy.stats import norm
 
 plt.style.use('classic')
 font = {'size': 10}
@@ -56,11 +57,8 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True
     '''
     '''
     plt.clf()
-    prs_latex = ['$%s%s$' % ('\\' if _==0 else '', p) if compact else ['$%s%s$' % ('\\' if _==0 else '', pj) for pj in p] 
-                 for _, p in enumerate(prs if compact else prs_ext)]
-    prs_latex[-1] = (
-        prs_latex[-1]+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [
-            p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
+    prs_latex = ['$%s%s$' % ('\\' if _==0 else '', p) if compact else ['$%s%s$' % ('\\' if _==0 else '', pj) for pj in p] for _, p in enumerate(prs if compact else prs_ext)]
+    prs_latex[-1] = (prs_latex[-1]+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
     trace.posterior['peds'] *= fact_ped
     pdf = PdfPages(plotdir+'traceplot.pdf')
     for j, p in enumerate(prs):
@@ -95,8 +93,8 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, fact=1, ci=95, plo
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties
     -----------------------------------------------------------------------------------------------
     sz = class of SZ data
-    perc_sz = best (median) SZ fitting profiles with uncertainties
     ci = uncertainty level of the interval
+    perc_sz = best (median) SZ fitting profiles with uncertainties
     plotdir = directory where to place the plot
     '''
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
@@ -118,7 +116,18 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, fact=1, ci=95, plo
         pdf.savefig()
     pdf.close()
 
-def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
+def get_equal_tailed(data, ci=95):
+    '''
+    Computes the median and lower/upper limits of the equal tailed uncertainty interval
+    -----------------------------------------------------------------------------------
+    ci = uncertainty level of the interval
+    ----------------------------------------
+    RETURN: lower bound, median, upper bound
+    '''
+    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
+    return np.array([low, med, upp])
+
+def triangle(mat_chain, param_names, model, fact_ped=1, plot_prior=True, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
@@ -133,45 +142,50 @@ def triangle(mat_chain, param_names, show_lines=True, col_lines='r', ci=95, labs
     '''
     pdf = PdfPages(plotdir+'cornerplot.pdf')
     plt.clf()
-    param_latex = ['${}$'.format(i) for i in param_names]
-    fig = corner.corner(mat_chain, labels=param_latex, title_kwargs={'fontsize': titsize}, label_kwargs={'fontsize': labsize})
-    axes = np.array(fig.axes).reshape((len(param_names), len(param_names)))
-    plb, pmed, pub = get_equal_tailed(mat_chain, ci=ci)
-    for i in range(len(param_names)):
-        l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
-        axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
-        if show_lines:
-            axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
-            axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
-            axes[i,i].axvline(pub[i], color=col_lines, linestyle=':', label='_nolegend_')
-            for yi in range(len(param_names)):
-                for xi in range(yi):
-                    axes[yi,xi].axvline(pmed[xi], color=col_lines, linestyle='--')
-                    axes[yi,xi].axhline(pmed[yi], color=col_lines, linestyle='--')
-                    axes[yi,xi].plot(plb[xi], plb[yi], marker=1, color=col_lines)
-                    axes[yi,xi].plot(plb[xi], plb[yi], marker=2, color=col_lines)
-                    axes[yi,xi].plot(plb[xi], pub[yi], marker=1, color=col_lines)
-                    axes[yi,xi].plot(plb[xi], pub[yi], marker=3, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], plb[yi], marker=0, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-            if legend: fig.legend(('Median', '%i%% CI' % ci), loc='lower center', ncol=2, bbox_to_anchor=(0.55, 0.95), fontsize=titsize+len(param_names))
-    pdf.savefig(bbox_inches='tight')
+    param_latex = [['$%s%s$' % ('\\' if _==0 else '', pj) for pj in p] for _, p in enumerate(param_names)]
+    param_latex[-1] = [p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in param_latex[-1]]
+    for _ in range(len(mat_chain)):
+        plt.clf()
+        fig = corner.corner(mat_chain[_]*(fact_ped if _==len(mat_chain)-1 else 1), 
+                            labels=param_latex[_], title_kwargs={'fontsize': titsize}, 
+                            label_kwargs={'fontsize': labsize}, hist_kwargs={'density': True})
+        axes = np.array(fig.axes).reshape((len(param_names[_]), len(param_names[_])))
+        plb, pmed, pub = get_equal_tailed(mat_chain[_]*(fact_ped if _==len(mat_chain)-1 else 1), ci=ci)
+        if plot_prior:
+            ind = 0 if _==0 else _ if _==len(model.free_RVs)-1 else 1
+            means = model.free_RVs[ind].owner.inputs[-2].data
+            sig = model.free_RVs[ind].owner.inputs[-1].data
+        for i in range(len(param_names[_])):
+            l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
+            axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[_][i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
+            if plot_prior:
+                xx = np.linspace(-5, 5, 1000)
+                axes[i,i].plot(xx, norm.pdf(xx, means[i] if np.atleast_1d(means).shape[0]>1 else means, sig), 
+                               c='black', linestyle='--') if _<len(mat_chain)-1 else (
+                    axes[i,i].plot(np.linspace(-1, 1, 1000), norm.pdf(
+                        np.linspace(-1, 1, 1000), model.free_RVs[-1].owner.inputs[-2].data*fact_ped, 
+                        model.free_RVs[-1].owner.inputs[-1].data*fact_ped), c='black', linestyle='--'))
+            if show_lines:
+                axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
+                axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
+                axes[i,i].axvline(pub[i], color=col_lines, linestyle=':', label='_nolegend_')
+                for yi in range(len(param_names[_])):
+                    for xi in range(yi):
+                        axes[yi,xi].axvline(pmed[xi], color=col_lines, linestyle='--')
+                        axes[yi,xi].axhline(pmed[yi], color=col_lines, linestyle='--')
+                        axes[yi,xi].plot(plb[xi], plb[yi], marker=1, color=col_lines)
+                        axes[yi,xi].plot(plb[xi], plb[yi], marker=2, color=col_lines)
+                        axes[yi,xi].plot(plb[xi], pub[yi], marker=1, color=col_lines)
+                        axes[yi,xi].plot(plb[xi], pub[yi], marker=3, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], plb[yi], marker=0, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
+        pdf.savefig(bbox_inches='tight')
+        plt.close()
     pdf.close()
 
-def get_equal_tailed(data, ci=95):
-    '''
-    Computes the median and lower/upper limits of the equal tailed uncertainty interval
-    -----------------------------------------------------------------------------------
-    ci = uncertainty level of the interval
-    ----------------------------------------
-    RETURN: lower bound, median, upper bound
-    '''
-    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
-    return np.array([low, med, upp])
-
-def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpress=None, rbins=None, plotdir='./'):
+def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=None, plotdir='./'):
     '''
     Plot the radial pressure profiles
     ---------------------------------
@@ -198,19 +212,14 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, univpre
             [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
         plt.xscale('log')
         plt.yscale('log')
-        if univpress is not None:
-            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
         plt.ylim(1e-5, 1e-1)
-        plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
-        plt.ylabel('Pressure (keV cm$^{-3}$)')
-        plt.suptitle('Radial pressure profile (median + %i%% CI)' % ci)
-        if univpress is not None:
-            plt.legend(('fitted', 'universal'), loc='lower left')
+        plt.xlabel('Radius ['+str(r_kpc[i].unit)+']')
+        plt.ylabel('Pressure [keV$/$cm$^{3}$]')
         plt.xlim(xmin, xmax)
         pdf.savefig()
     pdf.close()
 
-def hist_slopes(slopes, ci=95, plotdir='./'):
+def hist_slopes(slopes, clus, ci=95, plotdir='./'):
     '''
     Plot the histogram of the outer slopes posterior distribution
     -------------------------------------------------------------
@@ -219,46 +228,15 @@ def hist_slopes(slopes, ci=95, plotdir='./'):
     plotdir = directory where to place the plot
     '''
     pdf = PdfPages(plotdir+'outer_slopes.pdf')
-    plt.clf()
-    plt.title('Outer slope - Posterior distribution')
-    low, med, upp = get_equal_tailed(slopes, ci=ci)
-    plt.hist(slopes, density=True, histtype='step', color='black')
-    plt.axvline(med, color='black', linestyle='--', label='Median')
-    plt.axvline(low, color='black', linestyle='-.', label='%i%% CI' % ci)
-    plt.axvline(upp, color='black', linestyle='-.', label='_nolegend_')
-    plt.xlabel('Outer slope')
-    plt.ylabel('Density')
-    pdf.savefig(bbox_inches='tight')
-    pdf.close()
-
-def spaghetti_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, nl=50, ci=95, univpress=None, rbins=None, plotdir='./'):
-    '''
-    Plot the radial pressure profiles
-    ---------------------------------
-    r_kpc = radius (kpc)
-    press_prof = best fitting pressure profile (median and interval)
-    xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
-    ci = uncertainty level of the interval
-    plotdir = directory where to place the plot
-    '''
-    pdf = PdfPages(plotdir+'spaghetti_press.pdf')
-    for i in range(len(press_prof)):
+    for _ in range(len(slopes)):
         plt.clf()
-        plt.title(np.atleast_1d(clus)[i])
-        xmin, xmax = np.nanmax([r_kpc[i][0].value, xmin]), np.nanmin([r_kpc[i][-1].value, xmax])
-        ind = np.where((r_kpc[i].value > xmin) & (r_kpc[i].value < xmax))
-        e_ind = np.concatenate(([ind[0][0]-1], ind[0], [ind[0][-1]+1]), axis=0)
-        [plt.plot(r_kpc[i][e_ind], p[e_ind], color='grey', linewidth=.4) for p in press_prof[i][:nl]]
-        plt.ylim(1e-7, 2e-1)
-        plt.xscale('log')
-        plt.yscale('log')
-        if univpress is not None:
-            plt.plot(r_kpc[i][e_ind], univpress[i][e_ind])
-        if rbins is not None:
-            [plt.axvline(r, linestyle=':', color='grey') for r in rbins[i]]
-        plt.xlabel('Radius ('+str(r_kpc[i].unit)+')')
-        plt.ylabel('Pressure (keV cm$^{-3}$)')
-        plt.suptitle('%s Radial pressure profiles' % str(nl))
-        plt.xlim(xmin, xmax)
-        pdf.savefig()
+        plt.title('%s' % clus[_])
+        low, med, upp = get_equal_tailed(slopes[_], ci=ci)
+        plt.hist(slopes[_], density=True, histtype='step', color='black')
+        plt.axvline(med, color='black', linestyle='--', label='Median')
+        plt.axvline(low, color='black', linestyle='-.', label='%i%% CI' % ci)
+        plt.axvline(upp, color='black', linestyle='-.', label='_nolegend_')
+        plt.xlabel('Outer slope')
+        plt.ylabel('Density')
+        pdf.savefig(bbox_inches='tight')
     pdf.close()
