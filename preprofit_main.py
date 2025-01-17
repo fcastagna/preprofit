@@ -197,9 +197,13 @@ def main():
         for j in range(res.shape[1]):
             samples.append(res[:,j])
     samples = np.array(samples).T
-    prs_ext = [
+    prs_ext_kn = [
         [p.replace('k', str(k)) for k in range(nk)] for p in prs[:2]]+[
             [p.replace('i', str(i)) for i in range(nc)] for p in prs[2:-1]]+[[
+                prs[-1]+'_{%s}' % i for i in range(nc)]]
+    prs_ext_clus = [
+        [p.replace('k', str(k)) for k in range(nk)] for p in prs[:2]]+[
+            [p.replace('i', str(i)) for p in prs[2:-1]] for i in range(nc)]+[[
                 prs[-1]+'_{%s}' % i for i in range(nc)]]
 
     # Extract surface brightness profiles
@@ -211,12 +215,25 @@ def main():
     pm.summary(trace, var_names=prs)
 
     # Traceplot
-    pplots.traceplot(trace, prs, prs_ext, compact=1, fact_ped=1e4, ppp=nk, plotdir=savedir)
+    pplots.traceplot(trace, prs, prs_ext_kn, compact=0, fact_ped=1e4, ppp=nk, plotdir=savedir)
 
     # Best fitting profile on SZ surface brightness
     pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, rbins=None if type(press)==pfuncs.Press_gNFW else np.array(
         [press.knots[_]/press.kpc_as[_]*u.arcsec for _ in range(nc)]), peds=np.mean(trace.posterior['peds'].data, axis=(0,1)), fact=1e4, ci=ci, plotdir=plotdir)
 
+    # Cornerplots
+    ind_clus = [[k+np.cumsum([len(p) for p in [[]]+prs_ext_clus[:-1]])[j] for k in range(len(p))] for j,p in enumerate(prs_ext_clus)]
+    pplots.triangle([samples[:,i] for i in ind_clus], prs_ext_clus, model, fact_ped=1e5, plot_prior=True, show_lines=True, col_lines='r', ci=ci, plotdir=plotdir)
+
+    # Radial pressure profiles
+    p_prof = [trace.posterior['press_%s' % _].data.reshape(samples.shape[0], -1) for _ in range(nc)]
+    p_quant = [pplots.get_equal_tailed(pp, ci=ci) for pp in p_prof]
+    pplots.plot_press(sz.r_pp, p_quant, clus=sz.clus, ci=ci, plotdir=plotdir, rbins=None if type(press)==pfuncs.Press_gNFW else press.knots)
+
+    # Outer slope posterior distribution
+    if press.slope_prior:
+        slopes = np.array([trace.posterior['slope_%s' % _].data.flatten() for _ in range(nc)])
+        pplots.hist_slopes(slopes, sz.clus, ci=ci, plotdir=plotdir) 
 
 if __name__ == '__main__':
     main()
