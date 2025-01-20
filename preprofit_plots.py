@@ -10,13 +10,18 @@ plt.style.use('classic')
 font = {'size': 10}
 plt.rc('font', **font)
 
-def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir='./'):
+def tf_diagnostic_plot(beam_approx, beam_and_tf, tf_approx, freq_2d, fft_beam, filtering, w_tf_1d, tf_1d, plotdir='./'):
     pdf = PdfPages('./%s/tf_diagnostics.pdf' % plotdir)
-    plt.plot(w_tf_1d.to(1/u.arcmin), tf_1d, 'd', label='input')
-    plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), tf_2d[0,:freq_2d.shape[0]//2], '.', label='1d from 2d')
-    plt.xlim(-.1, 2); plt.legend(numpoints=1)
-    plt.title('Transfer function interpolation at large radii')
-    plt.xlabel('Frequency [arcmin$^{-1}$]'); plt.ylabel('Transfer function')
+    if not beam_approx:
+        plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), 
+                 filtering[0,:freq_2d.shape[0]//2] if beam_and_tf else fft_beam[0,:freq_2d.shape[0]//2], '.', 
+                 label='input beam%s' % ('+tf' if beam_and_tf else ''))
+    if (not beam_and_tf) & (not tf_approx):
+        plt.plot(w_tf_1d.to(1/u.arcmin), tf_1d, '.', label='input tf')
+    plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), filtering[0,:freq_2d.shape[0]//2], '.', label='used beam+tf')
+    plt.xlim(-.01, 2); plt.ylim(-.1, 1.1); plt.legend(numpoints=1)
+    plt.title('Filtering definition at low scales')
+    plt.xlabel('Frequency [arcmin$^{-1}$]'); plt.ylabel('Filtering')
     pdf.savefig()
     pdf.close()
 
