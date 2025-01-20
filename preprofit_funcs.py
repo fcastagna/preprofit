@@ -348,8 +348,6 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
         gt = interp1d(w_tf_1d, tf_1d, 'cubic', bounds_error=False, fill_value=(tf_1d[0], tf_1d[-1]))
         tf_2d = gt(freq_2d)
         filtering = fft_beam*tf_2d
-        # Diagnostic plot
-        tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir=plotdir)
     return freq_2d, fft_beam, filtering
 
 def centdistmat(r, offset=0.):
