@@ -33,6 +33,7 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     for i in range(len(sz.flux_data)):
         if len(sz.flux_data) > 1:
             plt.subplot(221+i%4)
+        plt.title(sz.clus[i])
         plt.plot(sz.radius[sz.sep:], fact*out_prof[i], color='r', label='Starting guess')
         plt.errorbar(sz.flux_data[i][0].value, fact*sz.flux_data[i][1].value, yerr=fact*sz.flux_data[i][2].value,
                      fmt='o', fillstyle='none', color='black', label='Observed data')
@@ -42,7 +43,7 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
         if i == 0:
             plt.legend(numpoints=1)
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
-        if (i%4 > 1) | (len(sz.flux_data)-i==2):
+        if (i%4 > 1) | (len(sz.flux_data)-i < 3):
             plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
         if i%2 == 0:
             plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+
@@ -50,7 +51,8 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
         if (i+1)%4 == 0:
             pdf.savefig()
             plt.clf()
-    pdf.savefig()
+        elif i == len(sz.flux_data)-1:
+            pdf.savefig()
     pdf.close()
 
 def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True, div=None, plotdir='./'):
