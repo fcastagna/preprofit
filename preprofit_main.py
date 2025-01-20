@@ -217,7 +217,7 @@ def main():
     pm.summary(trace, var_names=prs)
 
     # Traceplot
-    pplots.traceplot(trace, prs, prs_ext_kn, compact=0, fact_ped=1e4, ppp=nk, plotdir=savedir)
+    pplots.traceplot(trace, prs, prs_ext_kn, compact=False, fact_ped=1e4, ppp=nk, plotdir=savedir)
 
     # Best fitting profile on SZ surface brightness
     pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, rbins=None if type(press)==pfuncs.Press_gNFW else np.array(
