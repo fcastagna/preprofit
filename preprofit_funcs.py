@@ -364,7 +364,7 @@ def centdistmat(r, offset=0.):
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., scale=0.02, k=0.95):
+def read_tf(filename, step, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., scale=0.02, k=0.95):
     '''
     Read the transfer function data from the specified file
     -------------------------------------------------------
@@ -373,12 +373,14 @@ def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., s
     ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     '''
-    wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
-    wn_as = wn.to(1/u.arcsec)
-    if wn.unit == u.radian**-1:
-        wn_as /= 2*np.pi
-    if approx:
-        tf = k*norm.cdf(wn, loc, scale)
+    if not approx:
+        wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
+        wn_as = wn.to(1/u.arcsec)
+        if wn.unit == u.radian**-1:
+            wn_as /= 2*np.pi
+    else:
+        wn_as = (np.arange(100)/step).to(1/u.arcsec)
+        tf = k*norm.cdf(wn_as, loc, scale)
     return wn_as, tf
 
 def dist(naxis):
