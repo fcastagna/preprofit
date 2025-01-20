@@ -186,7 +186,7 @@ def main():
         # Fit
         trace = pm.sample(draws=1000, tune=1000, chains=8, initvals=model.rvs_to_initial_values)
 
-    # Save model and chain
+    # Save model and trace
     with open('%s/model.pickle' % savedir, 'wb') as f:
         cloudpickle.dump(model, f, -1)
     trace.to_netcdf("%s/trace.nc" % savedir)
