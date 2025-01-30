@@ -7,7 +7,6 @@ from astropy import constants as const
 import warnings
 from scipy import optimize
 from scipy.fftpack import fft2, fftshift, ifftshift
-from preprofit_plots import tf_diagnostic_plot
 import pytensor.tensor as pt
 from pytensor import shared
 from pytensor.tensor.var import TensorVariable
