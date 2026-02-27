@@ -41,7 +41,7 @@ tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
 files_dir = './data' # files directory
-beam_filename = '%s/min_variance_flat_sky_xfer_1p25_arcmin.fits' %files_dir # beam
+beam_filename = None # beam
 tf_filename = '%s/sptsz_trough_filter_1d.dat' %files_dir # transfer function
 flux_filename = ['%s/press_data_%s.dat' % (files_dir, cl) for cl in clus] # observed data
 convert_filename = None # conversion Compton -> observed data
@@ -79,9 +79,13 @@ max_slopeout = 0. # maximum value for the slope at r_out
 
 ## Pressure modelization
 knots = np.outer([.1, .4, .7, 1, 1.3], r500.to(u.kpc).value).T
+# Restricted cubic spline model
 press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+# Generalized Navarro Frenk and White model
 # press = pfuncs.Press_gNFW(z=z, cosmology=cosmology, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+# Non parametric power-law model
 # press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
+# Cubic spline model
 # press = pfuncs.Press_cubspline(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 ## Get parameters from the universal pressure profile to be used in the model when setting the prior distributions
