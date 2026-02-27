@@ -6,15 +6,22 @@ from scipy.interpolate import interp1d
 from scipy.fftpack import ifft2, fft2
 from scipy.ndimage import mean
 from pytensor import shared
+import preprofit_funcs as pfuncs
 
 def calc_abel(fr, r, abel_data):
-    '''
+    """
     Calculation of the integral used in Abel transform. Adapted from PyAbel
-    -----------------------------------------------------------------------
+
+    Parameters
+    ----------
     fr = input array to which Abel transform will be applied
     r = array of radii
     abel_data = collection of data required for Abel transform calculation
-    '''
+
+    Returns
+    -------
+    out = output array
+    """
     f = np.atleast_2d(fr*2*r)
     P = np.multiply(f[:,None,:], abel_data.I_isqrt[None,:,:]) # set up the integral
     out = np.trapz(P, r, axis=-1) # take the integral
@@ -23,24 +30,35 @@ def calc_abel(fr, r, abel_data):
     c3 = np.tile(np.atleast_2d(np.concatenate((np.ones(r.size-2), np.ones(2)/2))), (c1.shape[0],1))
     corr = np.c_[c1[:,:,None], c2[:,:,None], c3[:,:,None]]
     rn = np.concatenate((r, [2*r[-1]-r[-2], 3*r[-1]-2*r[-2]]))
-    r_lim = np.array([[rn[_], rn[_+1], rn[_+2]] for _ in range(r.size)])
+    r_lim = np.array([rn[_:_+3] for _ in range(r.size)])
     out = out-0.5*np.trapz(np.c_[corr[:,:,:2], np.atleast_3d(np.zeros(r.size))], 
                            r_lim, axis=-1)*corr[:,:,-1] # correct for the extra triangle at the start of the integral
     f_r = (f[:,1:]-f[:,:-1])/np.diff(r)
     out[:,:-1] += (abel_data.isqrt*f_r+abel_data.acr*(f[:,:-1]-f_r*r[:-1]))
     return out
 
-@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.dscalar, pt.lmatrix, 
-               pt.lscalar, pt.dmatrix, Generic()], otypes=[pt.dvector])
-def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
-    '''
-    First intermediate likelihood function
-    --------------------------------------
-    r = array of radii
+
+@as_op(itypes=[pt.dvector, pt.dvector, pt.drow, Generic(), pt.dmatrix, pt.lmatrix, 
+               pt.lscalar, pt.dmatrix], otypes=[pt.dvector])
+def int_func_1(r, szrd, pp, sza, szf, szl, szs, dm):
+    """
+    First intermediate operation in the likelihood function
+
+    Parameters
+    ----------
+    r = array of radii [kpc]
+    szrd = more coarsely binned version of r
     pp = pressure profile
-    sz = class of SZ data
-    output = desired output
-    '''
+    sza = class of SZ data
+    szf = transfer function matrix 
+    szl = array of 2D indices for radial profile extraction
+    szs = index of radius 0
+    dm = 2D matrix of distances
+
+    Returns
+    -------
+    map_prof = surface brightness fitted profile
+    """
     # abel transform
     gg = interp1d(np.log10(r), np.log10(pp), 'cubic')
     new_pp = 10**gg(np.log10(szrd))
@@ -48,8 +66,7 @@ def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     gn = interp1d(np.log10(szrd[:-1]), np.log10(new_ab[:-1]), fill_value='extrapolate')
     ab = np.atleast_2d(np.append(10**gn(np.log10(r[:-1])), 0))
     # Compton parameter
-    # y = (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value*ab
-    y = 4.0171007732191115e-06*ab
+    y = 4.0171007732191115e-06*ab # (const.sigma_T/(const.m_e*const.c**2)).to('cm3 keV-1 kpc-1').value
     f = interp1d(np.append(-r, r), np.append(y, y, axis=-1), 'cubic', bounds_error=False, fill_value=(0., 0.), axis=-1)
     # Compton parameter 2D image
     y_2d = f(dm)
@@ -59,26 +76,70 @@ def int_func_1(r, szrd, pp, sza, szf, szc, szl, szs, dm, output):
     map_prof = list(map(lambda x: mean(x, labels=szl, index=np.arange(szs+1)), map_out))
     return map_prof
 
-@as_op(itypes=[pt.dvector, pt.dvector, Generic()], otypes=[pt.dvector])
-def int_func_2(map_prof, szrv, szfl):
-    '''
-    Second intermediate likelihood function
-    ---------------------------------------
-    map_prof = fitted profile
-    sz = class of SZ data
-    '''
-    g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
-    return g(szfl[0])
+@as_op(itypes=[pt.dvector, pt.dvector, pt.dvector], otypes=[pt.dvector])
+def int_func_2(map_prof, szrv, r_fl):
+    """
+    Second intermediate operation in the likelihood function
 
-def whole_lik(model, lgP_k, ped, press, szr, szrd, sza, szf, szc, szl, szs, dm, szrv, szfl, output):
-    p_pr, slope = press.prior(lgP_k, szr, 0)
+    Parameters
+    ----------
+    map_prof = fitted profile
+    szrv = radii of fitted profile
+    r_fl = radii of observed flux data
+
+    Returns
+    -------
+    g(r_fl) = interpolated surface brightness fitted profile
+    """
+    g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
+    return g(r_fl)
+
+def whole_lik(model, lgP_ki, ped_i, press, szr, szrd, sza, szf, szl, szs, dm, szrv, szfl, i):
+    """
+    Likelihood function
+
+    Parameters
+    ----------
+    model = pymc model
+    lgP_ki = set of pressure parameters for the i-th individual cluster
+    ped_i = pedestal value
+    press = pressure object
+    szr = array of radii [kpc]
+    szrd = more coarsely binned version of r
+    sza = class of SZ data
+    szf = transfer function matrix 
+    szl = array of 2D indices for radial profile extraction
+    szs = index of radius 0
+    dm = 2D matrix of distances
+    szrv = radii of fitted profile
+    szfl = observed flux data
+    i = cluster index
+
+    Returns
+    -------
+    map_prof = surface brightness fitted profile at the observed radii
+    pp = pressure profile
+    int_prof = surface brightness fitted profile
+    slope = outer slope for the pressure
+    """
+    # Check prior
+    p_pr, slope = press.prior(lgP_ki, szr, i)
     if press.slope_prior:
-        if np.isinf(p_pr.eval({'lgP_k': model.rvs_to_initial_values[model.named_vars['lgP_k']]})):
-            return p_pr, pt.sum(lgP_k)*pt.atleast_2d(pt.zeros_like(szr)), pt.sum(lgP_k+ped)*pt.zeros(szs+1), slope
-    pp = press.functional_form(shared(szr), pt.as_tensor(lgP_k), 0, False)
-    pp = pt.atleast_2d(pt.mul(pp, press.P500[0]))
-    int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szf), shared(szc), 
-                          shared(szl), shared(szs), shared(dm), shared(output))
-    int_prof = int_prof+ped
-    map_prof = int_func_2(int_prof, shared(szrv), shared(szfl))
+        if np.isinf(p_pr.eval({'lgP_{%s,i}' % i: model.rvs_to_initial_values[model.named_vars['lgP_{%s,i}' % i]]
+                               for i in range(np.sum([type(l)==pt.TensorVariable for l in lgP_ki]))})):
+            return p_pr, pt.sum(lgP_ki)*pt.atleast_2d(pt.zeros_like(szr)), pt.sum(lgP_ki+ped_i)*pt.zeros(szs+1), slope
+    # Compute scaled pressure profile
+    if type(press)==pfuncs.Press_cubspline:
+        pp = press.functional_form(shared(press.knots[i]), shared(szr), pt.as_tensor(lgP_ki), shared(i), shared(0))
+    else:
+        pp = press.functional_form(shared(szr), pt.as_tensor(lgP_ki), i, False)
+    # p(r) = p(x)*P500
+    pp = pt.atleast_2d(pt.mul(pp, press.P500[i]))
+    # Compute the surface brightness fitted profile
+    int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szf),
+                          shared(szl), shared(szs), shared(dm))
+    # Add pedestal component
+    int_prof = int_prof + ped_i
+    # Interpolate the surface brightness fitted profile
+    map_prof = int_func_2(int_prof, shared(szrv), shared(szfl[0]))
     return map_prof, pp, int_prof, slope
