@@ -4,25 +4,27 @@ import numpy as np
 from astropy import units as u
 import corner
 import arviz as az
-from scipy.stats import norm
+from scipy.stats import norm, uniform, t
 
 plt.style.use('classic')
 font = {'size': 10}
 plt.rc('font', **font)
 
-def tf_diagnostic_plot(beam_approx, beam_and_tf, tf_approx, freq_2d, fft_beam, filtering, w_tf_1d, tf_1d, plotdir='./'):
+def ticks_size(fsize, axes=None):
+    try:
+        [a.tick_params(labelsize=fsize) for a in axes]
+    except:
+        plt.xticks(fontsize=fsize)
+        plt.yticks(fontsize=fsize)
+
+def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir='./'):
     pdf = PdfPages('./%s/tf_diagnostics.pdf' % plotdir)
-    if not beam_approx:
-        plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), 
-                 filtering[0,:freq_2d.shape[0]//2] if beam_and_tf else fft_beam[0,:freq_2d.shape[0]//2], '.', 
-                 label='input beam%s' % ('+tf' if beam_and_tf else ''))
-    if (not beam_and_tf) & (not tf_approx):
-        plt.plot(w_tf_1d.to(1/u.arcmin), tf_1d, '.', label='input tf')
-    plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), filtering[0,:freq_2d.shape[0]//2], '.', label='used beam+tf')
-    plt.xlim(-.01, 2); plt.ylim(-.1, 1.1); plt.legend(numpoints=1)
-    plt.title('Filtering definition at low scales')
-    plt.xlabel('Frequency [arcmin$^{-1}$]'); plt.ylabel('Filtering')
-    pdf.savefig()
+    plt.plot(w_tf_1d.to(1/u.arcmin), tf_1d, 'd', label='input')
+    plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), tf_2d[0,:freq_2d.shape[0]//2], '.', label='1d from 2d')
+    plt.xlim(-.1, 2); plt.legend(numpoints=1)
+    plt.title('Transfer function interpolation at large radii')
+    plt.xlabel('Frequency [arcmin$^{-1}$]'); plt.ylabel('Transfer function')
+    pdf.savefig(bbox_inches='tight')
     pdf.close()
 
 def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
@@ -38,74 +40,97 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     for i in range(len(sz.flux_data)):
         if len(sz.flux_data) > 1:
             plt.subplot(221+i%4)
-        plt.plot(sz.radius[sz.sep:], fact*out_prof, color='r', label='Starting guess')
+        plt.title(sz.clus[i])
+        plt.plot(sz.radius[sz.sep:], fact*out_prof[i], color='r', label='Starting guess')
         plt.errorbar(sz.flux_data[i][0].value, fact*sz.flux_data[i][1].value, yerr=fact*sz.flux_data[i][2].value,
                      fmt='o', fillstyle='none', color='black', label='Observed data')
         if hasattr(press, 'knots'):
-            [plt.axvline(k, linestyle=':') for k in press.knots[i]*u.kpc.to(u.arcsec, equivalencies=press.eq_kpc_as)[i]]
+            [plt.axvline(k, linestyle=':') for k in 
+             press.knots[i]*u.kpc.to(u.arcsec, equivalencies=press.eq_kpc_as)[i]]
         if i == 0:
             plt.legend(numpoints=1)
         plt.xlim(0., (sz.flux_data[i][0][-1]+np.diff(sz.flux_data[i][0])[-1]).value)
-        if (i%4 > 1) | (len(sz.flux_data)-i<3):
+        if (i%4 > 1) | (len(sz.flux_data)-i < 3):
             plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
         if i%2 == 0:
-            plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
+            plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+
+                       ('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
         if (i+1)%4 == 0:
-            pdf.savefig()
+            pdf.savefig(bbox_inches='tight')
             plt.clf()
-    pdf.savefig()
+        elif i == len(sz.flux_data)-1:
+            pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, div=None, plotdir='./'):
+def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True, div=None, fsize=13, plotdir='./'):
     '''
     '''
     plt.clf()
-    prs_latex = ['${}$'.format(i) for i in (prs if compact else prs_ext)]
-    prs_latex[-1] += ' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else ''
-    trace.posterior['ped'] *= fact_ped
+    prs_latex = ['$%s%s$' % ('\\' if p[:3]=='sig' else '', p) if compact else ['$%s%s$' % ('\\' if p[:3]=='sig' else '', pj) for pj in p] for _, p in enumerate(prs if compact else prs_ext)]
+    prs_latex[-1] = (prs_latex[-1]+' [10$^{-%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
+    trace.posterior['peds'] *= fact_ped
     pdf = PdfPages(plotdir+'traceplot.pdf')
-    axes = az.plot_trace(trace, var_names=prs, divergences=div, compact=compact)
-    if compact:
-        axes[0][0].legend(np.array([['$lgP_%s$' % i]+(2*trace.posterior.lgP_k.shape[0]-1)*['_'] 
-                                    for i in range(trace.posterior.lgP_k.shape[-1])]).flatten(), 
-                          loc='upper left', fontsize='small')
-    [axes[_][j].set_title('') for j in [0,1] for _ in range(len(axes))]
-    [axes[_][0].set_ylabel(prs_latex[_], fontdict={'fontsize':20}) for _ in range(len(axes))]
-    axes[-1][0].set_xlabel('Value')
-    axes[-1][1].set_xlabel('Iteration')
-    pdf.savefig(bbox_inches='tight')
+    for j, p in enumerate(prs):#[:np.where(np.array(prs)=='lgP_{0,i}')[0][0]]):
+        for i in range(int((len(prs_ext[j])-.5)//ppp)+1):
+            plt.clf()
+            axes = az.plot_trace(
+                trace, var_names=prs if compact else p, 
+                coords={} if compact else {p+'_dim_0': np.arange(i*ppp, np.min([(i+1)*ppp, trace.posterior[p].shape[-1]]))}, 
+                divergences=div, compact=compact, figsize=(20,10) if len(prs_ext[j])>1 else None)
+            nr = np.min([trace.posterior[p].shape[-1], ppp])
+            nrows = len(axes) if compact else trace.posterior[p].shape[-1] // ppp if trace.posterior[p].shape[-1]-i*ppp < nr else nr
+            [axes[_][j].set_title('') for j in [0,1] for _ in range(nrows)]
+            [axes[_][0].set_ylabel(prs_latex[_] if compact else prs_latex[j][i*ppp+_], fontdict={'fontsize': fsize}) for _ in range(nrows)]
+            axes[-1][0].set_xlabel('Value', fontsize=fsize)
+            axes[-1][1].set_xlabel('Iteration', fontsize=fsize)
+            if compact & legend:
+                for _ in [0,2]:
+                    axes[_][0].legend(
+                        np.array([['$%s$=%s' % ('k' if _==0 else 'i', j)]+(
+                            2*trace.posterior[prs[_]].shape[0]-1)*['_nolabel_'] for j in 
+                            range(trace.posterior[prs[_]].shape[-1])]).flatten(), 
+                        fontsize='small', ncols=np.ceil(len(prs_ext[_])/5))
+            [ticks_size(fsize, a) for a in axes]
+            [axes[_][1].set_ylabel(prs_latex[_] if compact else prs_latex[j][i*ppp+_], fontdict={'fontsize': fsize}) for _ in range(nrows)]
+            pdf.savefig(bbox_inches='tight')
+            plt.close()
+            if compact: break
+        if compact: break
     pdf.close()
-    trace.posterior['ped'] /= fact_ped
- 
-def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, fact=1, ci=95, plotdir='./'):
+    trace.posterior['peds'] /= fact_ped
+
+def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, ind_fits=None, fact=1, ci=95, fsize=13, plotdir='./'):
     '''
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties
     -----------------------------------------------------------------------------------------------
     sz = class of SZ data
-    perc_sz = best (median) SZ fitting profiles with uncertainties
     ci = uncertainty level of the interval
+    perc_sz = best (median) SZ fitting profiles with uncertainties
     plotdir = directory where to place the plot
     '''
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
     for i in range(len(sz.flux_data)):
         plt.clf()
-        plt.title(np.atleast_1d(sz.clus)[i])
+        plt.title(np.atleast_1d(sz.clus)[i], fontsize=fsize)
         lsz, msz, usz = perc_sz[i]*fact
-        plt.plot(sz.radius[sz.sep:], msz, color='r', label='Best-fit')
-        plt.fill_between(sz.radius[sz.sep:].value, lsz, usz, color='gold', label='%i%% CI' % ci)
-        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value*fact, yerr=sz.flux_data[i][2].value*fact, fmt='o', 
-                     fillstyle='none', color='black', label='Observed data')
+        plt.plot(sz.radius[sz.sep:], msz, color='b', label='Posterior median')
+        plt.fill_between(sz.radius[sz.sep:].value, lsz, usz, color='powderblue', label='%i%% uncertainty' % ci)
+        plt.errorbar(sz.flux_data[i][0].value, sz.flux_data[i][1].value*fact, yerr=sz.flux_data[i][2].value*fact, fmt='o', fillstyle='none', color='black', capsize=0, label='Observed data')
         plt.xlim(0., 50+np.ceil(sz.flux_data[i][0][-1].value))
         if rbins is not None:
             [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
         if peds is not None:
             plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
-        plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
-        plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
-        pdf.savefig()
+        plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']', fontsize=fsize+2)
+        plt.ylabel('Surface brightness $[$'+str(sz.flux_data[i][1].unit)+
+                   ('' if sz.flux_data[i][1].unit else 'x ')+'$10^{-%i}]$' % np.log10(fact) if fact != 1 else '', fontsize=fsize+2)
+        ticks_size(fsize)
+        if ind_fits is not None:
+            plt.plot(sz.radius[sz.sep:], ind_fits[i]*fact, c='r', linestyle='--', label='Individual analysis')
+        pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def get_equal_tailed(data, ci=95):
+def get_equal_tailed(data, ci=68, axis=0):
     '''
     Computes the median and lower/upper limits of the equal tailed uncertainty interval
     -----------------------------------------------------------------------------------
@@ -113,10 +138,10 @@ def get_equal_tailed(data, ci=95):
     ----------------------------------------
     RETURN: lower bound, median, upper bound
     '''
-    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=0))
+    low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=axis))
     return np.array([low, med, upp])
 
-def triangle(mat_chain, param_names, model, fact_ped=1, plot_prior=True, show_lines=True, col_lines='r', ci=95, labsize=25., titsize=15., legend=True, plotdir='./'):
+def triangle(mat_chain, param_names, model, tit=None, fact_ped=1, plot_prior=True, show_lines=True, show_title=True, col_lines='r', ci=95, labsize=25., fsize=14., titsize=15., legend=True, plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
@@ -131,41 +156,55 @@ def triangle(mat_chain, param_names, model, fact_ped=1, plot_prior=True, show_li
     '''
     pdf = PdfPages(plotdir+'cornerplot.pdf')
     plt.clf()
-    param_latex = ['${}$'.format(i) for i in param_names]
-    param_latex[-1] += ' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else ''
-    fact = np.append(np.ones(len(param_names)-1), fact_ped)
-    fig = corner.corner(mat_chain*fact, labels=param_latex, title_kwargs={'fontsize': titsize}, 
-                        label_kwargs={'fontsize': labsize}, hist_kwargs={'density': True})
-    axes = np.array(fig.axes).reshape((len(param_names), len(param_names)))
-    plb, pmed, pub = get_equal_tailed(mat_chain*fact, ci=ci)
-    for i in range(len(param_names)):
-        l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
-        axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
+    param_latex = [['$%s%s$' % ('\\' if pj[:5]=='sigma' else '', pj) for pj in p] for _, p in enumerate(param_names)]
+    for _ in range(len(mat_chain)):
+        plt.clf()
+        fig = corner.corner(mat_chain[_]*(fact_ped if _==len(mat_chain)-1 else 1), 
+                            labels=param_latex[_], title_kwargs={'fontsize': titsize}, 
+                            label_kwargs={'fontsize': labsize}, hist_kwargs={'density': True})
+        if tit is not None: fig.suptitle(tit[_], fontsize=30)
+        axes = np.array(fig.axes).reshape((len(param_names[_]), len(param_names[_])))
+        plb, pmed, pub = get_equal_tailed(mat_chain[_]*(fact_ped if _==len(mat_chain)-1 else 1), ci=ci)
         if plot_prior:
-            xx = np.linspace(-5, 5, 1000)
-            means = model.free_RVs[0].owner.inputs[-2].data
-            sig = model.free_RVs[0].owner.inputs[-1].eval()
-            [axes[i,i].plot(xx, norm.pdf(xx, means[i], sig), linestyle='--') for i in range(len(means))]
-            axes[-1,-1].plot(np.linspace(-1, 1, 1000), norm.pdf(
-                np.linspace(-1, 1, 1000), model.free_RVs[-1].owner.inputs[-2].data*fact_ped, 
-                model.free_RVs[-1].owner.inputs[-1].data*fact_ped), linestyle='--')
-        if show_lines:
-            axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
-            axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
-            axes[i,i].axvline(pub[i], color=col_lines, linestyle=':', label='_nolegend_')
-            for yi in range(len(param_names)):
-                for xi in range(yi):
-                    axes[yi,xi].axvline(pmed[xi], color=col_lines, linestyle='--')
-                    axes[yi,xi].axhline(pmed[yi], color=col_lines, linestyle='--')
-                    axes[yi,xi].plot(plb[xi], plb[yi], marker=1, color=col_lines)
-                    axes[yi,xi].plot(plb[xi], plb[yi], marker=2, color=col_lines)
-                    axes[yi,xi].plot(plb[xi], pub[yi], marker=1, color=col_lines)
-                    axes[yi,xi].plot(plb[xi], pub[yi], marker=3, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], plb[yi], marker=0, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
-                    axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
-    pdf.savefig(bbox_inches='tight')
+            ind = 0 if _==0 else _ if _==len(model.free_RVs)-1 else 1
+            means = model.free_RVs[ind].owner.inputs[-2].data
+            sig = model.free_RVs[ind].owner.inputs[-1].data
+        for i in range(len(param_names[_])):
+            l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
+            if show_title:
+                axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[_][i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
+            if (plot_prior) & (_<3):
+                xx = np.linspace(-5, 5, 1000)
+                if model.free_RVs[_].owner.op.name == 'uniform':
+                    axes[i,i].plot(xx, uniform.pdf(xx, means, sig), c='black', linestyle='--')
+                elif model.free_RVs[_].owner.op.name == 'normal':
+                    axes[i,i].plot(xx, norm.pdf(xx, means[i] if np.atleast_1d(means).shape[0]>1 else means, 
+                        sig[i] if np.atleast_1d(sig).shape[0]>1 else sig), 
+                                 c='black', linestyle='--') if _<len(mat_chain)-1 else (
+                        axes[i,i].plot(np.linspace(-1, 1, 1000), norm.pdf(
+                            np.linspace(-1, 1, 1000), model.free_RVs[-1].owner.inputs[-2].data*fact_ped, 
+                            model.free_RVs[-1].owner.inputs[-1].data*fact_ped), c='black', linestyle='--'))
+                else:
+                    axes[i,i].plot(xx, t.pdf(xx, loc=0, scale=1, df=1), c='black', linestyle='--')
+            if show_lines:
+                axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
+                axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
+                axes[i,i].axvline(pub[i], color=col_lines, linestyle=':', label='_nolegend_')
+                for yi in range(len(param_names[_])):
+                    for xi in range(yi):
+                        axes[yi,xi].axvline(pmed[xi], color=col_lines, linestyle='--')
+                        axes[yi,xi].axhline(pmed[yi], color=col_lines, linestyle='--')
+                        axes[yi,xi].plot(plb[xi], plb[yi], marker=1, color=col_lines)
+                        axes[yi,xi].plot(plb[xi], plb[yi], marker=2, color=col_lines)
+                        axes[yi,xi].plot(plb[xi], pub[yi], marker=1, color=col_lines)
+                        axes[yi,xi].plot(plb[xi], pub[yi], marker=3, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], plb[yi], marker=0, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], plb[yi], marker=2, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], pub[yi], marker=0, color=col_lines)
+                        axes[yi,xi].plot(pub[xi], pub[yi], marker=3, color=col_lines)
+        [ticks_size(fsize, a) for a in axes]
+        pdf.savefig(bbox_inches='tight')
+        plt.close()
     pdf.close()
 
 def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=None, plotdir='./'):
@@ -178,6 +217,9 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=N
     ci = uncertainty level of the interval
     plotdir = directory where to place the plot
     '''
+    plt.style.use('classic')
+    font = {'size': 10}
+    plt.rc('font', **font)
     pdf = PdfPages(plotdir+'press_fit.pdf')
     for i in range(len(press_prof)):
         plt.clf()
@@ -196,10 +238,10 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=N
         plt.xlabel('Radius ['+str(r_kpc[i].unit)+']')
         plt.ylabel('Pressure [keV$/$cm$^{3}$]')
         plt.xlim(xmin, xmax)
-        pdf.savefig()
+        pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def hist_slopes(slopes, ci=95, plotdir='./'):
+def hist_slopes(slopes, clus, ci=95, plotdir='./'):
     '''
     Plot the histogram of the outer slopes posterior distribution
     -------------------------------------------------------------
@@ -208,14 +250,15 @@ def hist_slopes(slopes, ci=95, plotdir='./'):
     plotdir = directory where to place the plot
     '''
     pdf = PdfPages(plotdir+'outer_slopes.pdf')
-    plt.clf()
-    plt.title('Outer slope - Posterior distribution')
-    low, med, upp = get_equal_tailed(slopes, ci=ci)
-    plt.hist(slopes, density=True, histtype='step', color='black')
-    plt.axvline(med, color='black', linestyle='--', label='Median')
-    plt.axvline(low, color='black', linestyle='-.', label='%i%% CI' % ci)
-    plt.axvline(upp, color='black', linestyle='-.', label='_nolegend_')
-    plt.xlabel('Outer slope')
-    plt.ylabel('Density')
-    pdf.savefig(bbox_inches='tight')
+    for _ in range(len(slopes)):
+        plt.clf()
+        plt.title('%s' % clus[_])
+        low, med, upp = get_equal_tailed(slopes[_], ci=ci)
+        plt.hist(slopes[_], density=True, histtype='step', color='black')
+        plt.axvline(med, color='black', linestyle='--', label='Median')
+        plt.axvline(low, color='black', linestyle='-.', label='%i%% CI' % ci)
+        plt.axvline(upp, color='black', linestyle='-.', label='_nolegend_')
+        plt.xlabel('Outer slope')
+        plt.ylabel('Density')
+        pdf.savefig(bbox_inches='tight')
     pdf.close()
