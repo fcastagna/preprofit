@@ -214,11 +214,11 @@ def main():
         start_guess = [model['bright_%s' % j].eval({str(p): model.rvs_to_initial_values[model.named_vars[str(p)]] for p in model.free_RVs[-6:]}) for j in range(nc)]
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         
-	# Fit
-    trace = pm.sample(draws=4000, tune=4000, chains=4, initvals=model.rvs_to_initial_values)
-
-    # Save chain
-    trace.to_netcdf("%s/trace_t2u.nc" % savedir)
+		# Fit
+	    trace = pm.sample(draws=4000, tune=4000, chains=4, initvals=model.rvs_to_initial_values)
+	
+	    # Save chain
+	    trace.to_netcdf("%s/trace_t2u.nc" % savedir)
 
 
     ### Plots
