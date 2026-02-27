@@ -186,7 +186,7 @@ def main():
                          mu=model['lgP_k'][j] if nc > 1 else logunivpars
                          +model.z_dep[j]*pt.log10((1+press.z)/(1+.3)) if z_dep else 0
                          +model.M_dep*pt.log10(M500/8e14) if M_dep else 0,
-                        sigma=model['sigma_{int,k}'][j]/np.sqrt(10/8) if nc > 1 else 1, 
+                        sigma=model['sigma_{int,k}'][j]*np.sqrt(8/10) if nc > 1 else 1, 
                         initval=np.repeat(logunivpars[j], nc), shape=nc) for j in range(nk)]
             inp_pars = [[m[i] for m in [model['lgP_{%s,i}' % k] for k in range(nk)]] for i in range(nc)]
         # Add pedestal component to the model
