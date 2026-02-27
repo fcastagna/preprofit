@@ -16,10 +16,10 @@ H0 = 70 # Hubble constant at z=0
 Om0 = 0.3 # Omega matter
 cosmology = FlatLambdaCDM(H0=H0, Om0=Om0)	
 
-# Cluster
-clus = ['SPT-CLJ0500-5116', 'SPT-CLJ0637-4829', 'SPT-CLJ2055-5456']
+# Cluster list
+clus = ['SPT-CLJ0500-5116', 'SPT-CLJ0637-4829', 'SPT-CLJ2055-5456'] # just 3 as an example, you need much more to determine the population parameters
 nc = len(clus)
-z = [.11, .2026, .139] # redshift
+z = [.11, .2026, .139] # redshift list
 # Overdensity measures (set them for defining the starting point for the MCMC)
 r500 = [943.85207035, 1290.31531693, 1022.3744362]*u.kpc
 M500 = (4/3*np.pi*cosmology.critical_density(z).to(u.g/u.kpc**3)*500*r500**3).to(u.Msun)
