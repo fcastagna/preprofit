@@ -6,47 +6,144 @@ from astropy import units as u
 from astropy import constants as const
 import warnings
 from scipy import optimize
+from preprofit_plots import tf_diagnostic_plot
 from scipy.fftpack import fft2, fftshift, ifftshift
 import pytensor.tensor as pt
 from pytensor import shared
 from pytensor.tensor.var import TensorVariable
 from pytensor.tensor.linalg import solve
+from pytensor.compile.ops import as_op
 
 class Pressure:
-    '''
+    """
     Class to parametrize the pressure profile
     -----------------------------------------
     z = redshift of galaxy clusters
     cosmology = cosmological model adopted
-    '''
+    kpc_as = kpc to arcsec conversion factor
+    eq_kpc_as = equation for switching between kpc and arcsec
+    """
     def __init__(self, z, cosmology):
         self.z = np.atleast_1d(z)
         self.cosmology = cosmology
         self.kpc_as = cosmology.kpc_proper_per_arcmin(self.z).to('kpc arcsec-1') # number of kpc per arcsec
         self.eq_kpc_as = [(u.arcsec, u.kpc, lambda x: x*self.kpc_as.value, lambda x: x/self.kpc_as.value)] # equation for switching between kpc and arcsec
 
+class Press_rcs(Pressure):
+    """
+    Class to parametrize the pressure profile with a restricted cubic spline model
+    ------------------------------------------------------------------------------
+    knots = set of knots
+    slope_prior = apply a prior constraint on outer slope (boolean, default is True)
+    r_out = outer radius (serves for outer slope determination)
+    max_slopeout = maximum allowed value for the outer slope
+    N = number of knots - 2
+    betas = empty lists used to store parameter values
+    """
+    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
+        Pressure.__init__(self, z, cosmology)
+        self.knots = knots
+        self.slope_prior = slope_prior
+        self.r_out = np.atleast_1d(r_out)
+        self.max_slopeout = max_slopeout
+        self.N = [len(k)-2 for k in self.knots]
+        self.betas = [None]*len(self.knots)
+
+    def prior(self, pars, r_kpc, i):
+        """
+        Checks accordance with prior constraints
+        ----------------------------------------
+        pars = set of pressure parameters
+        r_kpc = radius (kpc)
+        i = cluster index
+        """
+        pars = pt.as_tensor_variable(pars)
+        if self.slope_prior:
+            if self.r_out[i] < self.knots[i][-1]:
+                raise RuntimeError("Outer radius should be larger than the outermost knot")
+            slope_out = self.functional_form(self.r_out[i], pars, i, logder=True)
+            cond = pt.gt(slope_out, self.max_slopeout)
+            logp = pt.switch(pt.any(cond), -np.inf, 0.0)
+            return logp, slope_out
+        return pt.as_tensor([0.]), None
+
+    def functional_form(self, r_kpc, pars, i=None, logder=False):
+        """
+        Functional form expression for pressure calculation
+        ---------------------------------------------------
+        r_kpc = radius (kpc)
+        pars = set of pressure parameters
+        i = cluster index
+        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
+        """
+        if self.betas[i] is None:
+            self.betas[i] = solve(self.X, pars)
+        if not logder:
+            svr_sum = pt.dot(self.betas[i][2:2 + self.N[0]], self.svr[i])
+            out = 10 ** (self.betas[i][0] + self.betas[i][1] * self.x[i] + svr_sum)
+            self.betas[i] = None
+            return out
+        b2 = self.betas[i][2:]
+        return pt.as_tensor(
+            self.betas[i][1]
+            +3*(
+                pt.sum(b2 * self.kn[:self.N[0]]**2)
+                - self.kn_sum * pt.sum(b2 * self.kn[:self.N[0]])
+                + self.kn[-2] * self.kn[-1] * pt.sum(b2)
+            )
+        )
+    
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
+        """
+        Apply the set of parameters of the universal pressure profile (Arnaud+10) based on either r500 or M500
+        ------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius
+        M500 = overdensity mass
+        c500, a, b, c, P0 = parameters for computing the universal pressure profile (default to Arnaud+10 values)
+        """
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology, r_out=self.r_out)
+        gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
+        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
+        return logunivpars
+
 class Press_gNFW(Pressure):
-    '''
+    """
     Class to parametrize the pressure profile with a generalized Navarro Frenk & White model (gNFW)
     -----------------------------------------------------------------------------------------------
     slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     r_out = outer radius (serves for outer slope determination)
     max_slopeout = maximum allowed value for the outer slope
-    '''
+    """
     def __init__(self, z, cosmology, slope_prior=True, r_out=1e3, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.slope_prior = slope_prior
         self.r_out = np.atleast_1d(r_out)
         self.max_slopeout = max_slopeout
 
+    def prior(self, pars, r_kpc, i):
+        """
+        Checks accordance with prior constraints
+        ----------------------------------------
+        pars = set of pressure parameters
+        r_kpc = radius (kpc)
+        i = cluster index
+        """
+        if self.slope_prior:
+            slope_out = self.functional_form(shared(self.r_out[i]), pars, logder=True)
+            cond = pt.gt(slope_out, self.max_slopeout)
+            logp = pt.switch(pt.any(cond), -np.inf, 0.0)
+            return logp, slope_out
+        return pt.as_tensor([0.]), None
+
     def functional_form(self, r_kpc, pars, i=None, logder=False):
-        '''
+        """
         Functional form expression for pressure calculation
         ---------------------------------------------------
         r_kpc = radius (kpc)
-        P_0, a, b, c, r_p = set of pressure parameters
+        pars = set of pressure parameters
+        i = cluster index
         logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
-        '''
+        """
         P_0, a, b, c = pt.as_tensor([10**p for p in pars[:4]])
         r_p = 10**pars[-1]
         r_p = shared(r_p) if type(r_p) is not TensorVariable else r_p
@@ -58,113 +155,51 @@ class Press_gNFW(Pressure):
             den = 1+pt.mul(r_kpc, 1/r_p)**a
             return (b-c)/den-b
 
-    def prior(self, pars, r_kpc, i):
-        '''
-        Checks accordance with prior constraints
-        ---------------------------------------
-        pars = set of pressure parameters
-        '''
-        if self.slope_prior:
-            slope_out = self.functional_form(shared(self.r_out[i]), pars, logder=True)
-            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
-        return pt.as_tensor([0.]), None
-
     def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        '''
-        '''
+        """
+        Apply the set of parameters of the universal pressure profile (Arnaud+10) based on either r500 or M500
+        ------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius
+        M500 = overdensity mass
+        c500, a, b, c, P0 = parameters for computing the universal pressure profile (default to Arnaud+10 values)
+        """
         h70 = self.cosmology.H0/(70*self.cosmology.H0.unit)
         if M500 is None:
             # Compute M500 from definition in terms of density and volume
-            M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
+                M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
             r500 = ((3/4*M500/(500.*self.cosmology.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
-        logunivpars = np.atleast_2d([np.log10([P0.value, a, b, c, r500[i].value/c500]) for i in range(self.z.size)])
-        return logunivpars
-
-class Press_rcs(Pressure):
-
-    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3, max_slopeout=-2.):
-        Pressure.__init__(self, z, cosmology)
-        self.knots = knots
-        self.slope_prior = slope_prior
-        self.r_out = np.atleast_1d(r_out)
-        self.max_slopeout = max_slopeout
-        self.N = [len(k)-2 for k in self.knots]
-        self.betas = [None]*len(self.knots)
-
-    def prior(self, pars, r_kpc, i):
-        pars = pt.as_tensor(pars)
-        if self.slope_prior:
-            if self.r_out[i] < self.knots[i][-1]:
-                raise RuntimeError("Outer radius should be larger than the outermost knot")
-            slope_out = self.functional_form(shared(self.r_out), pars, i, True)
-            if pt.gt(slope_out, self.max_slopeout).eval(): self.betas[i] = None
-            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
-        return pt.as_tensor([0.]), None
-        
-    def functional_form(self, r_kpc, pars, i=None, logder=False):
-        kn = self.kn[i]
-        if self.betas[i] is None:
-            X = self.X[i]
-            self.betas[i] = solve(X, pars)
-        if not logder:
-            x = pt.log10(r_kpc/self.r500[i])
-            svr = [(x > kn[_])*(x-kn[_])**3-1/(kn[-1]-kn[-2])*
-                   ((kn[-1]-kn[_])*(x > kn[-2])*(x-kn[-2])**3 
-                    -(kn[-2]-kn[_])*(x > kn[-1])*(x-kn[-1])**3) 
-                    for _ in range(self.N[i])]
-            out = 10**(self.betas[i][0]+self.betas[i][1]*x+pt.sum([self.betas[i][2+_]*svr[_] for _ in range(self.N[i])], axis=0))
-            self.betas[i] = None
-            return out
-        return pt.as_tensor(
-            self.betas[i][1]+3*(
-                pt.sum([self.betas[i][2+_]*kn[_]**2 for _ in range(self.N[i])], axis=0)
-                -kn[-2:].sum()*
-                pt.sum([self.betas[i][2+_]*kn[_] for _ in range(self.N[i])], axis=0)+kn[-2]*kn[-1]*self.betas[i][2:].sum()))
-
-    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology, r_out=self.r_out)
-        gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
-        logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
+        logunivpars = np.atleast_2d([np.log10([P0, a, b, c, r500[i].value/c500]) for i in range(self.z.size)])
+        logunivpars = [np.log10([P0.value, a, b, c, r500[i].value/c500]) for i in range(np.array(self.z).size)]
         return logunivpars
 
 class Press_nonparam_plaw(Pressure):
-    '''
+    """
     Class to parametrize the pressure profile with a non parametric power-law model
     -------------------------------------------------------------------------------
     knots = radial bins
-    pbins = pressure values corresponding to radial bins
     slope_prior = apply a prior constraint on outer slope (boolean, default is True)
     max_slopeout = maximum allowed value for the outer slope
-    '''
+    alpha = empty array used to store parameter values 
+    alpha_den = denominator for alpha
+    """
     def __init__(self, z, cosmology, knots, slope_prior=True, max_slopeout=-2.):
         Pressure.__init__(self, z, cosmology)
         self.knots = knots
         self.slope_prior = slope_prior
         self.max_slopeout = max_slopeout
         self.alpha = pt.ones_like(self.knots)
-        self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots] # denominator for alpha
-
-    def functional_form(self, r_kpc, pars, i=None, logder=False):
-        '''
-        Functional form expression for pressure calculation
-        ---------------------------------------------------
-        r_kpc = radius (kpc)
-        pars = set of pressure parameters
-        '''
-        pars = pt.as_tensor([10**p for p in pars])
-        self.alpha = (pt.log10(pt.mul(pars[1:], 1/pars[:-1]))/self.alpha_den[i])[self.alpha_ind[i]]
-        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.knots[i][self.alpha_ind[i]]))
-        out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor(self.q))
-        return out
+        self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots]
 
     def prior(self, pars, r_kpc, i, decr_prior=False):
-        '''
+        """
         Checks accordance with prior constraints
-        ---------------------------------------
+        ----------------------------------------
         pars = set of pressure parameters
-        '''
+        r_kpc = radius (kpc)
+        i = cluster index
+        """
         if self.slope_prior:
             pars = pt.as_tensor([10**p for p in pars])
             if decr_prior: # doesn't seem to work
@@ -173,26 +208,106 @@ class Press_nonparam_plaw(Pressure):
                     return pt.as_tensor([np.inf])
             P_n_1, P_n = pars[-2:]
             slope_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
-            return pt.switch(pt.gt(pt.gt(slope_out, self.max_slopeout).sum(), 0), -np.inf, 0.), slope_out
+            cond = pt.gt(slope_out, self.max_slopeout)
+            logp = pt.switch(pt.any(cond), -np.inf, 0.0)
+            return logp, slope_out
         return pt.as_tensor([0.]), None
 
+    def functional_form(self, r_kpc, pars, i=None, logder=False):
+        """
+        Functional form expression for pressure calculation
+        ---------------------------------------------------
+        r_kpc = radius (kpc)
+        pars = set of pressure parameters
+        i = cluster index
+        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
+        """
+        pars = pt.as_tensor([10**p for p in pars])
+        self.alpha = (pt.log10(pt.mul(pars[1:], 1/pars[:-1]))/self.alpha_den[i])[self.alpha_ind[i]]
+        self.q = pt.log10(pars[:-1][self.alpha_ind[i]])-pt.mul(self.alpha, pt.log10(self.knots[i][self.alpha_ind[i]]))
+        out = 10**(pt.mul(self.alpha, pt.log10(r_kpc))+pt.as_tensor(self.q))
+        return out
+
     def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
-        '''
-        Apply the set of parameters of the universal pressure profile defined in Arnaud et al. 2010 with given r500 value
-        -----------------------------------------------------------------------------------------------------------------
-        r500 = overdensity radius, i.e. radius within which the average density is 500 times the critical density at the cluster's redshift (kpc)
-        cosmo = cosmology object
-        z = redshift
-        '''
+        """
+        Apply the set of parameters of the universal pressure profile (Arnaud+10) based on either r500 or M500
+        ------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius
+        M500 = overdensity mass
+        c500, a, b, c, P0 = parameters for computing the universal pressure profile (default to Arnaud+10 values)
+        """
         new_press = Press_gNFW(z=self.z, cosmology=self.cosmology)
         gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
         logunivpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
         return logunivpars
 
+class Press_cubspline(Pressure):
+    """
+    Class to parametrize the pressure profile with a cubic spline model
+    -------------------------------------------------------------------
+    knots = spline knots
+    slope_prior = apply a prior constrain on outer slope (boolean, default is True)
+    r_out = outer radius (serves for outer slope determination)
+    max_slopeout = maximum allowed value for the outer slope
+    """
+    def __init__(self, z, cosmology, knots, slope_prior=True, r_out=1e3*u.kpc, max_slopeout=-2.):
+        self.knots = knots
+        Pressure.__init__(self, z, cosmology)
+        self.slope_prior = slope_prior
+        self.r_out = np.atleast_1d(r_out)
+        self.max_slopeout = max_slopeout
+
+    def prior(self, pars, r_kpc, i):
+        """
+        Checks accordance with prior constraints
+        ----------------------------------------
+        pars = set of pressure parameters
+        r_kpc = radius (kpc)
+        i = cluster index
+        """
+        pars = pt.as_tensor(pars)
+        if self.slope_prior == True:
+            r_outs = r_kpc[r_kpc > self.r_out[i]]
+            slope_out = self.functional_form(shared(self.knots[i]), shared(r_outs), pars, shared(i), shared(1))
+            cond = pt.gt(slope_out, self.max_slopeout)
+            logp = pt.switch(pt.any(cond), -np.inf, 0.0)
+            return logp, slope_out
+        return pt.as_tensor([0.]), None
+    
+    @as_op(itypes=[pt.dvector, pt.dvector, pt.dvector, pt.lscalar, pt.lscalar], otypes=[pt.dvector])
+    def functional_form(knots, r_kpc, pars, i, logder=False):
+        """
+        Functional form expression for pressure calculation
+        ---------------------------------------------------
+        r_kpc = radius (kpc)
+        pars = set of pressure parameters
+        i = cluster index
+        logder = if True returns first order log derivative of pressure, if False returns pressure profile (default is False)
+        """
+        ff = interp1d(np.log10(knots), pars, kind='cubic', bounds_error=False, fill_value='extrapolate')
+        if not logder:
+            out = 10**ff(np.log10(r_kpc))
+        else:
+            out = ff._spline.derivative()(np.log10(r_kpc))[:,0]
+        return out
+
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
+        """
+        Apply the set of parameters of the universal pressure profile (Arnaud+10) based on either r500 or M500
+        ------------------------------------------------------------------------------------------------------
+        r500 = overdensity radius
+        M500 = overdensity mass
+        c500, a, b, c, P0 = parameters for computing the universal pressure profile (default to Arnaud+10 values)
+        """
+        new_press = Press_gNFW(z=self.z, cosmology=self.cosmology)
+        gnfw_pars = new_press.get_universal_params(r500=r500, M500=M500, c500=c500, a=a, b=b, c=c, P0=P0)
+        univpars = [np.squeeze(np.log10(new_press.functional_form(shared(self.knots[i]), gnfw_pars[i], i).eval())) for i in range(len(gnfw_pars))]
+        return univpars
+
 def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P=1/.561-5/3):
-    '''
+    """
     Compute P500 according to the definition in Equation (5) from Arnaud's paper
-    '''
+    """
     pconst = (mu/mu_e*f_b*3/8/np.pi*(500*const.G**(-1/4)*cosmo.H0**2/2)**(4/3)*(3e14*u.Msun)**(2/3)).to(u.keV/u.cm**3)
     alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
     hz = cosmo.H(z)/cosmo.H0
@@ -200,12 +315,12 @@ def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P
     return P500*(M500/3e14/u.Msun)**(alpha_P+alpha1_P(x))
 
 def read_data(filename, ncol=1, units=u.Unit('')):
-    '''
+    """
     Universally read data from FITS or ASCII file
     ---------------------------------------------
     ncol = number of columns to read
     units = units in astropy.units format
-    '''
+    """
     if len([units]) != ncol:
         try:
             units = np.concatenate((units, np.repeat(u.Unit(''), ncol-len([units]))), axis=None)
@@ -222,6 +337,8 @@ def read_data(filename, ncol=1, units=u.Unit('')):
         data = np.loadtxt(filename, unpack=True)
     else:
         raise RuntimeError('Unrecognised file extension (not in fits, dat, txt)')
+    if len(np.unique([l.size for l in data])) > 1:
+        data = np.array(data, dtype=object)
     dim = np.squeeze(data).shape
     if len(dim) == 1:
         if ncol == 1:
@@ -233,13 +350,13 @@ def read_data(filename, ncol=1, units=u.Unit('')):
         return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
 
 def read_beam(filename, ncol, units):
-    '''
+    """
     Read the beam data from the specified file up to the first negative or nan value
     --------------------------------------------------------------------------------
     filename = name of the file including the beam data
     ncol = number of columns to read
     units = units in astropy.units format
-    '''
+    """
     radius, beam_prof = read_data(filename, ncol=ncol, units=units)
     if np.isnan(beam_prof).sum() > 0.:
         first_nan = np.where(np.isnan(beam_prof))[0][0]
@@ -252,12 +369,12 @@ def read_beam(filename, ncol, units):
     return radius, beam_prof
 
 def get_central(mat, side):
-    '''
+    """
     Get the central square of a matrix with given side. If side is even, automatically adopts the subsequent odd number
     -------------------------------------------------------------------------------------------------------------------
     mat = 2D matrix
     side = side of the output matrix
-    '''
+    """
     if side is None or side > mat.shape[0]:
         warnings.warn("Side value is None or exceeds the original matrix side. The original matrix is returned", stacklevel=2)
         return mat
@@ -284,7 +401,7 @@ def read_beam_data(step, beam_xy, filename, units, step_data, crop_image, croppe
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         b = multivariate_normal([0,0], sigma_beam**2).pdf(beam_xy)
         freq_2d = dist(b.shape[0])/b.shape[0]/step
-        return freq_2d, np.abs(fft2(b)*step**2) # without abs it messes up
+        return freq_2d, np.abs(fft2(b)*step**2)
     except: # 2D
         b = read_data(filename, ncol=1, units=np.atleast_2d(units)[0][0])
         freq_2d_inp = dist(b.shape[0])/b.shape[0]/step_data
@@ -301,7 +418,7 @@ def read_beam_data(step, beam_xy, filename, units, step_data, crop_image, croppe
 def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, approx=False, 
               filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, 
               fwhm_beam=None, step_data=None, w_tf_1d=None, tf_1d=None, plotdir='./'):
-    '''
+    """
     Set the 2D image for the beam + transfer function filtering, 
     alternatively from file data or from a normal distribution with given FWHM
     --------------------------------------------------------------------------------------------------------
@@ -320,9 +437,9 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
     tf_1d = 
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and the Full Width at Half Maximum
-    '''
-    # check fwhm_beam, step and maxr_data unit agreement
-    fwhm_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)
+    """
+    if fwhm_beam is not None:
+        fwhm_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)
     if maxr_data is not None:
         # set outermost radius 3xfwhm_beam larger than the largest radius of observed data
         maxr_data = maxr_data.to(step.unit, equivalencies=eq_kpc_as)
@@ -347,41 +464,41 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
         gt = interp1d(w_tf_1d, tf_1d, 'cubic', bounds_error=False, fill_value=(tf_1d[0], tf_1d[-1]))
         tf_2d = gt(freq_2d)
         filtering = fft_beam*tf_2d
+        # Diagnostic plot
+        tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir=plotdir)
     return freq_2d, fft_beam, filtering
 
 def centdistmat(r, offset=0.):
-    '''
+    """
     Create a symmetric matrix of distances from the radius vector
     -------------------------------------------------------------
     r = vector of negative and positive distances with a given step (center value has to be 0)
     offset = value to be added to every distance in the matrix (default is 0)
     ---------------------------------------------
     RETURN: the matrix of distances centered on 0
-    '''
+    """
     x, y = np.meshgrid(r, r)
     return np.sqrt(x**2+y**2)+offset
 
-def read_tf(filename, step, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., scale=0.02, k=0.95):
-    '''
+def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., scale=0.02, k=0.95):
+    """
     Read the transfer function data from the specified file
     -------------------------------------------------------
     approx = whether to approximate or not the tf to the normal cdf (boolean, default is False)
     loc, scale, k = location, scale and normalization parameters for the normal cdf approximation
     ---------------------------------------------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
-    '''
-    if not approx:
-        wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
-        wn_as = wn.to(1/u.arcsec)
-        if wn.unit == u.radian**-1:
-            wn_as /= 2*np.pi
-    else:
-        wn_as = (np.arange(100)/step).to(1/u.arcsec)
-        tf = k*norm.cdf(wn_as, loc, scale)
+    """
+    wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
+    wn_as = wn.to(1/u.arcsec)
+    if wn.unit == u.radian**-1:
+        wn_as /= 2*np.pi
+    if approx:
+        tf = k*norm.cdf(wn, loc, scale)
     return wn_as, tf
 
 def dist(naxis):
-    '''
+    """
     Returns a matrix in which the value of each element is proportional to its frequency 
     (https://www.harrisgeospatial.com/docs/DIST.html)
     If you shift the 0 to the centre using fftshift, you obtain a symmetric matrix
@@ -389,13 +506,13 @@ def dist(naxis):
     naxis = number of elements per row and per column
     -------------------------------------------------
     RETURN: the (naxis x naxis) matrix
-    '''
+    """
     axis = np.linspace(-naxis//2+1, naxis//2, naxis)
     result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
     return np.roll(result, naxis//2+1, axis=(0, 1))
 
 def filt_image(wn_as, tf, tf_source_team, side, step, eq_kpc_as):
-    '''
+    """
     Create the 2D filtering image from the transfer function data
     -------------------------------------------------------------
     wn_as = vector of wave numbers
@@ -406,7 +523,7 @@ def filt_image(wn_as, tf, tf_source_team, side, step, eq_kpc_as):
     eq_kpc_as = equation for switching between kpc and arcsec
     -------------------------------
     RETURN: the (side x side) image
-    '''
+    """
     if not tf_source_team in ['NIKA', 'MUSTANG', 'SPT']:
         raise RuntimeError('Accepted values for tf_source_team are: NIKA, MUSTANG, SPT')
     f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
@@ -418,11 +535,11 @@ def filt_image(wn_as, tf, tf_source_team, side, step, eq_kpc_as):
     return f(karr)*tf.unit
 
 class abel_data:
-    '''
+    """
     Class of collection of data required for Abel transform calculation. Adapted from PyAbel
     ----------------------------------------------------------------------------------------
     r = array of radii
-    '''
+    """
     def __init__(self, r):
         R, Y = np.meshgrid(r, r, indexing='ij')
         II, JJ = np.meshgrid(np.arange(len(r)), np.arange(len(r)), indexing='ij')
@@ -439,14 +556,14 @@ class abel_data:
         self.corr = np.c_[np.diag(self.I_isqrt), np.diag(self.I_isqrt), 2*np.concatenate((np.ones(r.size-2), np.ones(2)/2))]
 
 class distances:
-    '''
+    """
     Class of data involving distances required in likelihood computation
     --------------------------------------------------------------------
     radius = array of radii in arcsec
     sep = index of radius 0
     step = binning step
     eq_kpc_as = equation for switching between kpc and arcsec
-    '''
+    """
     def __init__(self, radius, sep, step, eq_kpc_as):
         self.d_mat = [centdistmat(np.array([r.to(u.kpc, equivalencies=eq_kpc_as) for r in radius]).T[i]) for i in 
                       range(len(u.arcsec.to(u.kpc, equivalencies=eq_kpc_as)))] # matrix of distances (radially symmetric)
@@ -456,14 +573,14 @@ class distances:
                        range(len(self.d_mat))]# labels indicating different annuli within the matrix of distances
     
 def interp_mat(mat, indices, func, sep):
-    '''
+    """
     Quick interpolation on a radially symmetric matrix
     --------------------------------------------------
     mat = empty matrix to fill in with interpolated values
     indices = indices of unique values in the matrix of distances
     func = interpolation function
     sep = index of radius 0
-    '''
+    """
     mat[sep:,sep:][indices] = func
     mat[sep:,sep:][indices[::-1]] = func
     mat[sep:,:sep+1] = np.fliplr(mat[sep:,sep:])
@@ -472,7 +589,7 @@ def interp_mat(mat, indices, func, sep):
     return mat
 
 class SZ_data:
-    '''
+    """
     Class for the SZ data required for the analysis
     -----------------------------------------------
     clus = names of analyzed clusters
@@ -485,11 +602,8 @@ class SZ_data:
     r_pp = radius in kpc used to compute the pressure profile
     filtering = transfer function matrix
     abel_data = collection of data required for Abel transform calculation
-    calc_integ = whether to include integrated Compton parameter in the likelihood (boolean, default is False)
-    integ_mu = if calc_integ == True, prior mean
-    integ_sig = if calc_integ == True, prior sigma
-    '''
-    def __init__(self, clus, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, filtering, calc_integ=False, integ_mu=None, integ_sig=None):
+    """
+    def __init__(self, clus, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, filtering):
         self.clus = clus
         self.step = step
         self.eq_kpc_as = eq_kpc_as
@@ -498,51 +612,58 @@ class SZ_data:
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
         self.r_pp = r_pp
-        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//2) for r in r_pp]*r_pp.unit
+        self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//5)*r.unit for r in r_pp]
         self.r_am = r_am
         self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
         self.abel_data = [abel_data(r.value) for r in self.r_red]
-        self.calc_integ = calc_integ
-        self.integ_mu = integ_mu
-        self.integ_sig = integ_sig
 
-def print_summary(prs, pmed, pstd, medsf, sz):
-    '''
-    Prints as output a statistical summary of the posterior distribution
-    --------------------------------------------------------------------
-    press = pressure object of the class Pressure
-    pmed = array of means of parameters sampled in the chain
-    pstd = array of standard deviations of parameters sampled in the chain
-    medsf = median surface brightness profile 
-    sz = class of SZ data
-    '''
-    g = interp1d(sz.radius[sz.sep:], medsf, 'cubic', fill_value='extrapolate', axis=-1)
-    chisq = np.sum([np.sum(((fl[1]-g(fl[0])[i])/fl[2])**2, axis=-1) 
-                    for i, fl in enumerate(sz.flux_data)], axis=0)
-    wid1 = len(max(prs, key=len))
-    wid2 = max(list(map(lambda x: len(format(x, '.2e')), pmed)))
-    wid3 = max(list(map(lambda x: len(format(x, '.2e')), pstd)))
-    print(('{:>%i}' % (wid1+2)).format('|')+
-          ('{:>%i} Median |' % max(wid2-6,0)).format('')+
-          ('{:>%i} Sd |' % max(wid3-2,0)).format('')+
-          '\n'+'-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0)))
-    for i in range(len(prs)):
-        print(('{:>%i}' % (wid1+2)).format('%s |' %prs[i])+
-              ('{:>%i}' % max(wid2+3, 9)).format(' %s |' %format(pmed[i], '.2e'))+
-              ('{:>%i}' % max(wid3+3, 6)).format(' %s |' %format(pstd[i], '.2e')))#+
-    print('-'*(wid1+16+max(wid2-6,0)+max(wid3-2,0))+
-          '\nMedian profile Chi2 = %s with %s df' % ('{:.4f}'.format(chisq), np.sum([f[1][~np.isnan(f[1])].size for f in sz.flux_data])-len(prs)))
+def add_indices(press, nc, sz):
+    """
+    """
+    if type(press) == Press_nonparam_plaw:
+        press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[i].value, press.knots[i])-1) for i in range(nc)] # lower bins indexes
+        press.r_low = [p[i] for p, i in zip(press.knots, press.ind_low)] # lower radial bins
+        press.alpha_ind = [np.minimum(press.ind_low[i], len(press.knots[i])-2) for i in range(nc)] # alpha indexes
+    if type(press) == Press_rcs:
+        press.kn = pt.log10(press.knots[0]/press.r500[0])
+        # Expand kn for broadcasting
+        press.kn_row = press.kn[None, :]
+        press.kn_col = press.kn[:, None]
+        # Step function masks
+        press.gt_mask = press.kn_row > press.kn_col  # shape: (N, N)
+        press.gt_mask_last2 = press.kn_row > press.kn[-2]
+        # Cubic spline-like terms
+        press.diff = press.kn_row - press.kn_col
+        press.sv = press.gt_mask * press.diff**3 - press.gt_mask_last2 * (press.diff * (press.kn_row - press.kn[-2])**2)
+        # Build matrix X (each row corresponds to one knot)
+        press.ones = pt.ones_like(press.kn)
+        press.X = pt.stack([press.ones, press.kn] + [press.sv[j, :] for j in range(press.N[0])], axis=1)
+        press.kn_sum = press.kn[-2:].sum()
+        press.x = [pt.log10(sz.r_pp[i]/press.r500[i]) for i in range(nc)]
+        # Compute vectorized spline terms for input radii
+        press.x_row = [press.x[i][None, :] for i in range(nc)]
+        press.gt_mask_x = [press.x_row[i] > press.kn[:press.N[0], None] for i in range(nc)]
+        press.diff_x = [press.x_row[i] - press.kn[:press.N[0], None] for i in range(nc)]
+        press.last_term = [(1 / (press.kn[-1] - press.kn[-2])) * (
+            (press.kn[-1] - press.kn[:press.N[0], None]) * (press.x_row[i] > press.kn[-2]) * (press.x_row[i] - press.kn[-2])**3
+            - (press.kn[-2] - press.kn[:press.N[0], None]) * (press.x_row[i] > press.kn[-1]) * (press.x_row[i] - press.kn[-1])**3
+        ) for i in range(nc)]
+        press.svr = [press.gt_mask_x[i] * press.diff_x[i]**3 - press.last_term[i] for i in range(nc)]
 
-def save_summary(filename, prs, pmed, pstd, ci):
-    '''
-    Saves log file with a statistical summary of the posterior distribution
-    -----------------------------------------------------------------------
-    filename = name for log file
-    press = pressure object of the class Pressure
-    pmed = array of means of parameters sampled in the chain
-    pstd = array of standard deviations of parameters sampled in the chain
-    ci = uncertainty level of the interval
-    '''
-    np.savetxt('%s.log' % filename, [pmed, pstd], fmt='%.8e', delimiter='\t', header='This file summarizes MCMC results\n'+
-               'Posterior distribution medians + uncertainties (%s%% CI)\n' %ci + ' -- '.join(prs))
+def sort_z(ind_z, sz, press):
+    sz.clus = [sz.clus[i] for i in ind_z]
+    sz.flux_data = [sz.flux_data[i] for i in ind_z]    
+    sz.r_pp = [sz.r_pp[i] for i in ind_z]
+    sz.r_red = [sz.r_red[i] for i in ind_z]
+    sz.dist.d_arr = [sz.dist.d_arr[i] for i in ind_z]
+    sz.dist.d_mat = [sz.dist.d_mat[i] for i in ind_z]
+    sz.dist.labels = [sz.dist.labels[i] for i in ind_z]
+    sz.abel_data = [sz.abel_data[i] for i in ind_z]
+    press.z = press.z[ind_z]
+    press.kpc_as = press.kpc_as[ind_z]
+    press.knots = press.knots[ind_z]
+    press.r_out = press.r_out[ind_z]
+    press.P500 = [press.P500[i] for i in ind_z]
+    press.r500 = [press.r500[i] for i in ind_z]
+    return sz, press
