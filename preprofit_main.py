@@ -151,19 +151,24 @@ def main():
         cloudpickle.dump(sz, f, -1)
     
     ## Model definition
-    evol = False
-    P_dep = False
+    z_dep = False # include redshift-dependent parameter?
+    M_dep = False # include mass-dependent parameter?
     with pm.Model() as model:
         if type(press)==pfuncs.Press_gNFW:
-            pars_gnfw = ['P_0', 'a', 'b', 'c', 'r_p']
+            pars_gnfw = ['P_0', 'a', 'b', 'c', 'r_p'] # parameters you want to fit
             nps = len(pars_gnfw)
             ind_pars = [p in pars_gnfw for p in ['P_0', 'a', 'b', 'c', 'r_p']]
             lgu = logunivpars[ind_pars]
-            pm.Uniform('sigma_gnfw', 0, 10, initval=np.repeat(1, nps), shape=nps)
-            pm.Normal('lgPgnfw', mu=lgu, sigma=[1,1,1,1.5,1], initval=lgu, shape=nps)
-            [pm.StudentT('lgP_{%s,i}' % j, nu=10, mu=model['lgPgnfw'][j],
-                        sigma=model['sigma_gnfw'][j]/np.sqrt(10/8), 
-                        initval=np.repeat(lgu[j], nc), shape=nc) for j in range(nps)]
+            if nc > 1:
+	            pm.Uniform('sigma_gnfw', 0, 10, initval=np.repeat(1, nps), shape=nps)
+	            pm.Normal('lgPgnfw', mu=lgu, sigma=[1,1,1,1.5,1], initval=lgu, shape=nps)
+			if z_dep:
+                pm.StudentT('z_dep', mu=np.zeros(nk), nu=np.ones(nk), shape=nk, initval=np.zeros(nk))
+            if M_dep:
+                pm.StudentT('M_dep', mu=np.zeros(1), nu=np.ones(1), shape=1, initval=np.zeros(1))
+	        [pm.StudentT('lgP_{%s,i}' % j, nu=10, mu=model['lgPgnfw'][j],
+						 sigma=model['sigma_gnfw'][j]/np.sqrt(10/8), 
+						 initval=np.repeat(lgu[j], nc), shape=nc) for j in range(nps)]
             inp_pars = [[model['lgP_{%s,i}' % (_-np.cumsum([ip==0 for ip in ind_pars])[_])][i] 
                          if ind_pars[_] else logunivpars[_] for _ in range(5)] for i in range(nc)]
         else:
@@ -171,14 +176,14 @@ def main():
             if nc > 1:
                 pm.Uniform('sigma_{int,k}', 0., 1., initval=np.repeat(.2, nk), shape=nk)
                 pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
-            if evol:
-                pm.StudentT('evol', mu=np.zeros(nk), nu=np.ones(nk), shape=nk, initval=np.zeros(nk))
-            if P_dep:
-                pm.StudentT('P_dep', mu=np.zeros(1), nu=np.ones(1), shape=1, initval=np.zeros(1))
+            if z_dep:
+                pm.StudentT('z_dep', mu=np.zeros(nk), nu=np.ones(nk), shape=nk, initval=np.zeros(nk))
+            if M_dep:
+                pm.StudentT('M_dep', mu=np.zeros(1), nu=np.ones(1), shape=1, initval=np.zeros(1))
             [pm.StudentT('lgP_{%s,i}' % j, nu=10, 
                          mu=model['lgP_k'][j] if nc > 1 else logunivpars
-                         +model.evol[j]*pt.log10((1+press.z)/(1+.3)) if evol else 0
-                         +model.P_dep*pt.log10(M500/8e14) if P_dep else 0,
+                         +model.z_dep[j]*pt.log10((1+press.z)/(1+.3)) if z_dep else 0
+                         +model.M_dep*pt.log10(M500/8e14) if M_dep else 0,
                         sigma=model['sigma_{int,k}'][j]/np.sqrt(10/8) if nc > 1 else 1, 
                         initval=np.repeat(logunivpars[j], nc), shape=nc) for j in range(nk)]
             inp_pars = [[m[i] for m in [model['lgP_{%s,i}' % k] for k in range(nk)]] for i in range(nc)]
@@ -228,15 +233,15 @@ def main():
     
     prs_ext_kn = [
             [p.replace('k', str(k)) for k in range(nk)] if nc > 1 else '' for p in (prs[:2])]+[
-                ['evol_%s' % _ for _ in range(trace.posterior.evol.shape[-1])] if 'evol' in prs else '']+[
-                    ['P_dep_%s' % _ for _ in range(trace.posterior.P_dep.shape[-1])] if 'P_dep' in prs else '']+[
+                ['z_dep_%s' % _ for _ in range(trace.posterior.z_dep.shape[-1])] if 'z_dep' in prs else '']+[
+                    ['M_dep_%s' % _ for _ in range(trace.posterior.M_dep.shape[-1])] if 'M_dep' in prs else '']+[
             [p.replace('i', str(i)) for i in range(nc)] for p in
             (prs[np.where(np.array(prs)=='lgP_{0,i}')[0][0]:-1])]+[[
                 prs[-1]+'_{%s}' % i for i in range(nc)]]
     prs_ext_clus = [
             [p.replace('k', str(k)) for k in range(nk)] if nc > 1 else '' for p in (prs[:2])]+[
-                ['evol_%s' % _ for _ in range(trace.posterior.evol.shape[-1])] if 'evol' in prs else '']+[
-                    ['P_dep_%s' % _ for _ in range(trace.posterior.P_dep.shape[-1])] if 'P_dep' in prs else '']+[
+                ['z_dep%s' % _ for _ in range(trace.posterior.z_dep.shape[-1])] if 'evol' in prs else '']+[
+                    ['M_dep_%s' % _ for _ in range(trace.posterior.M_dep.shape[-1])] if 'M_dep' in prs else '']+[
     	[p.replace('i', str(i)) for p in (prs[np.where(np.array(prs)=='lgP_{0,i}')[0][0]:-1]
                                        )] for i in range(nc)]+[[
                 prs[-1]+'_{%s}' % i for i in range(nc)]]
