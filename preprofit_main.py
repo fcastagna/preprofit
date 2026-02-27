@@ -203,7 +203,7 @@ def main():
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         
 	# Fit
-        trace = pm.sample(draws=4000, tune=4000, chains=4, cores=4, initvals=model.rvs_to_initial_values)
+    trace = pm.sample(draws=4000, tune=4000, chains=4, initvals=model.rvs_to_initial_values)
 
     # Save chain
     trace.to_netcdf("%s/trace_t2u.nc" % savedir)
