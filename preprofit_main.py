@@ -141,8 +141,8 @@ def main():
     press.P500 = [pfuncs.get_P500((sz.r_pp[j]/r500[j]).value, cosmology, z[j], M500=M500[j]).value for j in range(nc)]
     press.r500 = [r for r in r500]
 
-    # Other indexes
-    pfuncs.add_indices(press, nc, sz)
+    # Internal attributes for the pressure class
+    pfuncs.add_attrs(press, nc, sz)
     
     # Save objects
     with open('%s/press_obj.pickle' % savedir, 'wb') as f:
