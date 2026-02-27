@@ -88,12 +88,12 @@ press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slop
 # Cubic spline model
 # press = pfuncs.Press_cubspline(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
-## Get starting parameters from the universal pressure profile
+## Get starting parameters of the mean profile assuming an universal pressure profile
 logunivpars = np.mean(press.get_universal_params(M500=M500), axis=0)
 # if type(press)==pfuncs.Press_gNFW: 
 #     c500=1.177
 #     logunivpars[-1] = np.log10(10**(logunivpars[-1])/c500)
-nk = len(logunivpars)
+nk = len(logunivpars) # number of 
 
 # Sampling step
 mystep = 30.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
