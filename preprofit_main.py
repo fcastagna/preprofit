@@ -8,6 +8,7 @@ from scipy.interpolate import interp1d
 import cloudpickle
 import pymc as pm
 import pytensor.tensor as pt
+import os
 
 ### Global and local variables
 
@@ -32,6 +33,7 @@ beam_and_tf = False
 beam_approx = True
 tf_approx = False
 fwhm_beam = [75]*u.arcsec # fwhm of the normal distribution, if adopted
+step_data = [15]*u.arcsec
 loc, scale, k = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation, if adopted
 
 # Transfer function provenance (not the instrument, but the team who derived it)
@@ -78,11 +80,12 @@ r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
 ## Pressure modelization (4 options available)
-knots = np.outer([.1, .4, .7, 1, 1.3], r500.to(u.kpc).value).T
+knots = np.outer([.1, .4, .7, 1, 1.3], r500.to(u.kpc).value).T # set knots position
 # 1. Restricted cubic spline model
 press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 # 2. Generalized Navarro Frenk and White model
 # press = pfuncs.Press_gNFW(z=z, cosmology=cosmology, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
+# pars_gnfw = ['P_0', 'a', 'b', 'c', 'r_p'] # leave in this list only the parameters you want to fit
 # 3. Non parametric power-law model
 # press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
 # 4. Cubic spline model
@@ -95,12 +98,20 @@ logunivpars = np.mean(press.get_universal_params(M500=M500), axis=0)
 #     logunivpars[-1] = np.log10(10**(logunivpars[-1])/c500)
 nk = len(logunivpars) # number of parameters for the population-averaged pressure profile
 
+# If hierarchical model, do you want to include dependencies on redshift or mass?
+z_dep = False # redshift-dependent parameter?
+M_dep = False # mass-dependent parameter?
+
 # Sampling step
 mystep = 30.*u.arcsec # constant step (values larger than (1/7)*FWHM of the beam are not recommended)
 # NOTE: when tf_source_team = 'SPT', be careful to adopt the same sampling step used for the transfer function
 
-# Uncertainty level
-ci = 68
+# MCMC options
+niter = 4000 # number of iterations
+nburn = 4000 # number of burn-in iterations
+nwalk = 8 # number of random walkers
+
+# End of configuration part. You should not touch the code in the next part
 
 # -------------------------------------------------------------------------------------------------------------------------------
 # Code
@@ -116,7 +127,7 @@ def main():
 
     # PSF+tf filtering
     freq, fb, filtering = pfuncs.filtering(mystep, press.eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, filename=beam_filename, beam_and_tf=beam_and_tf, 
-										   crop_image=crop_image, cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=15*u.arcsec, w_tf_1d=wn_as, tf_1d=tf)
+										   crop_image=crop_image, cropped_side=cropped_side, fwhm_beam=fwhm_beam, step_data=step_data, w_tf_1d=wn_as, tf_1d=tf)
     
     # Radius definition
     radius = np.arange(filtering.shape[0]//2+1)*mystep
@@ -151,33 +162,23 @@ def main():
         cloudpickle.dump(sz, f, -1)
     
     ## Model definition
-    z_dep = False # include redshift-dependent parameter?
-    M_dep = False # include mass-dependent parameter?
     with pm.Model() as model:
         if type(press)==pfuncs.Press_gNFW:
-            pars_gnfw = ['P_0', 'a', 'b', 'c', 'r_p'] # parameters you want to fit
             nps = len(pars_gnfw)
             ind_pars = [p in pars_gnfw for p in ['P_0', 'a', 'b', 'c', 'r_p']]
             lgu = logunivpars[ind_pars]
-            if nc > 1:
-	            pm.Uniform('sigma_gnfw', 0, 10, initval=np.repeat(1, nps), shape=nps)
-	            pm.Normal('lgPgnfw', mu=lgu, sigma=[1,1,1,1.5,1], initval=lgu, shape=nps)
-			if z_dep:
-                pm.StudentT('z_dep', mu=np.zeros(nk), nu=np.ones(nk), shape=nk, initval=np.zeros(nk))
-            if M_dep:
-                pm.StudentT('M_dep', mu=np.zeros(1), nu=np.ones(1), shape=1, initval=np.zeros(1))
-	        [pm.StudentT('lgP_{%s,i}' % j, nu=10, mu=model['lgPgnfw'][j],
-						 sigma=model['sigma_gnfw'][j]/np.sqrt(10/8), 
-						 initval=np.repeat(lgu[j], nc), shape=nc) for j in range(nps)]
-            inp_pars = [[model['lgP_{%s,i}' % (_-np.cumsum([ip==0 for ip in ind_pars])[_])][i] 
-                         if ind_pars[_] else logunivpars[_] for _ in range(5)] for i in range(nc)]
+# 	        [pm.StudentT('lgP_{%s,i}' % j, nu=10, mu=model['lgPgnfw'][j],
+# 						 sigma=1, 
+# 						 initval=np.repeat(lgu[j], nc), shape=nc) for j in range(nps)]
+#             inp_pars = [[model['lgP_{%s,i}' % (_-np.cumsum([ip==0 for ip in ind_pars])[_])][i] 
+#                          if ind_pars[_] else logunivpars[_] for _ in range(5)] for i in range(nc)]
         else:
             # Customize the prior distribution of the parameters using pymc distributions
             if nc > 1:
 				# Population parameters
                 pm.Uniform('sigma_{int,k}', 0., 1., initval=np.repeat(.2, nk), shape=nk)
                 pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
-  	            if z_dep:
+                if z_dep:
                     pm.StudentT('z_dep', mu=np.zeros(nk), nu=np.ones(nk), shape=nk, initval=np.zeros(nk))
                 if M_dep:
                     pm.StudentT('M_dep', mu=np.zeros(1), nu=np.ones(1), shape=1, initval=np.zeros(1))
@@ -211,66 +212,14 @@ def main():
             cloudpickle.dump(model, f, -1)
 
         ## Sampling
-        start_guess = [model['bright_%s' % j].eval({str(p): model.rvs_to_initial_values[model.named_vars[str(p)]] for p in model.free_RVs[-6:]}) for j in range(nc)]
+        start_guess = [model['bright_%s' % j].eval({str(p): model.rvs_to_initial_values[model.named_vars[str(p)]] for p in model.free_RVs[-nk-1:]}) for j in range(nc)]
         pplots.plot_guess(start_guess, sz, press, fact=1e4, plotdir=plotdir)
         
 		# Fit
-	    trace = pm.sample(draws=4000, tune=4000, chains=4, initvals=model.rvs_to_initial_values)
+        trace = pm.sample(draws=niter, tune=nburn, chains=nwalk, cores=os.cpu_count(), initvals=model.rvs_to_initial_values)
 	
 	    # Save chain
-	    trace.to_netcdf("%s/trace_t2u.nc" % savedir)
-
-
-    ### Plots
-    
-    prs = [k for k in trace.posterior.keys()]
-    prs = prs[:np.where([p[:2] in ['br', 'pr'] for p in prs])[0][0]]
-    prs = np.roll(prs, 1 if any(p.startswith('sigma') for p in prs) else 0)
-    samples = []
-    for (i, par) in enumerate(prs):
-        res = trace.posterior[par].data.reshape(np.prod(trace.posterior[prs[0]].shape[:2]), -1)
-        for j in range(res.shape[1]):
-            samples.append(res[:,j])
-    samples = np.array(samples).T
-    
-    prs_ext_kn = [
-            [p.replace('k', str(k)) for k in range(nk)] if nc > 1 else '' for p in (prs[:2])]+[
-                ['z_dep_%s' % _ for _ in range(trace.posterior.z_dep.shape[-1])] if 'z_dep' in prs else '']+[
-                    ['M_dep_%s' % _ for _ in range(trace.posterior.M_dep.shape[-1])] if 'M_dep' in prs else '']+[
-            [p.replace('i', str(i)) for i in range(nc)] for p in
-            (prs[np.where(np.array(prs)=='lgP_{0,i}')[0][0]:-1])]+[[
-                prs[-1]+'_{%s}' % i for i in range(nc)]]
-    prs_ext_clus = [
-            [p.replace('k', str(k)) for k in range(nk)] if nc > 1 else '' for p in (prs[:2])]+[
-                ['z_dep%s' % _ for _ in range(trace.posterior.z_dep.shape[-1])] if 'evol' in prs else '']+[
-                    ['M_dep_%s' % _ for _ in range(trace.posterior.M_dep.shape[-1])] if 'M_dep' in prs else '']+[
-    	[p.replace('i', str(i)) for p in (prs[np.where(np.array(prs)=='lgP_{0,i}')[0][0]:-1]
-                                       )] for i in range(nc)]+[[
-                prs[-1]+'_{%s}' % i for i in range(nc)]]
-    prs_ext_kn = [p for p in prs_ext_kn if p!='']
-    prs_ext_clus = [p for p in prs_ext_clus if p!='']
-    
-    # Extract surface brightness profiles
-    flat_surbr = np.array([trace.posterior['bright_%s' % i] for i in range(nc)]).reshape(nc, samples.shape[0], -1)
-    # Median surface brightness profile + CI
-    perc_sz = np.array([pplots.get_equal_tailed(f, ci=ci) for f in flat_surbr])
-    
-    # Posterior distributions summary
-    pm.summary(trace, var_names=prs)
-    
-    # Traceplot
-    pplots.traceplot(trace, prs, prs_ext_kn, compact=0, fact_ped=1e5, ppp=nk, fsize=14, plotdir=savedir)
-    
-    # Best fitting profile on SZ surface brightness
-    pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, rbins=None if type(press)==pfuncs.Press_gNFW else np.array(
-        [press.knots[_]/press.kpc_as[_]*u.arcsec for _ in range(nc)]), peds=np.mean(trace.posterior['peds'].data, axis=(0,1)), ind_fits=None, fact=1e5, ci=ci, plotdir=plotdir)
-    
-    # Cornerplots
-    ind_clus = [[k+np.cumsum([len(p) for p in [[]]+prs_ext_clus[:-1]])[j] for k in range(len(p))] for j,p in enumerate(prs_ext_clus)]
-    pplots.triangle([samples[:,i] for i in ind_clus[:-1]], prs_ext_clus[:-1], 
-                    model, fact_ped=1e5
-                    , plot_prior=0, show_lines=True, 
-                    show_title=False, col_lines='b', ci=ci, plotdir=plotdir)
+        trace.to_netcdf("%s/trace_t2u.nc" % savedir)
 
 if __name__ == '__main__':
     main()
