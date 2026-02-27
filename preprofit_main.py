@@ -77,15 +77,15 @@ slope_prior = True # apply or do not apply?
 r_out = (r500.to(u.kpc).value)*1.4 # large radius for the slope prior
 max_slopeout = 0. # maximum value for the slope at r_out
 
-## Pressure modelization
+## Pressure modelization (4 options)
 knots = np.outer([.1, .4, .7, 1, 1.3], r500.to(u.kpc).value).T
-# Restricted cubic spline model
+# 1. Restricted cubic spline model
 press = pfuncs.Press_rcs(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-# Generalized Navarro Frenk and White model
+# 2. Generalized Navarro Frenk and White model
 # press = pfuncs.Press_gNFW(z=z, cosmology=cosmology, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
-# Non parametric power-law model
+# 3. Non parametric power-law model
 # press = pfuncs.Press_nonparam_plaw(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, max_slopeout=max_slopeout)
-# Cubic spline model
+# 4. Cubic spline model
 # press = pfuncs.Press_cubspline(z=z, cosmology=cosmology, knots=knots, slope_prior=slope_prior, r_out=r_out, max_slopeout=max_slopeout)
 
 ## Get starting parameters of the population-averaged profile assuming an universal pressure profile
