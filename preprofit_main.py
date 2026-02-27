@@ -31,8 +31,8 @@ beam_and_tf = False
 # Beam and transfer function. From input data or Gaussian approximation?
 beam_approx = True
 tf_approx = False
-fwhm_beam = [75]*u.arcsec # fwhm of the normal distribution for the beam approximation
-loc, scale, k = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation
+fwhm_beam = [75]*u.arcsec # fwhm of the normal distribution, if adopted
+loc, scale, k = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation, if adopted
 
 # Transfer function provenance (not the instrument, but the team who derived it)
 tf_source_team = 'SPT' # choose among 'NIKA', 'MUSTANG' or 'SPT'
