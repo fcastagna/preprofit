@@ -174,12 +174,14 @@ def main():
         else:
             # Customize the prior distribution of the parameters using pymc distributions
             if nc > 1:
+				# Population parameters
                 pm.Uniform('sigma_{int,k}', 0., 1., initval=np.repeat(.2, nk), shape=nk)
                 pm.Normal('lgP_k', mu=logunivpars, sigma=.5, initval=logunivpars, shape=nk)
-            if z_dep:
-                pm.StudentT('z_dep', mu=np.zeros(nk), nu=np.ones(nk), shape=nk, initval=np.zeros(nk))
-            if M_dep:
-                pm.StudentT('M_dep', mu=np.zeros(1), nu=np.ones(1), shape=1, initval=np.zeros(1))
+  	            if z_dep:
+                    pm.StudentT('z_dep', mu=np.zeros(nk), nu=np.ones(nk), shape=nk, initval=np.zeros(nk))
+                if M_dep:
+                    pm.StudentT('M_dep', mu=np.zeros(1), nu=np.ones(1), shape=1, initval=np.zeros(1))
+			# Individual cluster parameters
             [pm.StudentT('lgP_{%s,i}' % j, nu=10, 
                          mu=model['lgP_k'][j] if nc > 1 else logunivpars
                          +model.z_dep[j]*pt.log10((1+press.z)/(1+.3)) if z_dep else 0
