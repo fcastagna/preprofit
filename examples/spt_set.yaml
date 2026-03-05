@@ -1,0 +1,23 @@
+clus: ["SPT-CLJ0500-5116", "SPT-CLJ0637-4829", "SPT-CLJ2055-5456"]
+z: [.11, .2026, .139]
+r500: [943.85, 1290.32, 1022.37]
+beam_and_tf: 0
+beam_approx: 1
+fwhm_beam: 75
+step_data: 15
+tf_approx: 0
+mystep: 30
+maxr_data: 1200
+tf_source_team: "SPT"
+files_dir: "./data/spt/"
+beam_filename: null
+tf_filename: "sptsz_trough_filter_1d.dat"
+flux_filename: "press_data_"
+convert_filename: null
+beam_units: ["beam"]
+tf_units: ["rad-1", ""]
+flux_units: ["arcsec", "", ""]
+conv_units: null
+plotdir: "./spt/hier/"
+savedir: "./spt/hier/"
+press_mod: "rcs"

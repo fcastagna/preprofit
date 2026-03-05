@@ -1,0 +1,25 @@
+# Info about the cluster
+clus: ["CLJ1227"]
+z: 0.89
+r500: 930
+# Beam and transfer function handling
+beam_and_tf: 0
+beam_approx: 0
+fwhm_beam: null
+step_data: null
+tf_approx: 0
+mystep: 2
+maxr_data: 200
+tf_source_team: "NIKA"
+files_dir: "./data/nika/"
+beam_filename: "Beam150GHz.fits"
+tf_filename: "TransferFunction150GHz_CLJ1227.fits"
+flux_filename: "press_clj1226_flagsource.dat"
+convert_filename: "Compton_to_Jy_per_beam.dat"
+beam_units: ["arcsec", "beam"]
+tf_units: ["arcsec-1", ""]
+flux_units: ["arcsec", "mJy beam-1", "mJy beam-1"]
+conv_units: ["keV", "Jy beam-1"]
+savedir: "./nika/"
+plotdir: "./nika/"
+press_mod: "rcs"
