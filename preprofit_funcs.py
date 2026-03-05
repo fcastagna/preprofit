@@ -392,12 +392,14 @@ def turn_odd(mat):
     else:
         raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
 
-def read_beam_data(step, beam_xy, filename, units, step_data, crop_image, cropped_side):
+def read_beam_data(step, filename, units, step_data=None, beam_xy=None, crop_image=None, cropped_side=None, out='beam'):
     try: # 1D
         r_irreg, b = read_beam(filename, ncol=2, units=units)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
         inv_f = lambda x: f(x)-f(0.)/2
         fwhm_beam = 2*optimize.newton(inv_f, x0=5.)*r_irreg.unit
+        if out == 'fwhm':
+            return fwhm_beam
         sigma_beam = fwhm_beam/(2*np.sqrt(2*np.log(2)))
         b = multivariate_normal([0,0], sigma_beam**2).pdf(beam_xy)
         freq_2d = dist(b.shape[0])/b.shape[0]/step
@@ -438,8 +440,9 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
     -------------------------------------------------------------------
     RETURN: the 2D image of the beam and the Full Width at Half Maximum
     """
-    if fwhm_beam is not None:
-        fwhm_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)
+    if fwhm_beam is None:
+        fwhm_beam = read_beam_data(step, filename, units, out='fwhm')
+    fwhm_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)
     if maxr_data is not None:
         # set outermost radius 3xfwhm_beam larger than the largest radius of observed data
         maxr_data = maxr_data.to(step.unit, equivalencies=eq_kpc_as)
@@ -457,7 +460,7 @@ def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, app
         filtering = fft_beam = np.exp(-freq_2d**2/2/sigma_fft_beam**2)
     else:
         # Read from data
-        freq_2d, fft_beam = read_beam_data(step, beam_xy, filename, units, step_data, crop_image, cropped_side)
+        freq_2d, fft_beam = read_beam_data(step, filename, units, step_data, beam_xy, crop_image, cropped_side)
         filtering = fft_beam
     if not beam_and_tf:
         # Apply transfer function filtering
@@ -607,7 +610,7 @@ class SZ_data:
         self.clus = clus
         self.step = step
         self.eq_kpc_as = eq_kpc_as
-        self.conv_temp_sb = conv_temp_sb
+        self.conv_temp_sb = conv_temp_sb.to(flux_data[0][1].unit).value
         self.flux_data = flux_data
         self.radius = radius.to(u.arcsec, equivalencies=eq_kpc_as)
         self.sep = sep
@@ -618,7 +621,7 @@ class SZ_data:
         self.filtering = filtering
         self.abel_data = [abel_data(r.value) for r in self.r_red]
 
-def add_indices(press, nc, sz):
+def add_attrs(press, nc, sz):
     """
     """
     if type(press) == Press_nonparam_plaw:
@@ -667,3 +670,4 @@ def sort_z(ind_z, sz, press):
     press.P500 = [press.P500[i] for i in ind_z]
     press.r500 = [press.r500[i] for i in ind_z]
     return sz, press
+

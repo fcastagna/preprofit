@@ -72,7 +72,7 @@ def int_func_1(r, szrd, pp, sza, szf, szl, szs, dm):
     y_2d = f(dm)
     # Convolution with the beam and the transfer function at the same time
     map_out = np.real(ifft2(fft2(y_2d)*szf))
-    # Conversion from Compton parameter to mJy/beam
+    # Profile extraction
     map_prof = list(map(lambda x: mean(x, labels=szl, index=np.arange(szs+1)), map_out))
     return map_prof
 
@@ -94,7 +94,7 @@ def int_func_2(map_prof, szrv, r_fl):
     g = interp1d(szrv, map_prof, 'cubic', fill_value='extrapolate', axis=-1)
     return g(r_fl)
 
-def whole_lik(model, lgP_ki, ped_i, press, szr, szrd, sza, szf, szl, szs, dm, szrv, szfl, i):
+def whole_lik(model, lgP_ki, ped_i, press, szr, szrd, sza, szf, szl, szs, dm, szc, szrv, szfl, i):
     """
     Likelihood function
 
@@ -111,6 +111,7 @@ def whole_lik(model, lgP_ki, ped_i, press, szr, szrd, sza, szf, szl, szs, dm, sz
     szl = array of 2D indices for radial profile extraction
     szs = index of radius 0
     dm = 2D matrix of distances
+    szc = conversion factor
     szrv = radii of fitted profile
     szfl = observed flux data
     i = cluster index
@@ -138,6 +139,8 @@ def whole_lik(model, lgP_ki, ped_i, press, szr, szrd, sza, szf, szl, szs, dm, sz
     # Compute the surface brightness fitted profile
     int_prof = int_func_1(shared(szr), shared(szrd), pp, shared(sza), shared(szf),
                           shared(szl), shared(szs), shared(dm))
+    # Conversion from Compton parameter to surface brightness unit
+    int_prof = pt.mul(int_prof, szc)
     # Add pedestal component
     int_prof = int_prof + ped_i
     # Interpolate the surface brightness fitted profile

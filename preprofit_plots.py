@@ -4,7 +4,6 @@ import numpy as np
 from astropy import units as u
 import corner
 import arviz as az
-from scipy.stats import norm, uniform, t
 
 plt.style.use('classic')
 font = {'size': 10}
@@ -17,13 +16,14 @@ def ticks_size(fsize, axes=None):
         plt.xticks(fontsize=fsize)
         plt.yticks(fontsize=fsize)
 
-def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, plotdir='./'):
+def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, fsize=13, plotdir='./'):
     pdf = PdfPages('./%s/tf_diagnostics.pdf' % plotdir)
     plt.plot(w_tf_1d.to(1/u.arcmin), tf_1d, 'd', label='input')
     plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), tf_2d[0,:freq_2d.shape[0]//2], '.', label='1d from 2d')
     plt.xlim(-.1, 2); plt.legend(numpoints=1)
-    plt.title('Transfer function interpolation at large radii')
-    plt.xlabel('Frequency [arcmin$^{-1}$]'); plt.ylabel('Transfer function')
+    plt.title('Transfer function interpolation at large radii', fontsize=fsize)
+    plt.xlabel('Frequency [arcmin$^{-1}$]', fontsize=fsize); plt.ylabel('Transfer function', fontsize=fsize)
+    ticks_size(fsize)
     pdf.savefig(bbox_inches='tight')
     pdf.close()
 
@@ -54,7 +54,7 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
             plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']')
         if i%2 == 0:
             plt.ylabel('Surface brightness ['+str(sz.flux_data[i][1].unit)+
-                       ('' if sz.flux_data[i][1].unit else 'x ')+'$10^%i$]' % np.log10(fact) if fact != 1 else '')
+                       ('' if sz.flux_data[i][1].unit == '' else '] [')+('$10^{%i}$]' % np.log10(fact) if fact != 1 else ''))
         if (i+1)%4 == 0:
             pdf.savefig(bbox_inches='tight')
             plt.clf()
@@ -66,7 +66,7 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True
     '''
     '''
     plt.clf()
-    prs_latex = ['$%s%s$' % ('\\' if p[:3]=='sig' else '', p) if compact else ['$%s%s$' % ('\\' if p[:3]=='sig' else '', pj) for pj in p] for _, p in enumerate(prs if compact else prs_ext)]
+    prs_latex = ['$%s%s$' % ('\\' if p[:3]=='sig' else '', p) if compact else ['$%s%s$' % ('\\' if pj[:3]=='sig' else '', pj) for pj in p] for _, p in enumerate(prs if compact else prs_ext)]
     prs_latex[-1] = (prs_latex[-1]+' [10$^{-%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
     trace.posterior['peds'] *= fact_ped
     pdf = PdfPages(plotdir+'traceplot.pdf')
@@ -123,7 +123,7 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, ind_fits=None, fac
             plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
         plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']', fontsize=fsize+2)
         plt.ylabel('Surface brightness $[$'+str(sz.flux_data[i][1].unit)+
-                   ('' if sz.flux_data[i][1].unit else 'x ')+'$10^{-%i}]$' % np.log10(fact) if fact != 1 else '', fontsize=fsize+2)
+                   ('' if sz.flux_data[i][1].unit == '' else '$] [$')+('$10^{%i}]$' % np.log10(fact) if fact != 1 else ''), fontsize=fsize+2)
         ticks_size(fsize)
         if ind_fits is not None:
             plt.plot(sz.radius[sz.sep:], ind_fits[i]*fact, c='r', linestyle='--', label='Individual analysis')
@@ -141,7 +141,7 @@ def get_equal_tailed(data, ci=68, axis=0):
     low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=axis))
     return np.array([low, med, upp])
 
-def triangle(mat_chain, param_names, model, tit=None, fact_ped=1, plot_prior=True, show_lines=True, show_title=True, col_lines='r', ci=95, labsize=25., fsize=14., titsize=15., legend=True, plotdir='./'):
+def triangle(mat_chain, param_names, model, tit=None, fact_ped=1, show_lines=True, show_title=True, col_lines='r', ci=95, labsize=25., fsize=14., titsize=15., legend=True, plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
@@ -165,27 +165,10 @@ def triangle(mat_chain, param_names, model, tit=None, fact_ped=1, plot_prior=Tru
         if tit is not None: fig.suptitle(tit[_], fontsize=30)
         axes = np.array(fig.axes).reshape((len(param_names[_]), len(param_names[_])))
         plb, pmed, pub = get_equal_tailed(mat_chain[_]*(fact_ped if _==len(mat_chain)-1 else 1), ci=ci)
-        if plot_prior:
-            ind = 0 if _==0 else _ if _==len(model.free_RVs)-1 else 1
-            means = model.free_RVs[ind].owner.inputs[-2].data
-            sig = model.free_RVs[ind].owner.inputs[-1].data
         for i in range(len(param_names[_])):
             l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
             if show_title:
                 axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[_][i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
-            if (plot_prior) & (_<3):
-                xx = np.linspace(-5, 5, 1000)
-                if model.free_RVs[_].owner.op.name == 'uniform':
-                    axes[i,i].plot(xx, uniform.pdf(xx, means, sig), c='black', linestyle='--')
-                elif model.free_RVs[_].owner.op.name == 'normal':
-                    axes[i,i].plot(xx, norm.pdf(xx, means[i] if np.atleast_1d(means).shape[0]>1 else means, 
-                        sig[i] if np.atleast_1d(sig).shape[0]>1 else sig), 
-                                 c='black', linestyle='--') if _<len(mat_chain)-1 else (
-                        axes[i,i].plot(np.linspace(-1, 1, 1000), norm.pdf(
-                            np.linspace(-1, 1, 1000), model.free_RVs[-1].owner.inputs[-2].data*fact_ped, 
-                            model.free_RVs[-1].owner.inputs[-1].data*fact_ped), c='black', linestyle='--'))
-                else:
-                    axes[i,i].plot(xx, t.pdf(xx, loc=0, scale=1, df=1), c='black', linestyle='--')
             if show_lines:
                 axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
                 axes[i,i].axvline(plb[i], color=col_lines, linestyle=':', label='%i%% CI' % ci)
@@ -234,7 +217,7 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=N
             [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
         plt.xscale('log')
         plt.yscale('log')
-        plt.ylim(1e-5, 1e-1)
+        # plt.ylim(1e-5, 1e-1)
         plt.xlabel('Radius ['+str(r_kpc[i].unit)+']')
         plt.ylabel('Pressure [keV$/$cm$^{3}$]')
         plt.xlim(xmin, xmax)
