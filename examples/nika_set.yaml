@@ -20,6 +20,6 @@ beam_units: ["arcsec", "beam"]
 tf_units: ["arcsec-1", ""]
 flux_units: ["arcsec", "mJy beam-1", "mJy beam-1"]
 conv_units: ["keV", "Jy beam-1"]
-savedir: "./nika/"
-plotdir: "./nika/"
+savedir: "./examples/"
+plotdir: "./examples/"
 press_mod: "rcs"
