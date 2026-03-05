@@ -18,6 +18,6 @@ beam_units: ["beam"]
 tf_units: ["rad-1", ""]
 flux_units: ["arcsec", "", ""]
 conv_units: null
-plotdir: "./spt/hier/"
-savedir: "./spt/hier/"
+plotdir: "./examples/"
+savedir: "./examples/"
 press_mod: "rcs"
