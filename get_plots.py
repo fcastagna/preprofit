@@ -7,14 +7,12 @@ import pymc as pm
 import arviz as az
 
 ### Global and local variables
-savedir = './spt/hier/'
+savedir = './nika/gnfw/'#'spt/2d/'
 plotdir = savedir
 with open('%s/press_obj.pickle' % savedir, 'rb') as f:
     press = cloudpickle.load(f)
 with open('%s/szdata_obj.pickle' % savedir, 'rb') as f:
     sz = cloudpickle.load(f)
-with open('%s/model.pickle' % savedir, 'rb') as f:
-    model = cloudpickle.load(f)
 
 name = 'preprofit'
 ci = 68
@@ -60,17 +58,17 @@ perc_sz = np.array([pplots.get_equal_tailed(f, ci=ci) for f in flat_surbr])
 pm.summary(trace, var_names=prs)
 
 # Traceplot
-pplots.traceplot(trace, prs, prs_ext_kn, compact=0, fact_ped=1e5, ppp=nk, fsize=14, plotdir=savedir)
+pplots.traceplot(trace, prs, prs_ext_kn, compact=0 if nc>1 else 1, fact_ped=1e5, ppp=nk, fsize=14, plotdir=savedir)
 
 # Best fitting profile on SZ surface brightness
 fact = 10**int(-np.sign(sz.flux_data[0][1][0])*np.round(np.log10(np.abs(sz.flux_data[0][1][0].value)), 0))
 pplots.fitwithmod(sz, perc_sz, press.eq_kpc_as, rbins=None if type(press)==pfuncs.Press_gNFW else np.array(
-    [press.knots[_]/press.kpc_as[_]*u.arcsec for _ in range(nc)]), peds=np.mean(trace.posterior['peds'].data, axis=(0,1)), ind_fits=None, fact=fact, ci=ci, plotdir=plotdir)
+    [press.knots[_]/press.kpc_as[_]*u.arcsec for _ in range(nc)]), peds=np.mean(trace.posterior['peds'].data, axis=(0,1)), fact=fact, ci=ci, plotdir=plotdir)
 
 # Cornerplots
 ind_clus = [[k+np.cumsum([len(p) for p in [[]]+prs_ext_clus[:-1]])[j] for k in range(len(p))] for j,p in enumerate(prs_ext_clus)]
-pplots.triangle([samples[:,i] for i in ind_clus], prs_ext_clus, model, fact_ped=1e5, 
-                show_lines=True, show_title=False, col_lines='b', ci=ci, plotdir=plotdir)
+pplots.triangle([samples[:,i] for i in ind_clus], prs_ext_clus, fact_ped=1e5, 
+                show_lines=True, show_summ=False, col_lines='b', ci=ci, plotdir=plotdir)
 
 # Cornerplots
 if nc > 1:
@@ -78,8 +76,8 @@ if nc > 1:
 
     # Population parameters only
     pop_par = [l for i in prs_ext_kn[:npop] for l in i]
-    pplots.triangle([samples[:,:len(pop_par)]], [pop_par], model, show_lines=False, 
-                    show_title=False, col_lines='b', ci=ci, plotdir=plotdir+'pop_')
+    pplots.triangle([samples[:,:len(pop_par)]], [pop_par], show_lines=False, 
+                    show_summ=False, col_lines='b', ci=ci, plotdir=plotdir+'pop_')
 
 # Radial pressure profiles
 p_prof = [trace.posterior['press_%s' % _].data.reshape(samples.shape[0], -1) for _ in range(nc)]
