@@ -1,23 +1,41 @@
+## Clusters
+# List of names
 clus: ["SPT-CLJ0500-5116", "SPT-CLJ0637-4829", "SPT-CLJ2055-5456"]
+# Redshifts
 z: [.11, .2026, .139]
+# Set r500 (in kpc)
 r500: [943.85, 1290.32, 1022.37]
-beam_and_tf: 0
-beam_approx: 1
+
+## Beam and transfer function
+# Do you have a file that applies both beam and transfer function filtering?
+beam_and_tf: False
+# Do you want to use a Gaussian approximation for the beam?
+beam_approx: True
+# If so, set the fwhm (in kpc)
 fwhm_beam: 75
-step_data: 15
-tf_approx: 0
+# Do you want to use an approximation for the transfer function?
+tf_approx: False
+
+# Set the sampling step (in kpc)
 mystep: 30
+# Set the maximum radius for radial profile computation (in kpc)
 maxr_data: 1200
-tf_source_team: "SPT"
-files_dir: "./data/spt/"
-beam_filename: null
-tf_filename: "sptsz_trough_filter_1d.dat"
-flux_filename: "press_data_"
-convert_filename: null
-beam_units: ["beam"]
-tf_units: ["rad-1", ""]
-flux_units: ["arcsec", "", ""]
-conv_units: null
-plotdir: "./examples/"
-savedir: "./examples/"
+
+# Input files (set null if not required)
+files_dir: "./data/spt/" # directory
+beam_filename: null # beam
+tf_filename: "sptsz_trough_filter_1d.dat" # transfer function
+flux_filename: "press_data_" # observed data
+convert_filename: null # conversion from surface brightness to observed data
+# Data units
+beam_units: null # beam
+tf_units: ["rad-1", ""] # transfer function
+flux_units: ["arcsec", "", ""] # observed data
+conv_units: null # conversion from surface brightness to observed data
+
+# Pressure model (choose among "rcs", "gnfw", "plaw" and "cubspl")
 press_mod: "rcs"
+
+# Output directories
+plotdir: "./" # plots
+savedir: "./" # files
