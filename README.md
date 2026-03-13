@@ -1,4 +1,4 @@
-# PreProFit
+# Hierachical `PreProFit`
 ## Pressure Profile Fitter for galaxy clusters in Python
 *Castagna Fabio, Andreon Stefano.*
 
