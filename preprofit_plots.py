@@ -10,6 +10,12 @@ font = {'size': 10}
 plt.rc('font', **font)
 
 def ticks_size(fsize, axes=None):
+    """
+    Set ticks size
+    --------------
+    fsize = size
+    axes = axes if the plot includes more than one
+    """
     try:
         [a.tick_params(labelsize=fsize) for a in axes]
     except:
@@ -17,6 +23,16 @@ def ticks_size(fsize, axes=None):
         plt.yticks(fontsize=fsize)
 
 def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, fsize=13, plotdir='./'):
+    """
+    Plot to check the correctness of transfer function reading
+    ----------------------------------------------------------
+    w_tf_1d = 1D transfer function data (frequency)
+    tf_1d = 1D transfer function data (transfer function)
+    freq_2d = 2D frequency matrix
+    tf_2d = 2D transfer function matrix
+    fsize = fontsize
+    plotdir = directory for the plot
+    """
     pdf = PdfPages('./%s/tf_diagnostics.pdf' % plotdir)
     plt.plot(w_tf_1d.to(1/u.arcmin), tf_1d, 'd', label='input')
     plt.plot(freq_2d[0,:freq_2d.shape[0]//2].to(1/u.arcmin), tf_2d[0,:freq_2d.shape[0]//2], '.', label='1d from 2d')
@@ -33,7 +49,9 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     -------------------------------------------------------------------
     out_prof = modeled profile
     sz = class of SZ data
-    plotdir = directory where to place the plot
+    press = pressure profile class
+    fact = y-axis multiplicative factor
+    plotdir = directory for the plot
     '''
     plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
@@ -62,15 +80,26 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
             pdf.savefig(bbox_inches='tight')
     pdf.close()
 
-def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True, div=None, fsize=13, plotdir='./'):
-    '''
-    '''
+def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, div=None, fsize=13, plotdir='./'):
+    """
+    Traceplot
+    ---------
+    trace = trace with mcmc results 
+    prs = parameters
+    prs_ext = list of parameters grouped by how you want to show them
+    fact_ped = multiplicative factor for pedestal parameter
+    compact = multidimensional variables in the same plot?
+    ppp = maximum number of plots per page
+    div = show divergences?
+    fsize = fontsize
+    plotdir = directory for the plot
+    """
     plt.clf()
     prs_latex = ['$%s%s$' % ('\\' if p[:3]=='sig' else '', p) if compact else ['$%s%s$' % ('\\' if pj[:3]=='sig' else '', pj) for pj in p] for _, p in enumerate(prs if compact else prs_ext)]
     prs_latex[-1] = (prs_latex[-1]+' [10$^{-%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '') if compact else [p+' [10$^{%s}$]' % int(np.log10(fact_ped)) if fact_ped != 1 else '' for p in prs_latex[-1]]
     trace.posterior['peds'] *= fact_ped
     pdf = PdfPages(plotdir+'traceplot.pdf')
-    for j, p in enumerate(prs):#[:np.where(np.array(prs)=='lgP_{0,i}')[0][0]]):
+    for j, p in enumerate(prs):
         for i in range(int((len(prs_ext[j])-.5)//ppp)+1):
             plt.clf()
             axes = az.plot_trace(
@@ -83,13 +112,6 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True
             [axes[_][0].set_ylabel(prs_latex[_] if compact else prs_latex[j][i*ppp+_], fontdict={'fontsize': fsize}) for _ in range(nrows)]
             axes[-1][0].set_xlabel('Value', fontsize=fsize)
             axes[-1][1].set_xlabel('Iteration', fontsize=fsize)
-            if compact & legend:
-                for _ in [0,2]:
-                    axes[_][0].legend(
-                        np.array([['$%s$=%s' % ('k' if _==0 else 'i', j)]+(
-                            2*trace.posterior[prs[_]].shape[0]-1)*['_nolabel_'] for j in 
-                            range(trace.posterior[prs[_]].shape[-1])]).flatten(), 
-                        fontsize='small', ncols=np.ceil(len(prs_ext[_])/5))
             [ticks_size(fsize, a) for a in axes]
             [axes[_][1].set_ylabel(prs_latex[_] if compact else prs_latex[j][i*ppp+_], fontdict={'fontsize': fsize}) for _ in range(nrows)]
             pdf.savefig(bbox_inches='tight')
@@ -99,14 +121,18 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, legend=True
     pdf.close()
     trace.posterior['peds'] /= fact_ped
 
-def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, ind_fits=None, fact=1, ci=95, fsize=13, plotdir='./'):
+def fitwithmod(sz, perc_sz, rbins=None, peds=None, fact=1, ci=95, fsize=13, plotdir='./'):
     '''
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties
     -----------------------------------------------------------------------------------------------
     sz = class of SZ data
-    ci = uncertainty level of the interval
     perc_sz = best (median) SZ fitting profiles with uncertainties
-    plotdir = directory where to place the plot
+    rbins = array of knots
+    peds = pedestal values (median + uncertainties)
+    fact = y-axis multiplicative factor
+    ci = uncertainty level of the interval
+    fsize = fontsize
+    plotdir = directory for the plot
     '''
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
     for i in range(len(sz.flux_data)):
@@ -123,10 +149,8 @@ def fitwithmod(sz, perc_sz, eq_kpc_as, rbins=None, peds=None, ind_fits=None, fac
             plt.axhline(peds[i]*fact, linestyle=':', color='grey', label='_nolegend_')
         plt.xlabel('Radius ['+str(sz.flux_data[i][0].unit)+']', fontsize=fsize+2)
         plt.ylabel('Surface brightness $[$'+str(sz.flux_data[i][1].unit)+
-                   ('' if sz.flux_data[i][1].unit == '' else '$] [$')+('$10^{%i}]$' % np.log10(fact) if fact != 1 else ''), fontsize=fsize+2)
+                   ('' if sz.flux_data[i][1].unit == '' else '$] $')+('[$10^{%i}]$' % np.log10(fact) if fact != 1 else ''), fontsize=fsize+2)
         ticks_size(fsize)
-        if ind_fits is not None:
-            plt.plot(sz.radius[sz.sep:], ind_fits[i]*fact, c='r', linestyle='--', label='Individual analysis')
         pdf.savefig(bbox_inches='tight')
     pdf.close()
 
@@ -141,18 +165,22 @@ def get_equal_tailed(data, ci=68, axis=0):
     low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=axis))
     return np.array([low, med, upp])
 
-def triangle(mat_chain, param_names, model, tit=None, fact_ped=1, show_lines=True, show_title=True, col_lines='r', ci=95, labsize=25., fsize=14., titsize=15., legend=True, plotdir='./'):
+def triangle(mat_chain, param_names, tit=None, fact_ped=1, show_lines=True, show_summ=True, col_lines='r', ci=95, labsize=25., fsize=14., titsize=15., plotdir='./'):
     '''
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
     mat_chain = 2d array of sampled values ((nw x niter) x nparam)
     param_names = names of the parameters
+    tit = list of plot titles
+    fact_ped = multiplicative factor for pedestal parameter
     show_lines = whether to show lines for median and uncertainty interval (boolean, default is True)
-    col_lines = line colour (default is red)
+    show_summ = whether to show summary measure for parameters on top of histograms
+    col_lines = line colour
     ci = uncertainty level of the interval
     labsize = label font size
+    fsize = ticks size
     titsize = titles font size
-    plotdir = directory where to place the plot
+    plotdir = directory for the plot
     '''
     pdf = PdfPages(plotdir+'cornerplot.pdf')
     plt.clf()
@@ -167,7 +195,7 @@ def triangle(mat_chain, param_names, model, tit=None, fact_ped=1, show_lines=Tru
         plb, pmed, pub = get_equal_tailed(mat_chain[_]*(fact_ped if _==len(mat_chain)-1 else 1), ci=ci)
         for i in range(len(param_names[_])):
             l_err, u_err = pmed[i]-plb[i], pub[i]-pmed[i]
-            if show_title:
+            if show_summ:
                 axes[i,i].set_title('%s = $%.2f_{-%.2f}^{+%.2f}$' % (param_latex[_][i], pmed[i], l_err, u_err), fontdict={'fontsize': titsize})
             if show_lines:
                 axes[i,i].axvline(pmed[i], color=col_lines, linestyle='--', label='Median')
@@ -196,9 +224,11 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=N
     ---------------------------------
     r_kpc = radius (kpc)
     press_prof = best fitting pressure profile (median and interval)
+    clus = list of cluster names
     xmin, xmax = x-axis boundaries for the plot (by default, they are obtained based on r_kpc)
     ci = uncertainty level of the interval
-    plotdir = directory where to place the plot
+    rbins = array of knots
+    plotdir = directory for the plot
     '''
     plt.style.use('classic')
     font = {'size': 10}
@@ -217,7 +247,6 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=N
             [plt.axvline(r, linestyle=':', color='grey', label='_nolegend_') for r in rbins[i]]
         plt.xscale('log')
         plt.yscale('log')
-        # plt.ylim(1e-5, 1e-1)
         plt.xlabel('Radius ['+str(r_kpc[i].unit)+']')
         plt.ylabel('Pressure [keV$/$cm$^{3}$]')
         plt.xlim(xmin, xmax)
@@ -229,8 +258,9 @@ def hist_slopes(slopes, clus, ci=95, plotdir='./'):
     Plot the histogram of the outer slopes posterior distribution
     -------------------------------------------------------------
     slopes = array of slopes
+    clus = list of cluster names
     ci = uncertainty level of the interval
-    plotdir = directory where to place the plot
+    plotdir = directory for the plot
     '''
     pdf = PdfPages(plotdir+'outer_slopes.pdf')
     for _ in range(len(slopes)):
