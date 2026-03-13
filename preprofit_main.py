@@ -37,19 +37,16 @@ beam_and_tf = conf["beam_and_tf"]
 beam_approx = conf["beam_approx"]
 tf_approx = conf["tf_approx"]
 fwhm_beam = np.atleast_1d(conf["fwhm_beam"])*u.arcsec if conf["fwhm_beam"] is not None else conf["fwhm_beam"] # fwhm of the normal distribution, if adopted
-step_data = np.atleast_1d(conf["step_data"])*u.arcsec if conf["step_data"] is not None else conf["step_data"] # radial step of beam data provided, if required
+step_data = np.atleast_1d(conf["step_data"])*u.arcsec if "step_data" in conf else None # radial step of beam data provided, if required
 loc, scale, k = None, None, None # location, scale and normalization parameters of the normal cdf for the transfer function approximation, if adopted
 
-# Transfer function provenance (not the instrument, but the team who derived it)
-tf_source_team = conf["tf_source_team"] # choose among 'NIKA', 'MUSTANG' or 'SPT'
-
- ## File names (FITS and ASCII formats are accepted)
+## File names (FITS and ASCII formats are accepted)
 # NOTE: if some of the files are not required, either assign a None value or just let them like this, preprofit will automatically ignore them
 # NOTE: if you have beam + transfer function in the same file, assign the name of the file to beam_filename and ignore tf_filename
 files_dir = conf["files_dir"] # files directory
 beam_filename = files_dir+conf["beam_filename"] if conf["beam_filename"] is not None else conf["beam_filename"] # beam
 tf_filename = files_dir+conf["tf_filename"] if conf["tf_filename"] is not None else conf["tf_filename"] # transfer function
-flux_filename = ['%s%s%s.dat' % (files_dir, conf["flux_filename"], c) for c in clus] if tf_source_team=='SPT' else [files_dir+conf["flux_filename"]] # observed data
+flux_filename = ['%s%s%s.dat' % (files_dir, conf["flux_filename"], c) for c in clus] if nc > 1 else [files_dir+conf["flux_filename"]] # observed data
 convert_filename = files_dir+conf["convert_filename"] if conf["convert_filename"] is not None else conf["convert_filename"] # conversion Compton -> observed data
 
 # Temperature used for the conversion factor above
@@ -65,8 +62,8 @@ tf_units = [u.Unit(_) for _ in conf["tf_units"]] if conf["tf_units"] is not None
 conv_units = [u.Unit(_) for _ in conf["conv_units"]] if conf["conv_units"] is not None else conf["conv_units"] # conversion units
 
 # Adopt a cropped version of the beam / beam + transfer function image? Be careful while using this option
-crop_image = False # adopt or do not adopt?
-cropped_side = 200 # side of the cropped image (automatically set to odd value)
+crop_image = conf["crop_image"] if "crop_image" in conf else None # adopt or do not adopt?
+cropped_side = conf["cropped_side"] if "cropped_side" in conf else None # side of the cropped image (automatically set to odd value)
 
 # Maximum radius for line-of-sight Abel integration
 R_b = 5000*u.kpc
@@ -138,14 +135,13 @@ def main():
     freq, fb, filtering = pfuncs.filtering(mystep, press.eq_kpc_as, maxr_data=maxr_data, approx=beam_approx, filename=beam_filename, 
 										   beam_and_tf=beam_and_tf, crop_image=crop_image, cropped_side=cropped_side, fwhm_beam=fwhm_beam, 
 										   step_data=step_data, w_tf_1d=wn_as, tf_1d=tf, plotdir=plotdir)
-    
+
     # Radius definition
     radius = np.arange(filtering.shape[0]//2+1)*mystep
     radius = np.append(-radius[:0:-1], radius) # from positive to entire axis
     sep = radius.size//2 # index of radius 0
     # radius in kpc used to compute the pressure profile (radius 0 excluded)
     r_pp = [np.arange(1, R_b/mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i]+1)*mystep.to(u.kpc, equivalencies=press.eq_kpc_as)[i] for i in range(nc)]
-    r_am = np.arange(1+min([len(r) for r in r_pp]))*mystep.to(u.arcmin, equivalencies=press.eq_kpc_as) # radius in arcmin (radius 0 included)
 
     # If required, temperature-dependent conversion factor from Compton to surface brightness data unit
     if not flux_units[1] == '':
@@ -157,7 +153,7 @@ def main():
 
     # Set of SZ data required for the analysis
     sz = pfuncs.SZ_data(clus=clus, step=mystep, eq_kpc_as=press.eq_kpc_as, conv_temp_sb=conv_temp_sb, flux_data=flux_data, radius=radius, sep=sep, 
-						r_pp=r_pp, r_am=r_am, filtering=filtering)
+						r_pp=r_pp, filtering=filtering)
 
     # Compute P500
     press.P500 = [pfuncs.get_P500((sz.r_pp[j]/r500[j]).value, cosmology, z[j], M500=M500[j]).value for j in range(nc)]
@@ -180,7 +176,7 @@ def main():
                 raise RuntimeError("Hierarchical model is not available when using a gNFW pressure model")
             nps = len(pars_gnfw) # number of fitted parameters
             ind_pars = [p in pars_gnfw for p in ['P_0', 'a', 'b', 'c', 'r_p']] # which gNFW parameters are fitted?
-            [pm.StudentT('lgP_{%s,i}' % j, nu=10, mu=logunivpars[ind_pars][j], sigma=1, 
+            [pm.StudentT('lgP_{%s,i}' % j, nu=10, mu=logunivpars[ind_pars][j], sigma=.2, 
                          initval=logunivpars[ind_pars][j]) for j in range(nps)]
             inp_pars = [[model['lgP_{%s,i}' % (_-np.cumsum([ip==0 for ip in ind_pars])[_])] 
                          if ind_pars[_] else logunivpars[_] for _ in range(5)]]
