@@ -1,14 +1,10 @@
 # Hierachical `PreProFit`
-## Pressure Profile Fitter for galaxy clusters in Python
+## Multi-object, multi-instrument, multi-parameterization fitting of cluster pressure profiles and population properties
 *Castagna Fabio, Andreon Stefano.*
 
-`preprofit` is a Python program that allows to fit the pressure profile of galaxy clusters using MCMC.
+Hierarchical `preprofit` is a Python program that allows to fit the pressure profile of populations of galaxy clusters using MCMC.
 
-`preprofit` is embedded in [`JoXSZ`](https://github.com/fcastagna/JoXSZ), our complete program that allows to jointly fit the thermodynamic profiles of galaxy clusters from both SZ and X-ray data.
-
-As an example, we show the application of `preprofit` on the high-redshift cluster of galaxies SPT-CLJ0500-5116.
-
-PLEASE NOTE that the transfer function filtering method has been changed on March 30th, 2020.
+As an example, we show the application of `preprofit` on [...]
 
 ### Requirements
 `preprofit` requires the following:
