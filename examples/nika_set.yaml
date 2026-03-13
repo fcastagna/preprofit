@@ -1,25 +1,43 @@
-# Info about the cluster
+## Clusters
+# List of names
 clus: ["CLJ1227"]
+# Redshifts
 z: 0.89
+# Set r500 (in kpc)
 r500: 930
-# Beam and transfer function handling
-beam_and_tf: 0
-beam_approx: 0
+
+## Beam and transfer function
+# Do you have a file that applies both beam and transfer function filtering?
+beam_and_tf: False
+# Do you want to use a Gaussian approximation for the beam?
+beam_approx: False
+# If so, set the fwhm (in kpc)
 fwhm_beam: null
-step_data: null
-tf_approx: 0
-mystep: 2
+# Do you want to use an approximation for the transfer function?
+tf_approx: False
+
+# Set the sampling step (in kpc)
+mystep: 4
+# Set the maximum radius for radial profile computation (in kpc)
 maxr_data: 200
-tf_source_team: "NIKA"
-files_dir: "./data/nika/"
-beam_filename: "Beam150GHz.fits"
-tf_filename: "TransferFunction150GHz_CLJ1227.fits"
-flux_filename: "press_clj1226_flagsource.dat"
-convert_filename: "Compton_to_Jy_per_beam.dat"
-beam_units: ["arcsec", "beam"]
-tf_units: ["arcsec-1", ""]
-flux_units: ["arcsec", "mJy beam-1", "mJy beam-1"]
-conv_units: ["keV", "Jy beam-1"]
-savedir: "./examples/"
-plotdir: "./examples/"
-press_mod: "rcs"
+
+# Input files (set null if not required)
+files_dir: "./data/nika/" # directory
+beam_filename: "Beam150GHz.fits" # beam
+tf_filename: "TransferFunction150GHz_CLJ1227.fits" # transfer function
+flux_filename: "press_clj1226_flagsource.dat" # observed data
+convert_filename: "Compton_to_Jy_per_beam.dat" # conversion from surface brightness to observed data
+
+# Data units
+beam_units: ["arcsec", "beam"] # beam
+tf_units: ["arcsec-1", ""] # transfer function
+flux_units: ["arcsec", "mJy beam-1", "mJy beam-1"] # observed data
+conv_units: ["keV", "Jy beam-1"] # conversion from surface brightness to observed data
+
+# Pressure model (choose among "rcs", "gnfw", "plaw" and "cubspl")
+press_mod: "gnfw"
+pars_gnfw: ["P_0", "a", "b", "c", "r_p"] # which gnfw parameters do you want to fit?
+
+# Output directories
+plotdir: "./" # plots
+savedir: "./" # files
