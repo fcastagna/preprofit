@@ -18,7 +18,7 @@ class Pressure:
     """
     Class to parametrize the pressure profile
     -----------------------------------------
-    z = redshift of galaxy clusters
+    z = redshift of galaxy clusterscosmological model adopted
     cosmology = cosmological model adopted
     kpc_as = kpc to arcsec conversion factor
     eq_kpc_as = equation for switching between kpc and arcsec
@@ -166,7 +166,7 @@ class Press_gNFW(Pressure):
         h70 = self.cosmology.H0/(70*self.cosmology.H0.unit)
         if M500 is None:
             # Compute M500 from definition in terms of density and volume
-                M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
+            M500 = (4/3*np.pi*self.cosmology.critical_density(self.z)*500*r500.to(u.cm)**3).to(u.Msun)
         else:
             r500 = ((3/4*M500/(500.*self.cosmology.critical_density(self.z)*np.pi))**(1/3)).to(u.kpc)
         P0 = 8.403*h70**(-3/2) if P0 is None else P0
@@ -192,7 +192,7 @@ class Press_nonparam_plaw(Pressure):
         self.alpha = pt.ones_like(self.knots)
         self.alpha_den = [pt.log10(r[1:]/r[:-1]) for r in self.knots]
 
-    def prior(self, pars, r_kpc, i, decr_prior=False):
+    def prior(self, pars, r_kpc, i):
         """
         Checks accordance with prior constraints
         ----------------------------------------
@@ -202,10 +202,6 @@ class Press_nonparam_plaw(Pressure):
         """
         if self.slope_prior:
             pars = pt.as_tensor([10**p for p in pars])
-            if decr_prior: # doesn't seem to work
-                decr = pt.all(pt.diff(pars) < 0)
-                if not decr.eval():
-                    return pt.as_tensor([np.inf])
             P_n_1, P_n = pars[-2:]
             slope_out = pt.log10(P_n/P_n_1)/self.alpha_den[i][-1]
             cond = pt.gt(slope_out, self.max_slopeout)
@@ -291,7 +287,7 @@ class Press_cubspline(Pressure):
             out = ff._spline.derivative()(np.log10(r_kpc))[:,0]
         return out
 
-    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):#, sz=None):
+    def get_universal_params(self, r500=None, M500=None, c500=1.177, a=1.051, b=5.4905, c=0.3081, P0=None):
         """
         Apply the set of parameters of the universal pressure profile (Arnaud+10) based on either r500 or M500
         ------------------------------------------------------------------------------------------------------
@@ -306,7 +302,18 @@ class Press_cubspline(Pressure):
 
 def get_P500(x, cosmo, z, M500=3e14*u.Msun, mu=.59, mu_e=1.14, f_b=.175, alpha_P=1/.561-5/3):
     """
-    Compute P500 according to the definition in Equation (5) from Arnaud's paper
+    Compute P500 according to the definition in Equation (9) in Arnaud+10
+    ---------------------------------------------------------------------
+    x = scaled radii (r/r500)
+    cosmo = cosmological model adopted
+    z = redshift
+    M500 = overdensity mass
+    mu = mean molecular weight
+    mu_e = mean molecular weight per free electron
+    f_b = baryon fraction
+    alpha_P = exponential coefficient defined in Equation (7)
+    ---------------------------------------------------------------------
+    RETURN: P500 value
     """
     pconst = (mu/mu_e*f_b*3/8/np.pi*(500*const.G**(-1/4)*cosmo.H0**2/2)**(4/3)*(3e14*u.Msun)**(2/3)).to(u.keV/u.cm**3)
     alpha1_P = lambda x: .1-(alpha_P+.1)*(x/.5)**3/(1+(x/.5)**3)
@@ -318,8 +325,11 @@ def read_data(filename, ncol=1, units=u.Unit('')):
     """
     Universally read data from FITS or ASCII file
     ---------------------------------------------
+    filename = path to the file
     ncol = number of columns to read
     units = units in astropy.units format
+    ---------------------------------------------
+    RETURN: input data    
     """
     if len([units]) != ncol:
         try:
@@ -349,25 +359,6 @@ def read_data(filename, ncol=1, units=u.Unit('')):
             return data*units
         return list(map(lambda x, y: x*y, data[:ncol], np.array(units)))
 
-def read_beam(filename, ncol, units):
-    """
-    Read the beam data from the specified file up to the first negative or nan value
-    --------------------------------------------------------------------------------
-    filename = name of the file including the beam data
-    ncol = number of columns to read
-    units = units in astropy.units format
-    """
-    radius, beam_prof = read_data(filename, ncol=ncol, units=units)
-    if np.isnan(beam_prof).sum() > 0.:
-        first_nan = np.where(np.isnan(beam_prof))[0][0]
-        radius = radius[:first_nan]
-        beam_prof = beam_prof[:first_nan]
-    if beam_prof.min() < 0.:
-        first_neg = np.where(beam_prof < 0.)[0][0]
-        radius = radius[:first_neg]
-        beam_prof = beam_prof[:first_neg]
-    return radius, beam_prof
-
 def get_central(mat, side):
     """
     Get the central square of a matrix with given side. If side is even, automatically adopts the subsequent odd number
@@ -382,6 +373,13 @@ def get_central(mat, side):
     return mat[centre-side//2:centre+side//2+1, centre-side//2:centre+side//2+1]
 
 def turn_odd(mat):
+    """
+    If square matrix has even dimensions, turns them odd
+    ----------------------------------------------------
+    mat = matrix
+    ----------------------------------------------------
+    RETURN: reduced matrix
+    """
     posmax = np.unravel_index(mat.argmax(), mat.shape) # get index of maximum value
     if posmax == (0, 0):
         return ifftshift(fftshift(mat)[1:,1:])
@@ -392,8 +390,60 @@ def turn_odd(mat):
     else:
         raise RuntimeError('PreProFit is not able to automatically change matrix dimensions from even to odd. Please use an (odd x odd) matrix')
 
+def read_beam(filename, ncol, units):
+    """
+    Read the beam data from the specified file up to the first negative or nan value
+    --------------------------------------------------------------------------------
+    filename = path to the file
+    ncol = number of columns to read
+    units = units in astropy.units format
+    ---------------------------------------------
+    RETURN: input data    
+    """
+    radius, beam_prof = read_data(filename, ncol=ncol, units=units)
+    if np.isnan(beam_prof).sum() > 0.:
+        first_nan = np.where(np.isnan(beam_prof))[0][0]
+        radius = radius[:first_nan]
+        beam_prof = beam_prof[:first_nan]
+    if beam_prof.min() < 0.:
+        first_neg = np.where(beam_prof < 0.)[0][0]
+        radius = radius[:first_neg]
+        beam_prof = beam_prof[:first_neg]
+    return radius, beam_prof
+
+def dist(naxis):
+    """
+    Returns a matrix in which the value of each element is proportional to its frequency 
+    (https://www.harrisgeospatial.com/docs/DIST.html)
+    If you shift the 0 to the centre using fftshift, you obtain a symmetric matrix
+    ------------------------------------------------------------------------------------
+    naxis = number of elements per row and per column
+    -------------------------------------------------
+    RETURN: the (naxis x naxis) matrix
+    """
+    axis = np.linspace(-naxis//2+1, naxis//2, naxis)
+    result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
+    return np.roll(result, naxis//2+1, axis=(0, 1))
+
 def read_beam_data(step, filename, units, step_data=None, beam_xy=None, crop_image=None, cropped_side=None, out='beam'):
-    try: # 1D
+    """
+    Read beam from raw data (either 1D or 2D)
+    -----------------------------------------
+    step = binning step 
+    filename = path to the file
+    units = units in astropy.units format
+    step_data = if beam data has no explicit radii, specify binning step  
+    beam_xy = if 2D, grid of radii
+    crop_image = whether to crop or not the original 2D image
+    cropped_side = side of the cropped image
+    out = required output (either 'fwhm' or 'beam')
+    -----------------------------------------
+    RETURN: 
+        fwhm_beam = if out=='fwhm', returns the fwhm of input data
+        freq_2d, beam_2d = otherwise, returns 2D frequency matrix and 2D beam
+    """    
+    try: 
+        # 1D
         r_irreg, b = read_beam(filename, ncol=2, units=units)
         f = interp1d(np.append(-r_irreg, r_irreg), np.append(b, b), 'cubic', bounds_error=False, fill_value=(0., 0.))
         inv_f = lambda x: f(x)-f(0.)/2
@@ -404,7 +454,8 @@ def read_beam_data(step, filename, units, step_data=None, beam_xy=None, crop_ima
         b = multivariate_normal([0,0], sigma_beam**2).pdf(beam_xy)
         freq_2d = dist(b.shape[0])/b.shape[0]/step
         return freq_2d, np.abs(fft2(b)*step**2)
-    except: # 2D
+    except: 
+        # 2D
         b = read_data(filename, ncol=1, units=np.atleast_2d(units)[0][0])
         freq_2d_inp = dist(b.shape[0])/b.shape[0]/step_data
         if b.shape[0]%2 == 0:
@@ -415,33 +466,37 @@ def read_beam_data(step, filename, units, step_data=None, beam_xy=None, crop_ima
         gt_ = interp1d(freq_2d_inp[0,:b.shape[0]//2+1], tf1dfrom2d, 'cubic', bounds_error=False, fill_value=(tf1dfrom2d[0], tf1dfrom2d[-1]))
         side = cropped_side if crop_image else b.shape[0]
         freq_2d = dist(side)/side/step
-        return freq_2d, gt_(freq_2d)
-    
+        return freq_2d, gt_(freq_2d)*u.Unit('')
+
 def filtering(step, eq_kpc_as, maxr_data=None, lenr=None, beam_and_tf=False, approx=False, 
               filename=None, units=[u.arcsec, u.beam], crop_image=False, cropped_side=None, 
               fwhm_beam=None, step_data=None, w_tf_1d=None, tf_1d=None, plotdir='./'):
     """
     Set the 2D image for the beam + transfer function filtering, 
     alternatively from file data or from a normal distribution with given FWHM
-    --------------------------------------------------------------------------------------------------------
+    --------------------------------------------------------------------------
     step = binning step (reference unit)
-    maxr_data = highest radius in the data
     eq_kpc_as = equation for switching between kpc and arcsec
-    beam_and_tf = whether the beam already includes the transfer function filtering (boolean, default is False)
-    approx = whether to approximate or not the beam to the normal distribution (boolean, default is False)
-    filename = name of the file including the beam data
+    maxr_data = maximum radius for radial profile computation
+    lenr = if maxr_data is not specified, set length of radius array 
+    beam_and_tf = whether the beam already includes the transfer function filtering
+    approx = whether to approximate or not the beam to the normal distribution
+    filename = path to the file
     units = units in astropy.units format
-    crop_image = whether to crop or not the original 2D image (default is False)
-    cropped_side = side of the cropped image (in pixels, default is None)
+    crop_image = whether to crop or not the original 2D image
+    cropped_side = side of the cropped image
     fwhm_beam = Full Width at Half Maximum
-    step_data =
-    w_tf_1d = 
-    tf_1d = 
-    -------------------------------------------------------------------
-    RETURN: the 2D image of the beam and the Full Width at Half Maximum
+    step_data = if beam data has no explicit radii, specify binning step  
+    w_tf_1d = 1D transfer function data (frequency)
+    tf_1d = 1D transfer function data (transfer function)
+    --------------------------------------------------------------------------
+    RETURN: 
+        freq_2d = matrix of frequencies
+        fft_beam = matrix for beam filtering
+        filtering = matrix for beam+tf filtering
     """
     if fwhm_beam is None:
-        fwhm_beam = read_beam_data(step, filename, units, out='fwhm')
+        fwhm_beam = read_beam_data(step, filename, units, step_data, out='fwhm')
     fwhm_beam = fwhm_beam.to(step.unit, equivalencies=eq_kpc_as)
     if maxr_data is not None:
         # set outermost radius 3xfwhm_beam larger than the largest radius of observed data
@@ -476,8 +531,8 @@ def centdistmat(r, offset=0.):
     Create a symmetric matrix of distances from the radius vector
     -------------------------------------------------------------
     r = vector of negative and positive distances with a given step (center value has to be 0)
-    offset = value to be added to every distance in the matrix (default is 0)
-    ---------------------------------------------
+    offset = value to be added to every distance in the matrix
+    -------------------------------------------------------------
     RETURN: the matrix of distances centered on 0
     """
     x, y = np.meshgrid(r, r)
@@ -487,9 +542,11 @@ def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., s
     """
     Read the transfer function data from the specified file
     -------------------------------------------------------
-    approx = whether to approximate or not the tf to the normal cdf (boolean, default is False)
+    filename = path to the file
+    tf_units = units in astropy.units format
+    approx = whether to approximate or not the tf to the normal cdf
     loc, scale, k = location, scale and normalization parameters for the normal cdf approximation
-    ---------------------------------------------------------------------------------------------
+    -------------------------------------------------------
     RETURN: the vectors of wave numbers and transmission values
     """
     wn, tf = read_data(filename, ncol=2, units=tf_units) # wave number, transmission
@@ -499,43 +556,6 @@ def read_tf(filename, tf_units=[1/u.arcsec, u.Unit('')], approx=False, loc=0., s
     if approx:
         tf = k*norm.cdf(wn, loc, scale)
     return wn_as, tf
-
-def dist(naxis):
-    """
-    Returns a matrix in which the value of each element is proportional to its frequency 
-    (https://www.harrisgeospatial.com/docs/DIST.html)
-    If you shift the 0 to the centre using fftshift, you obtain a symmetric matrix
-    ------------------------------------------------------------------------------------
-    naxis = number of elements per row and per column
-    -------------------------------------------------
-    RETURN: the (naxis x naxis) matrix
-    """
-    axis = np.linspace(-naxis//2+1, naxis//2, naxis)
-    result = np.sqrt(axis**2+axis[:,np.newaxis]**2)
-    return np.roll(result, naxis//2+1, axis=(0, 1))
-
-def filt_image(wn_as, tf, tf_source_team, side, step, eq_kpc_as):
-    """
-    Create the 2D filtering image from the transfer function data
-    -------------------------------------------------------------
-    wn_as = vector of wave numbers
-    tf = transmission data
-    tf_source_team = transfer function provenance ('NIKA', 'MUSTANG', or 'SPT')
-    side = one side length for the output image
-    step = binning step
-    eq_kpc_as = equation for switching between kpc and arcsec
-    -------------------------------
-    RETURN: the (side x side) image
-    """
-    if not tf_source_team in ['NIKA', 'MUSTANG', 'SPT']:
-        raise RuntimeError('Accepted values for tf_source_team are: NIKA, MUSTANG, SPT')
-    f = interp1d(wn_as, tf, 'cubic', bounds_error=False, fill_value=tuple([tf[0], tf[-1]])) # tf interpolation
-    kmax = 1/(step.to(wn_as.unit**-1, equivalencies=eq_kpc_as))
-    karr = (dist(side)/side)*u.Unit('')
-    if tf_source_team == 'NIKA':
-        karr /= karr.max()
-    karr *= kmax
-    return f(karr)*tf.unit
 
 class abel_data:
     """
@@ -573,24 +593,8 @@ class distances:
         self.indices = np.tril_indices(sep+1) # position indices of unique values within the matrix of distances
         self.d_arr = [d[sep:,sep:][self.indices] for d in self.d_mat] # array of unique values within the matrix of distances
         self.labels = [np.rint(self.d_mat[i]*u.kpc.to(step.unit, equivalencies=eq_kpc_as)[i]/step.value).astype(int) for i in 
-                       range(len(self.d_mat))]# labels indicating different annuli within the matrix of distances
+                       range(len(self.d_mat))] # labels indicating different annuli within the matrix of distances
     
-def interp_mat(mat, indices, func, sep):
-    """
-    Quick interpolation on a radially symmetric matrix
-    --------------------------------------------------
-    mat = empty matrix to fill in with interpolated values
-    indices = indices of unique values in the matrix of distances
-    func = interpolation function
-    sep = index of radius 0
-    """
-    mat[sep:,sep:][indices] = func
-    mat[sep:,sep:][indices[::-1]] = func
-    mat[sep:,:sep+1] = np.fliplr(mat[sep:,sep:])
-    mat[:sep+1,sep:] = np.transpose(mat[sep:,:sep+1])
-    mat[:sep+1,:sep+1] = np.fliplr(mat[:sep+1,sep:])
-    return mat
-
 class SZ_data:
     """
     Class for the SZ data required for the analysis
@@ -603,10 +607,11 @@ class SZ_data:
     radius = array of radii in arcsec
     sep = index of radius 0
     r_pp = radius in kpc used to compute the pressure profile
+    dist = class of distances data
     filtering = transfer function matrix
     abel_data = collection of data required for Abel transform calculation
     """
-    def __init__(self, clus, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, r_am, filtering):
+    def __init__(self, clus, step, eq_kpc_as, conv_temp_sb, flux_data, radius, sep, r_pp, filtering):
         self.clus = clus
         self.step = step
         self.eq_kpc_as = eq_kpc_as
@@ -616,13 +621,17 @@ class SZ_data:
         self.sep = sep
         self.r_pp = r_pp
         self.r_red = [10**np.linspace(np.log10(r.value)[0], np.log10(r.value)[-1], r.size//5)*r.unit for r in r_pp]
-        self.r_am = r_am
         self.dist = distances(radius, sep, step, eq_kpc_as)
         self.filtering = filtering
         self.abel_data = [abel_data(r.value) for r in self.r_red]
 
 def add_attrs(press, nc, sz):
     """
+    Add required attributes for the pressure class
+    ----------------------------------------------
+    press = pressure profile class
+    nc = number of clusters analyzed 
+    sz = class with SZ data
     """
     if type(press) == Press_nonparam_plaw:
         press.ind_low = [np.maximum(0, np.digitize(sz.r_pp[i].value, press.knots[i])-1) for i in range(nc)] # lower bins indexes
@@ -653,21 +662,3 @@ def add_attrs(press, nc, sz):
             - (press.kn[-2] - press.kn[:press.N[0], None]) * (press.x_row[i] > press.kn[-1]) * (press.x_row[i] - press.kn[-1])**3
         ) for i in range(nc)]
         press.svr = [press.gt_mask_x[i] * press.diff_x[i]**3 - press.last_term[i] for i in range(nc)]
-
-def sort_z(ind_z, sz, press):
-    sz.clus = [sz.clus[i] for i in ind_z]
-    sz.flux_data = [sz.flux_data[i] for i in ind_z]    
-    sz.r_pp = [sz.r_pp[i] for i in ind_z]
-    sz.r_red = [sz.r_red[i] for i in ind_z]
-    sz.dist.d_arr = [sz.dist.d_arr[i] for i in ind_z]
-    sz.dist.d_mat = [sz.dist.d_mat[i] for i in ind_z]
-    sz.dist.labels = [sz.dist.labels[i] for i in ind_z]
-    sz.abel_data = [sz.abel_data[i] for i in ind_z]
-    press.z = press.z[ind_z]
-    press.kpc_as = press.kpc_as[ind_z]
-    press.knots = press.knots[ind_z]
-    press.r_out = press.r_out[ind_z]
-    press.P500 = [press.P500[i] for i in ind_z]
-    press.r500 = [press.r500[i] for i in ind_z]
-    return sz, press
-
