@@ -7,13 +7,18 @@ tags:
 
 authors:
   - name: Fabio Castagna
+
     orcid: 0000-0003-1324-9641
-    affiliation: "1"  
+
+    affiliation: "1"
+    
   - name: Stefano Andreon
+
     affiliation: "1"  
 
 affiliations:
  - name: INAF-Osservatorio Astronomico di Brera, via Brera 28, 20121 Milano, Italy
+
    index: 1
 
 date: 14 March 2026
