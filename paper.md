@@ -2,7 +2,7 @@
 title: 'Hierarchical `PreProFit`: multi-object, multi-instrument, multi-parameterization fitting of cluster pressure profiles and population properties'
 tags:
   - Python
-  - 
+  - astronomy
 authors:
   - name: Fabio Castagna
     orcid: 0000-0003-1324-9641
