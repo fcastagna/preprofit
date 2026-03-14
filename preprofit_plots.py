@@ -44,7 +44,7 @@ def tf_diagnostic_plot(w_tf_1d, tf_1d, freq_2d, tf_2d, fsize=13, plotdir='./'):
     pdf.close()
 
 def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
-    '''
+    """
     Modeled profile resulting from starting parameters VS observed data
     -------------------------------------------------------------------
     out_prof = modeled profile
@@ -52,7 +52,7 @@ def plot_guess(out_prof, sz, press, fact=1, plotdir='./'):
     press = pressure profile class
     fact = y-axis multiplicative factor
     plotdir = directory for the plot
-    '''
+    """
     plt.clf()
     pdf = PdfPages(plotdir+'starting_guess.pdf')
     for i in range(len(sz.flux_data)):
@@ -122,7 +122,7 @@ def traceplot(trace, prs, prs_ext, fact_ped=1, compact=False, ppp=5, div=None, f
     trace.posterior['peds'] /= fact_ped
 
 def fitwithmod(sz, perc_sz, rbins=None, peds=None, fact=1, ci=95, fsize=13, plotdir='./'):
-    '''
+    """
     Surface brightness profile (points with error bars) and best fitting profile with uncertainties
     -----------------------------------------------------------------------------------------------
     sz = class of SZ data
@@ -133,7 +133,7 @@ def fitwithmod(sz, perc_sz, rbins=None, peds=None, fact=1, ci=95, fsize=13, plot
     ci = uncertainty level of the interval
     fsize = fontsize
     plotdir = directory for the plot
-    '''
+    """
     pdf = PdfPages(plotdir+'fit_on_data.pdf')
     for i in range(len(sz.flux_data)):
         plt.clf()
@@ -155,18 +155,18 @@ def fitwithmod(sz, perc_sz, rbins=None, peds=None, fact=1, ci=95, fsize=13, plot
     pdf.close()
 
 def get_equal_tailed(data, ci=68, axis=0):
-    '''
+    """
     Computes the median and lower/upper limits of the equal tailed uncertainty interval
     -----------------------------------------------------------------------------------
     ci = uncertainty level of the interval
     ----------------------------------------
     RETURN: lower bound, median, upper bound
-    '''
+    """
     low, med, upp = map(np.atleast_1d, np.percentile(data, [50-ci/2, 50, 50+ci/2], axis=axis))
     return np.array([low, med, upp])
 
 def triangle(mat_chain, param_names, tit=None, fact_ped=1, show_lines=True, show_summ=True, col_lines='r', ci=95, labsize=25., fsize=14., titsize=15., plotdir='./'):
-    '''
+    """
     Univariate and multivariate distribution of the parameters in the MCMC
     ----------------------------------------------------------------------
     mat_chain = 2d array of sampled values ((nw x niter) x nparam)
@@ -181,7 +181,7 @@ def triangle(mat_chain, param_names, tit=None, fact_ped=1, show_lines=True, show
     fsize = ticks size
     titsize = titles font size
     plotdir = directory for the plot
-    '''
+    """
     pdf = PdfPages(plotdir+'cornerplot.pdf')
     plt.clf()
     param_latex = [['$%s%s$' % ('\\' if pj[:5]=='sigma' else '', pj) for pj in p] for _, p in enumerate(param_names)]
@@ -219,7 +219,7 @@ def triangle(mat_chain, param_names, tit=None, fact_ped=1, show_lines=True, show
     pdf.close()
 
 def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=None, plotdir='./'):
-    '''
+    """
     Plot the radial pressure profiles
     ---------------------------------
     r_kpc = radius (kpc)
@@ -229,7 +229,7 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=N
     ci = uncertainty level of the interval
     rbins = array of knots
     plotdir = directory for the plot
-    '''
+    """
     plt.style.use('classic')
     font = {'size': 10}
     plt.rc('font', **font)
@@ -254,14 +254,14 @@ def plot_press(r_kpc, press_prof, clus, xmin=np.nan, xmax=np.nan, ci=95, rbins=N
     pdf.close()
 
 def hist_slopes(slopes, clus, ci=95, plotdir='./'):
-    '''
+    """
     Plot the histogram of the outer slopes posterior distribution
     -------------------------------------------------------------
     slopes = array of slopes
     clus = list of cluster names
     ci = uncertainty level of the interval
     plotdir = directory for the plot
-    '''
+    """
     pdf = PdfPages(plotdir+'outer_slopes.pdf')
     for _ in range(len(slopes)):
         plt.clf()
